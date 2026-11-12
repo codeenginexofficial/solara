@@ -315,6 +315,25 @@ Rules:
 
 Use Proj4js for coordinate transformations where appropriate and OpenLayers custom projections for mapping. The exact working projection must be selected after auditing the chosen source products, not guessed in advance.
 
+### 6.1 Verified CRS resolution — Jezero CTX Trek layer (Milestone 0.1)
+
+The NASA Trek WMTS document for the Jezero CTX mosaic declares `urn:ogc:def:crs:EPSG::104905` (as TileMatrixSet `SupportedCRS` and as the Layer `BoundingBox` crs attribute). Investigation on 2026-11-12 found that this URN does **not** resolve to the projected CRS the service actually serves:
+
+- The official EPSG registry (apps.epsg.org) has **no** CRS 104905 (API returns 404). EPSG has not adopted planetary CRS definitions (LPSC 2025 abstract #1659).
+- Under the **ESRI** authority, code 104905 is `ESRI:104905 "Mars 2000"` (`GCS_Mars_2000`) — a **geographic** CRS on the Mars 2000 ellipsoid (a = 3,396,190 m, 1/f = 169.894…), not a projected equirectangular CRS.
+
+What the service actually serves was verified numerically (Milestone 0): an equirectangular (plate carrée) projection on the **Mars sphere**, R = 3,396,190 m, standard parallel 0°, natural origin 0°, false easting/northing 0, metre units. This matches the parameters of **IAU:2015:49910** ("Mars (2015) - Sphere / Equirectangular, clon = 0", official WKT2 from the IAU 2015 CRS registry; base geographic CRS IAU:2015:49900, anchor: Viking 1 lander at 47.95137°W). PROJ's own export of IAU:2015:49910 is exactly `+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs`, and the mosaic footprint matched this sphere math at all four advertised bounding-box edges.
+
+Consequently:
+
+- SOLARA uses **internal identifiers**, which make no authority claim:
+  - `SOLARA:MARS_EQC_IAU2015` — the working projected CRS (metres).
+  - `SOLARA:MARS_2000_SPHERE_LONLAT` — geographic lon/lat helper (degrees).
+- The declared URN is preserved verbatim as **source metadata** in the catalog and capabilities parser, but SOLARA never presents its working projection as "EPSG:104905".
+- On the IAU 2015 sphere, latitudes are planetocentric; planetocentric and planetographic latitudes are numerically identical on a sphere. Longitudes are east-positive.
+
+The WMTS **tile matrix** itself is a degree-based plate carrée pyramid (TopLeftCorner −180°, 90°; 256×256 tiles; matrix sizes 2^(L+1) × 2^L), which is inconsistent with its metre-based declared CRS. The declared `ScaleDenominator` values are also inconsistent with the Mars sphere (they imply ~111,268 m per degree). SOLARA therefore derives tile resolutions from the verified matrix geometry (`resolutionMetres(L) = (360 / (matrixWidth(L) × tileWidth)) × 2πR/360` → level 13 ≈ 5.087 m/px) and converts the degree-based grid to working-projection metres analytically. A further implementation note: proj4's eqc forward transform flips the sign of y at exactly ±90° latitude (verified on proj4 2.22.0), so pole coordinates (grid origin, world extent) are computed analytically as ±πR/2.
+
 ## 7. Map and layer architecture
 
 OpenLayers owns map rendering and map interactions. React owns the surrounding application UI.
@@ -338,6 +357,28 @@ Layer types should be selected according to the real service or prepared asset:
 - GeoJSON or another suitable vector tile format for geology, rover traverses, and waypoints.
 
 Do not claim a NASA endpoint is usable until a real request has been tested from the application environment.
+
+### 7.1 Tile loading and failure semantics (Milestone 0.1)
+
+Trek CTX tiles use a fetch-based tile loader (the pattern documented by OpenLayers) so that HTTP status and response content type can be recorded per tile before the tile enters the error state. Failure kinds are classified as `http-404`, `http-server`, `http-other`, `network-error`, `invalid-response`, or `unknown`. Successful responses are decoded from blob URLs (fetch satisfies CORS; blob URLs keep the map canvas untainted) and revoked after load.
+
+The map combines the per-tile failure kind with the advertised mosaic footprint:
+
+- A tile whose extent lies fully **outside** the advertised footprint (the verified service behaviour: HTTP 404) is **expected no-data**. It is counted separately and must not make the map look broken or trigger error styling.
+- Any failure **inside** the footprint (404 where imagery should exist, 5xx, network failure, non-image response) is a **genuine failure** and is always surfaced to the user with its cause.
+
+Tile counters are per view state: they reset on resolution change (a different tile-pyramid level is requested) and keep accumulating while panning within a level. While the first tiles are still loading, an explicit loading presentation is shown instead of an empty map.
+
+### 7.2 Live verification vs verified snapshot (Milestone 0.1)
+
+The map is always built from the **verified snapshot configuration** embedded in the code — never from the live capabilities document at runtime. A separate, non-blocking live check re-fetches the Trek capabilities document and compares a grid fingerprint against the snapshot:
+
+- `checking` — re-verification in progress; map already displays.
+- `live` — live document matches the verified configuration.
+- `schema-changed` — live document differs; snapshot remains in use and the discrepancy is reported.
+- `unavailable` — live check failed (network, non-200, invalid content); snapshot remains in use and tile requests still go to the live service, so outages surface as classified tile errors.
+
+The UI must never claim reachability that has not been confirmed, and a temporary capabilities outage must never prevent the map from displaying.
 
 ## 8. Terrain analysis and route planning
 
@@ -566,7 +607,7 @@ Do not label a historical MEDA observation as the current weather at the astrona
 - Load only datasets and extents required for the current view.
 - Use tiling, overviews, or cropped regional assets for large rasters.
 - Do not fetch global high-resolution data for a local route.
-- Use lazy loading for major application workspaces.
+- Use lazy loading for major application workspaces. (Implemented in Milestone 0.1: the OpenLayers-based map workspace is code-split via React.lazy + Suspense so the initial shell loads without the map engine chunk.)
 - Keep OpenLayers objects outside React state.
 - Use Web Workers for A* and expensive raster calculations.
 - Avoid repeatedly parsing large rasters on the main thread.

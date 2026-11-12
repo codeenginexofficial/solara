@@ -1,10 +1,11 @@
 /**
- * StatusBar — bottom bar: pointer coordinates, projection identifier,
+ * StatusBar — bottom bar: pointer coordinates, working-projection identifier,
  * zoom/resolution information, and active dataset status (Design.md §5).
  */
 
 import type { MapLocation, SourceStatus, ViewInfo } from '../../../map/mapTypes';
 import type { DatasetRecord, VerificationStatus } from '../../../data/catalog/types';
+import { MARS_EQUIRECTANGULAR, PROJECTION_INFO } from '../../../map/projections/ProjectionRegistry';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon, formatResolution } from '../../../lib/format';
 
@@ -34,8 +35,12 @@ export function StatusBar({ pointerLocation, viewInfo, dataset, sourceStatus }: 
 
       <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-edge" />
 
-      <span className="shrink-0" title="Map projection">
-        EPSG:104905
+      <span
+        className="shrink-0 font-mono"
+        title={`${PROJECTION_INFO[MARS_EQUIRECTANGULAR].label} — declared by the source as urn:ogc:def:crs:EPSG::104905 (which does not resolve under the EPSG authority); see the dataset panel`}
+        data-testid="status-crs"
+      >
+        {MARS_EQUIRECTANGULAR}
       </span>
       <span className="hidden shrink-0 text-ink-subtle sm:inline" title="Working projection units">
         metres
@@ -65,7 +70,7 @@ export function StatusBar({ pointerLocation, viewInfo, dataset, sourceStatus }: 
             sourceStatus.capabilities === 'live' && 'bg-ok',
             sourceStatus.capabilities === 'checking' && 'bg-ink-subtle',
             sourceStatus.capabilities === 'schema-changed' && 'bg-warn',
-            sourceStatus.capabilities === 'unavailable' && 'bg-danger',
+            sourceStatus.capabilities === 'unavailable' && 'bg-warn',
           )}
         />
         {dataset ? `${dataset.instrument ?? dataset.id}: ${DATASET_STATUS_TEXT[dataset.verification]}` : 'No active dataset'}

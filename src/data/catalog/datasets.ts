@@ -19,19 +19,23 @@
  *    east 77.6991776, south 18.2110274 in lon/lat degrees).
  *  - High-zoom tile at the Perseverance "Octavia E. Butler" landing site
  *    area (18.4447N, 77.4508E) shows controlled-mosaic terrain content.
+ *
+ * CRS authority investigation (2026-11-12, Milestone 0.1) — see
+ * map/projections/ProjectionRegistry.ts and Architecture.md §6:
+ *  - Trek declares urn:ogc:def:crs:EPSG::104905, but the official EPSG
+ *    registry has no CRS 104905, and under the ESRI authority code 104905
+ *    denotes the geographic "Mars 2000" CRS (GCS_Mars_2000) — not the
+ *    projected CRS this layer is served in.
+ *  - The served projection was verified numerically as equirectangular on
+ *    the Mars sphere (R = 3,396,190 m), equivalent to IAU:2015:49910
+ *    ("Mars (2015) - Sphere / Equirectangular, clon = 0"). SOLARA renders
+ *    with the internal id SOLARA:MARS_EQC_IAU2015.
  */
 
 import type { DatasetRecord, RegionRecord } from './types';
 
 export const TREK_CAPABILITIES_URL =
   'https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/WMTSCapabilities.xml';
-
-/**
- * Mars 2000 sphere parameters used by EPSG:104905 (IAU 2015 Mars /
- * Equirectangular). Radius is part of the published CRS definition and is
- * consistent with the research metadata for this Trek layer.
- */
-export const MARS_2000_SPHERE_RADIUS_M = 3_396_190;
 
 export const JEZERO_CTX_DATASET: DatasetRecord = {
   id: 'jezero-ctx-mosaic-soc-008',
@@ -51,17 +55,22 @@ export const JEZERO_CTX_DATASET: DatasetRecord = {
     'https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0//default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.png',
   spatialReference: {
     body: 'Mars',
-    authority: 'EPSG (IAU 2015 planetary CRS registry), as declared by NASA Trek',
+    authority:
+      'Declared by Trek as urn:ogc:def:crs:EPSG::104905. That URN does not resolve under the ' +
+      'EPSG authority (the EPSG registry has no CRS 104905; ESRI:104905 denotes the geographic ' +
+      'Mars 2000 CRS). The served projection is numerically equivalent to IAU:2015:49910 ' +
+      '(Mars (2015) - Sphere / Equirectangular, clon = 0); SOLARA renders with the internal id ' +
+      'SOLARA:MARS_EQC_IAU2015.',
     proj4:
       '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs',
-    datum: 'Mars 2000 sphere, mean radius 3,396,190 m',
+    datum: 'Mars sphere, R = 3,396,190 m (IAU 2015; anchor: Viking 1 lander, 47.95137°W)',
     coordinateSystem:
-      'Equirectangular (equidistant cylindrical), standard parallel 0°, central meridian 0°, projected units metres',
+      'Equirectangular (Equidistant Cylindrical, EPSG method 1028), standard parallel 0°, central meridian 0°, false easting/northing 0, projected units metres',
     latitudeType: 'planetocentric',
     longitudeDirection: 'east',
     units: 'degrees (geographic lon/lat), metres (projected working projection)',
     sourceDefinition:
-      'urn:ogc:def:crs:EPSG::104905 — declared in the WMTS TileMatrixSet SupportedCRS and Layer BoundingBox',
+      'urn:ogc:def:crs:EPSG::104905 — declared verbatim by Trek (SupportedCRS and Layer BoundingBox). Preserved as source metadata; SOLARA does not use it as its working projection id.',
   },
   coverageDescription:
     'lon 77.1604655°E – 77.6991776°E, lat 18.2110274°N – 18.7211945°N ' +

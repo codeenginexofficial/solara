@@ -8,18 +8,26 @@
  * used when the live document cannot be fetched from the browser; the live
  * document is always preferred and is re-validated with the same parser.
  *
- * Important verified quirk of this Trek service:
- *  - The TileMatrixSet declares SupportedCRS urn:ogc:def:crs:EPSG::104905
- *    (metre-based Mars equirectangular), but the tile matrix values are
- *    expressed in DEGREES: TopLeftCorner is (-180, 90) and the grid spans the
- *    full globe (360° × 180°) with 256×256 tiles and matrix sizes
- *    2^(L+1) × 2^L. The declared ScaleDenominator values are also
- *    inconsistent with the Mars sphere (they imply ~111,268 m per degree).
- *    SOLARA therefore derives tile resolutions from the matrix geometry and
- *    the verified Mars sphere radius — see map/trek/tileGrid.ts.
+ * Verified quirks of this Trek service:
+ *  - The document declares the CRS URN urn:ogc:def:crs:EPSG::104905 (both as
+ *    TileMatrixSet SupportedCRS and as the Layer BoundingBox crs attribute).
+ *    That URN does NOT resolve under the EPSG authority (the official EPSG
+ *    registry has no CRS 104905; ESRI:104905 denotes the *geographic* Mars
+ *    2000 CRS). SOLARA records the declared URN verbatim as source metadata
+ *    but renders with the internal projection SOLARA:MARS_EQC_IAU2015,
+ *    verified numerically equivalent to IAU:2015:49910 — see
+ *    map/projections/ProjectionRegistry.ts and Architecture.md §6.
+ *  - The tile matrix values are expressed in DEGREES despite the metre-based
+ *    declared CRS: TopLeftCorner is (-180, 90) and the grid spans the full
+ *    globe (360° × 180°) with 256×256 tiles and matrix sizes 2^(L+1) × 2^L.
+ *    The declared ScaleDenominator values are inconsistent with the Mars
+ *    sphere (they imply ~111,268 m per degree). SOLARA therefore derives
+ *    tile resolutions from the matrix geometry and the verified Mars sphere
+ *    radius — see map/trek/tileGrid.ts.
  */
 
 import type { GeographicBoundingBox } from '../../data/catalog/types';
+import { TREK_DECLARED_CRS_URN } from '../projections/ProjectionRegistry';
 
 /**
  * WMTS / OWS namespaces used by the Trek capabilities document.
@@ -137,10 +145,12 @@ export function parseTrekCapabilitiesXml(xml: string): TrekWmtsConfig {
 
   /* --- Tile matrix set ------------------------------------------------ */
   const supportedCrs = textContentOf(firstByTag(matrixSetEl, OWS_NS, 'SupportedCRS'));
-  // Verified source CRS for this product: IAU 2015 Mars equirectangular.
-  if (!supportedCrs.includes('104905')) {
+  // The declared URN must match the verified source declaration exactly.
+  // (See the header: the URN is a Trek mis-declaration; it is preserved as
+  // source metadata, not used as the working projection id.)
+  if (supportedCrs !== TREK_DECLARED_CRS_URN) {
     throw new TrekCapabilitiesError(
-      `Unexpected SupportedCRS "${supportedCrs}" — expected EPSG::104905. Refusing to render unverified CRS data.`,
+      `Unexpected SupportedCRS "${supportedCrs}" — expected the verified declaration "${TREK_DECLARED_CRS_URN}". Refusing to render unverified CRS data.`,
     );
   }
 
@@ -234,6 +244,12 @@ export function parseTrekCapabilitiesXml(xml: string): TrekWmtsConfig {
   const bboxEl = firstByTag(layerEl, OWS_NS, 'BoundingBox');
   if (!bboxEl) {
     throw new TrekCapabilitiesError('Layer declares no BoundingBox.');
+  }
+  const bboxCrs = bboxEl.getAttribute('crs') ?? '';
+  if (bboxCrs !== TREK_DECLARED_CRS_URN) {
+    throw new TrekCapabilitiesError(
+      `Unexpected BoundingBox crs "${bboxCrs}" — expected the verified declaration "${TREK_DECLARED_CRS_URN}".`,
+    );
   }
   const lower = cornerPair(bboxEl, OWS_NS, 'LowerCorner');
   const upper = cornerPair(bboxEl, OWS_NS, 'UpperCorner');

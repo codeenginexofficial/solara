@@ -7,7 +7,8 @@
  * with the Mars sphere (see trekCapabilities.ts). Instead, the degree-per-
  * pixel resolution of each level is derived from the verified matrix geometry
  * (each level spans the full 360° of longitude) and converted to the exact
- * metre scale of EPSG:104905 (x = R·λ on the Mars 2000 sphere):
+ * metre scale of the working projection SOLARA:MARS_EQC_IAU2015 (x = R·λ on
+ * the Mars 2000 sphere):
  *
  *   resolutionDeg(L) = 360° / (matrixWidth(L) × tileWidth)
  *   resolutionMetres(L) = resolutionDeg(L) × (2πR / 360)
@@ -29,18 +30,18 @@ import {
 
 export interface MetreTileGridResult {
   tileGrid: WMTSTileGrid;
-  /** Tile resolutions in metres per pixel (EPSG:104905). */
+  /** Tile resolutions in metres per pixel (working projection). */
   resolutions: number[];
-  /** Grid origin in EPSG:104905 metres (top-left of the global grid). */
+  /** Grid origin in working-projection metres (top-left of the global grid). */
   origin: [number, number];
-  /** Full global extent in EPSG:104905 metres. */
+  /** Full global extent in working-projection metres. */
   worldExtent: [number, number, number, number];
 }
 
 export function buildMetreTileGrid(config: TrekWmtsConfig): MetreTileGridResult {
   const first = config.matrices[0]!;
   // Grid origin: TopLeftCorner of level 0, converted from degrees to
-  // EPSG:104905 metres. Validated to be (-180°, 90°) by the parser.
+  // working-projection metres. Validated to be (-180°, 90°) by the parser.
   //
   // Known proj4 quirk (verified empirically on proj4 2.22.0, 2026-11-12):
   // the eqc forward transform flips the sign of y at exactly ±90° latitude

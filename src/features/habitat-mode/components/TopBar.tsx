@@ -10,12 +10,17 @@ import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 import { formatUtcTime } from '../../../lib/format';
 
+/**
+ * Labels for the live capabilities verification state. The map itself always
+ * renders from the verified snapshot configuration; these labels describe
+ * only whether the LIVE document was re-verified successfully — never claim
+ * reachability that has not been confirmed.
+ */
 const STATUS_TEXT: Record<CapabilitiesStatus, { label: string; tone: 'neutral' | 'ok' | 'warn' | 'danger' }> = {
-  checking: { label: 'Checking source', tone: 'neutral' },
-  live: { label: 'Source reachable', tone: 'ok' },
-  cached: { label: 'Using verified snapshot', tone: 'neutral' },
-  'schema-changed': { label: 'Metadata changed', tone: 'warn' },
-  unavailable: { label: 'Source unreachable', tone: 'danger' },
+  checking: { label: 'Verifying live source', tone: 'neutral' },
+  live: { label: 'Live source verified', tone: 'ok' },
+  'schema-changed': { label: 'Live config changed — snapshot in use', tone: 'warn' },
+  unavailable: { label: 'Live check failed — snapshot in use', tone: 'warn' },
 };
 
 export interface TopBarProps {

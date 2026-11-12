@@ -46,10 +46,12 @@ import {
   TrekCapabilitiesError,
 } from './trek/trekCapabilities';
 import { gridFingerprint } from './trek/tileGrid';
-import { createTrekWmtsLayer } from './layers/createWmtsLayer';
+import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
+import { intersects } from 'ol/extent.js';
 import type {
   MapLocation,
   SourceStatus,
+  TileFailureKind,
   TileStats,
   ViewInfo,
 } from './mapTypes';
@@ -72,6 +74,16 @@ export interface MarsMapHandle {
 }
 
 const VIEW_PADDING_PX = 48;
+
+/** Human-readable cause for the most recent genuine tile failure. */
+const FAILURE_DESCRIPTION: Record<TileFailureKind, string> = {
+  'http-404': 'HTTP 404 inside the advertised footprint (tile missing from the source)',
+  'http-server': 'server error (HTTP 5xx)',
+  'http-other': 'unexpected HTTP error',
+  'network-error': 'request did not complete (network failure)',
+  'invalid-response': 'response was not tile imagery',
+  unknown: 'cause not determined',
+};
 
 function bboxToMetresExtent(bbox: {
   westLon: number;
@@ -116,7 +128,13 @@ export default function MarsMap({
     callbacksRef.current = { onPointerLocationChange, onLocationSelect, onViewChange, onSourceStatusChange };
   });
 
-  const [tileStats, setTileStats] = useState<TileStats>({ loading: 0, failed: 0 });
+  const [tileStats, setTileStats] = useState<TileStats>({
+    loading: 0,
+    loaded: 0,
+    failed: 0,
+    noData: 0,
+    lastFailure: null,
+  });
 
   useImperativeHandle(
     ref,
@@ -190,12 +208,23 @@ export default function MarsMap({
     }
 
     /* --- Tile progress (display-only plain state) ---------------------- */
-    // Failure counts are per view state: tiles that failed at one zoom level
-    // are irrelevant to a different zoom level (a different tile pyramid
-    // level is requested), so the counter resets on resolution change.
-    // Panning within the same level keeps accumulating real failures.
+    // Classification (per tile, from the fetch loader + advertised footprint):
+    //  - tile fully outside the mosaic footprint → expected no imagery
+    //    (counted separately, never shown as a failure);
+    //  - any other error (404 inside the footprint, 5xx, network failure,
+    //    non-image response) → genuine failure, always surfaced.
+    // Counters are per view state: tiles that failed at one zoom level are
+    // irrelevant to a different zoom level (a different tile pyramid level
+    // is requested), so the counters reset on resolution change. Panning
+    // within the same level keeps accumulating real failures.
     const source = created.source;
-    const stats: TileStats = { loading: 0, failed: 0 };
+    const stats: TileStats = {
+      loading: 0,
+      loaded: 0,
+      failed: 0,
+      noData: 0,
+      lastFailure: null,
+    };
     let statsFlushTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleFlush = () => {
       if (statsFlushTimer) return;
@@ -211,16 +240,31 @@ export default function MarsMap({
       }),
       source.on('tileloadend', () => {
         stats.loading = Math.max(0, stats.loading - 1);
+        stats.loaded += 1;
         scheduleFlush();
       }),
-      source.on('tileloaderror', () => {
+      source.on('tileloaderror', (evt) => {
         stats.loading = Math.max(0, stats.loading - 1);
-        stats.failed += 1;
+        const tile = evt.tile;
+        const failure = getTrekTileFailureKind(tile);
+        const grid = source.getTileGrid();
+        const tileExtent = grid?.getTileCoordExtent(tile.getTileCoord());
+        const coverage = datasetExtentRef.current;
+        if (tileExtent && coverage && !intersects(tileExtent, coverage)) {
+          // Fully outside the advertised footprint: the verified service
+          // behaviour (HTTP 404) — expected no-data, not a failure.
+          stats.noData += 1;
+        } else {
+          stats.failed += 1;
+          stats.lastFailure = failure ?? 'unknown';
+        }
         scheduleFlush();
       }),
     ];
     const resolutionKey = map.getView().on('change:resolution', () => {
       stats.failed = 0;
+      stats.noData = 0;
+      stats.lastFailure = null;
       scheduleFlush();
     });
 
@@ -287,11 +331,15 @@ export default function MarsMap({
     resizeObserverRef.current = observer;
 
     /* --- Live capabilities check (source status) ------------------------ */
+    // The map is built from the verified embedded configuration BEFORE and
+    // INDEPENDENT of this check, so a temporary capabilities outage never
+    // prevents the map from displaying. This check only re-verifies that the
+    // live document still matches the verified snapshot.
     const controller = new AbortController();
     callbacksRef.current.onSourceStatusChange({
       capabilities: 'checking',
       lastCheckedAt: null,
-      message: 'Checking source…',
+      message: 'Re-verifying the live capabilities document against the verified configuration…',
     });
     void (async () => {
       try {
@@ -302,14 +350,14 @@ export default function MarsMap({
           callbacksRef.current.onSourceStatusChange({
             capabilities: 'live',
             lastCheckedAt: now,
-            message: 'Capabilities document matches the verified configuration.',
+            message: 'Live capabilities document matches the verified configuration.',
           });
         } else {
           callbacksRef.current.onSourceStatusChange({
             capabilities: 'schema-changed',
             lastCheckedAt: now,
             message:
-              'Live capabilities differ from the verified configuration. The map shows the last verified setup; investigate before trusting this layer.',
+              'Live capabilities differ from the verified configuration. Displaying the last verified configuration; investigate before trusting this layer.',
           });
         }
       } catch (e) {
@@ -323,7 +371,7 @@ export default function MarsMap({
         callbacksRef.current.onSourceStatusChange({
           capabilities: 'unavailable',
           lastCheckedAt: new Date().toISOString(),
-          message: `Capabilities check failed — ${detail}. Tile requests still use the verified configuration from 2026-11-12; failures will surface as tile errors.`,
+          message: `Live capabilities check failed — ${detail}. Displaying the verified snapshot configuration (2026-11-12); tile requests still go to the live service and failures surface as tile errors.`,
         });
       }
     })();
@@ -361,7 +409,16 @@ export default function MarsMap({
         className="h-full w-full [&_.ol-viewport]:cursor-crosshair"
         data-testid="mars-map-container"
       />
-      {tileStats.loading > 0 && (
+      {tileStats.loaded === 0 && tileStats.loading > 0 && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded border border-edge bg-panel-raised/90 px-3 py-2 text-xs text-ink-muted"
+          data-testid="map-initial-loading"
+        >
+          <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+          Loading {dataset.instrument ?? 'dataset'} imagery…
+        </div>
+      )}
+      {tileStats.loading > 0 && tileStats.loaded > 0 && (
         <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-muted">
           <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
           Loading {tileStats.loading} tile{tileStats.loading === 1 ? '' : 's'}
@@ -369,10 +426,20 @@ export default function MarsMap({
       )}
       {tileStats.failed > 0 && (
         <div
-          className="pointer-events-none absolute right-3 top-10 rounded border border-warn/40 bg-panel-raised/85 px-2.5 py-1 text-xs text-warn"
+          className="pointer-events-none absolute right-3 top-10 max-w-md rounded border border-danger/40 bg-panel-raised/85 px-2.5 py-1 text-xs text-danger"
           data-testid="tile-errors"
         >
-          {tileStats.failed} tile{tileStats.failed === 1 ? '' : 's'} failed — outside mosaic coverage or source error
+          {tileStats.failed} tile request{tileStats.failed === 1 ? '' : 's'} failed —{' '}
+          {FAILURE_DESCRIPTION[tileStats.lastFailure ?? 'unknown']}
+        </div>
+      )}
+      {tileStats.noData > 0 && (
+        <div
+          className="pointer-events-none absolute bottom-12 right-3 max-w-md rounded border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-subtle"
+          data-testid="tile-nodata"
+        >
+          {tileStats.noData} tile{tileStats.noData === 1 ? '' : 's'} outside the mosaic footprint —
+          no imagery expected there
         </div>
       )}
     </div>
