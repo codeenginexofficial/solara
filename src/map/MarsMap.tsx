@@ -409,6 +409,14 @@ export default function MarsMap({
         className="h-full w-full [&_.ol-viewport]:cursor-crosshair"
         data-testid="mars-map-container"
       />
+      {!layerState.visible && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border border-edge bg-panel-raised/85 px-3 py-2 text-xs text-ink-muted"
+          data-testid="map-empty"
+        >
+          No layers displayed — enable a layer in the map layers panel to view imagery.
+        </div>
+      )}
       {tileStats.loaded === 0 && tileStats.loading > 0 && (
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded border border-edge bg-panel-raised/90 px-3 py-2 text-xs text-ink-muted"
