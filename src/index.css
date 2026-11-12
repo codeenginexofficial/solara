@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+/*
+ * SOLARA design tokens — from Design.md §3.
+ * Dark, neutral, instrument-like interface with a restrained amber accent.
+ */
+@theme {
+  --color-surface: #0d1114;
+  --color-panel: #141a1e;
+  --color-panel-raised: #1a2227;
+  --color-edge: #2a343a;
+
+  --color-ink: #edf1f2;
+  --color-ink-muted: #a2adb3;
+  --color-ink-subtle: #748188;
+
+  --color-accent: #d49a58;
+  --color-accent-soft: #8f673c;
+
+  --color-info: #82aeb5;
+  --color-ok: #83a98c;
+  --color-warn: #d1a15c;
+  --color-danger: #cc7770;
+
+  /* Map overlay palette */
+  --color-route: #e0a85f;
+  --color-track: #7eb2bd;
+  --color-waypoint: #f0e7d8;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas,
+    "SF Mono", Menlo, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Focus visibility for keyboard users (Design.md §12) */
+:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * OpenLayers control styling — subtle, dark, instrument-like.
+ */
+.ol-control {
+  background-color: transparent;
+}
+
+.ol-control button {
+  background-color: color-mix(in srgb, var(--color-panel-raised) 88%, transparent);
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-edge);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.ol-control button:hover,
+.ol-control button:focus-visible {
+  color: var(--color-ink);
+  background-color: var(--color-edge);
+  outline: none;
+}
+
+.ol-zoom {
+  top: 10px;
+  left: 10px;
+}
+
+.ol-zoom .ol-zoom-in,
+.ol-zoom .ol-zoom-out {
+  margin-bottom: 3px;
+}
+
+.ol-attribution {
+  bottom: 10px;
+  right: 10px;
+  max-width: calc(100% - 20px);
+  background-color: transparent;
+  text-align: right;
+}
+
+.ol-attribution ul {
+  font-size: 10.5px;
+  color: var(--color-ink-subtle);
+  background-color: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  border: 1px solid var(--color-edge);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 0;
+}
+
+.ol-attribution a {
+  color: var(--color-info);
+  text-decoration: none;
+}
+
+.ol-attribution a:hover {
+  text-decoration: underline;
+}
+
+/* Scale line */
+.ol-scale-line {
+  left: 10px;
+  bottom: 10px;
+  background-color: color-mix(in srgb, var(--color-surface) 75%, transparent);
+  border: 1px solid var(--color-edge);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.ol-scale-line-inner {
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-color: var(--color-ink-subtle);
+}
+
+/*
+ * Native range input (layer opacity) styled for the dark instrument look.
+ */
+.solara-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+
+.solara-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-edge);
+}
+
+.solara-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5.5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-ink-muted);
+  border: 1px solid var(--color-surface);
+}
+
+.solara-range:hover::-webkit-slider-thumb,
+.solara-range:focus-visible::-webkit-slider-thumb {
+  background: var(--color-ink);
+}
+
+.solara-range::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-edge);
+}
+
+.solara-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-ink-muted);
+  border: 1px solid var(--color-surface);
+}
+
+.solara-range:hover::-moz-range-thumb,
+.solara-range:focus-visible::-moz-range-thumb {
+  background: var(--color-ink);
+}
+
+/* Respect reduced motion (Design.md §11) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
