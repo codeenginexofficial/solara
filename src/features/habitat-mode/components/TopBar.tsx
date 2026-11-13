@@ -96,7 +96,7 @@ export function TopBar({
           variant="ghost"
           size="icon"
           className="lg:hidden"
-          aria-label="Toggle layer panel"
+          aria-label="Toggle mission operations panel"
           onClick={onToggleLeftPanel}
         >
           <PanelLeft />
@@ -105,7 +105,7 @@ export function TopBar({
           variant="ghost"
           size="icon"
           className="lg:hidden"
-          aria-label="Toggle dataset panel"
+          aria-label="Toggle mission copilot"
           onClick={onToggleRightPanel}
         >
           <PanelRight />

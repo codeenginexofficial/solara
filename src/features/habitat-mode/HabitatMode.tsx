@@ -1,9 +1,11 @@
 /**
- * HabitatMode — desktop mission-planning workspace (Context.md §4.1).
+ * HabitatMode — desktop mission-operations workstation (Context.md §4.1).
  *
- * Layout (Design.md §5): top bar / [left panel | map | right panel] / status
- * bar. The map is the primary workspace. All map state flows through plain
- * serializable values; OpenLayers objects stay inside MarsMap.
+ * Layout (Design.md §5): top bar / [Mission Operations | map | Mission
+ * Copilot] / status bar. The map is the primary workspace. All map state
+ * flows through plain serializable values; OpenLayers objects stay inside
+ * MarsMap. The Copilot conversation is in-memory component state — lost on
+ * reload, consistent with the mission store philosophy.
  *
  * MarsMap (which pulls in OpenLayers, the largest dependency) is loaded
  * lazily via React.lazy so the initial application shell stays lightweight
@@ -12,18 +14,19 @@
  * chunk loads; the map lifecycle itself is unchanged.
  */
 
-import { Suspense, lazy, useCallback, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
 import type { MarsMapHandle } from '../../map/MarsMap';
-import type { MapLocation, SourceStatus, ViewInfo } from '../../map/mapTypes';
+import type { MapLocation, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
-import type { LayerUiState } from './components/LayerPanel';
+import type { LayerUiState } from './components/MissionOperationsPanel';
+import { MissionOperationsPanel } from './components/MissionOperationsPanel';
+import { CopilotPanel, type CopilotContextPayload } from './components/CopilotPanel';
+import type { ElevationState } from './components/LocationPanel';
 import { useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
-import { LayerPanel } from './components/LayerPanel';
-import { DatasetPanel } from './components/DatasetPanel';
-import { LocationPanel } from './components/LocationPanel';
-import { MissionPanel } from './components/MissionPanel';
 import { StatusBar } from './components/StatusBar';
+import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
+import { isInsideBoundingBox } from '../../lib/bbox';
 import { cn } from '../../lib/utils';
 
 const MarsMap = lazy(() => import('../../map/MarsMap'));
@@ -42,6 +45,18 @@ const OVERLAY_IDS = [
 ] as const;
 
 const INITIAL_DATASET_ID = REGION.datasetIds[0] ?? '';
+
+const OVERLAY_ID_SET: ReadonlySet<string> = new Set(OVERLAY_IDS);
+
+/** Fixed honesty statement attached to every Copilot request. */
+const DATA_NOT_AVAILABLE_CONTEXT =
+  'Not available in SOLARA data: weather, temperature, pressure, wind, dust, and radiation ' +
+  'observations; real-time rover position (historical track through sol 1176 only); site-scale ' +
+  'slope, hazards, or rock abundance; route safety validation; image content (the Copilot cannot ' +
+  'see map imagery). Environmental values are unknown unless a dataset is integrated.';
+
+/** Copilot context sections stay compact (each ≤ ~600 chars). */
+const clamp600 = (value: string): string => (value.length <= 600 ? value : value.slice(0, 600));
 
 /** Deliberate empty-map presentation while the map engine chunk loads. */
 function MapWorkspaceFallback() {
@@ -78,8 +93,11 @@ export default function HabitatMode() {
     lastCheckedAt: null,
     message: 'Checking source…',
   });
+  const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
+  const [locationElevation, setLocationElevation] = useState<ElevationState | null>(null);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [copilotExpanded, setCopilotExpanded] = useState(false);
 
   const selectedDataset = getDatasetById(selectedDatasetId);
 
@@ -104,6 +122,78 @@ export default function HabitatMode() {
     visible: layerStates[datasetId]?.visible ?? false,
   }));
 
+  /* --- Copilot context (per-send payload, built from real app state) --- */
+  const copilotContext = useMemo<CopilotContextPayload>(() => {
+    const bbox = REGION.boundingBox;
+    const explorationRegion = clamp600(
+      `${REGION.name}. Exploration bounding box: ${formatLon(bbox.westLon)} – ${formatLon(bbox.eastLon)}, ` +
+        `${formatLat(bbox.southLat)} – ${formatLat(bbox.northLat)} ` +
+        '(≈ 30.3 × 30.2 km ground estimate). Verified against the live Trek capabilities documents 2026-11-13.',
+    );
+
+    let selectedLocationContext: string;
+    if (!selectedLocation) {
+      selectedLocationContext = 'none selected';
+    } else {
+      const inside = isInsideBoundingBox(selectedLocation, bbox);
+      const parts = [
+        `Selected point: ${formatLon(selectedLocation.lon)} ${formatLat(selectedLocation.lat)}`,
+        `Working projection: X ${Math.round(selectedLocation.x)} m, Y ${Math.round(selectedLocation.y)} m`,
+        inside
+          ? 'Inside the exploration region.'
+          : 'Outside the exploration region — global imagery and elevation products only; route planning unavailable here.',
+      ];
+      const elev = locationElevation;
+      if (!elev || elev.kind === 'idle' || elev.kind === 'loading') {
+        parts.push('Elevation: query pending.');
+      } else if (elev.kind === 'live') {
+        parts.push(
+          `Elevation: ${elev.value.toLocaleString('en-US')} m (areoid-referenced; queried from the Trek DEM service — static MOLA+HRSC blend, 2018 v2; queried ${formatUtcTime(elev.fetchedAt)}).`,
+        );
+      } else if (elev.kind === 'no-data') {
+        parts.push('Elevation: unknown (the DEM service reports NoData at this point).');
+      } else {
+        const fallback =
+          elev.fallbackValue !== null
+            ? ` Prepared-grid fallback: ${Math.round(elev.fallbackValue).toLocaleString('en-US')} m (derived, labelled).`
+            : '';
+        parts.push(`Elevation: unknown (live query failed).${fallback}`);
+      }
+      selectedLocationContext = clamp600(parts.join(' '));
+    }
+
+    const visibleLayers = clamp600(
+      [...BASE_LAYER_IDS, ...OVERLAY_IDS]
+        .map((id) => {
+          if (!(layerStates[id]?.visible ?? false)) return `${id}: OFF`;
+          if (OVERLAY_ID_SET.has(id)) return `${id}: ${(overlayStatus[id] ?? 'loading').toUpperCase()}`;
+          return `${id}: ACTIVE`;
+        })
+        .join('; '),
+    );
+
+    const missionPlan = clamp600(
+      [
+        `Start: ${mission.start ? `${formatLon(mission.start.lon)} ${formatLat(mission.start.lat)}` : 'not set'}.`,
+        `Target: ${mission.target ? `${formatLon(mission.target.lon)} ${formatLat(mission.target.lat)}` : 'not set'}.`,
+        `Prototype cost params: slope cost ${mission.params.slopeCostPerDeg.toFixed(3)}/deg, block slope ${mission.params.maxSlopeDeg}° (prototype thresholds — not operational safety limits).`,
+        mission.routeStatus === 'computing'
+          ? 'Route: computing…'
+          : mission.route
+            ? `Route candidate: ground ${formatDistance(mission.route.totalGroundDistanceM)}, cost-equivalent ${formatDistance(mission.route.totalCostM)}, direct ${formatDistance(mission.route.directDistanceM)}, ${mission.route.warnings.length} warning(s)${mission.route.warnings.length > 0 ? `: ${mission.route.warnings.join(' ')}` : ''}. PROPOSED TERRAIN-COST CANDIDATE — not a validated or safe route.`
+            : 'Route: none computed.',
+      ].join(' '),
+    );
+
+    return {
+      explorationRegion,
+      selectedLocation: selectedLocationContext,
+      visibleLayers,
+      missionPlan,
+      dataNotAvailable: DATA_NOT_AVAILABLE_CONTEXT,
+    };
+  }, [selectedLocation, locationElevation, layerStates, overlayStatus, mission]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar
@@ -115,22 +205,25 @@ export default function HabitatMode() {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {/* Left panel — layer controls, sources, region info */}
+        {/* Left panel — mission operations */}
         <aside
           className={cn(
-            'absolute inset-y-0 left-0 z-20 w-72 flex-col border-r border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
+            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto border-r border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
             leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
-          aria-label="Layers and region"
+          aria-label="Mission operations"
         >
-          <LayerPanel
-            datasets={DATASETS}
+          <MissionOperationsPanel
             region={REGION}
+            datasets={DATASETS}
             layerStates={layerStates}
-            selectedDatasetId={selectedDatasetId}
+            overlayStatus={overlayStatus}
+            selectedLocation={selectedLocation}
             onSelectDataset={setSelectedDatasetId}
             onToggleVisibility={handleToggleVisibility}
             onOpacityChange={handleOpacityChange}
+            onFitRegion={handleFitRegion}
+            onElevationStateChange={setLocationElevation}
           />
         </aside>
 
@@ -146,25 +239,31 @@ export default function HabitatMode() {
               start={mission.start}
               target={mission.target}
               route={mission.route}
+              selectedMarker={selectedLocation}
               onPointerLocationChange={setPointerLocation}
               onLocationSelect={setSelectedLocation}
               onViewChange={setViewInfo}
               onSourceStatusChange={setSourceStatus}
+              onOverlayStatusChange={setOverlayStatus}
             />
           </Suspense>
         </main>
 
-        {/* Right panel — dataset provenance, selected location, mission planning */}
+        {/* Right panel — SOLARA Mission Copilot (width-only expand toggle;
+            the component stays mounted so history and draft are kept). */}
         <aside
           className={cn(
-            'absolute inset-y-0 right-0 z-20 w-80 flex-col overflow-y-auto border-l border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
+            'absolute inset-y-0 right-0 z-20 w-[22rem] max-w-[calc(100vw-2rem)] flex-col border-l border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
             rightPanelOpen ? 'flex' : 'hidden lg:flex',
+            copilotExpanded && 'lg:w-[38rem]',
           )}
-          aria-label="Dataset details, selected location and mission planning"
+          aria-label="SOLARA Mission Copilot"
         >
-          {selectedDataset && <DatasetPanel dataset={selectedDataset} />}
-          <LocationPanel location={selectedLocation} />
-          <MissionPanel selectedLocation={selectedLocation} />
+          <CopilotPanel
+            context={copilotContext}
+            expanded={copilotExpanded}
+            onToggleExpanded={() => setCopilotExpanded((v) => !v)}
+          />
         </aside>
       </div>
 

@@ -8,8 +8,8 @@
  * Live-verification evidence summary (2026-11-13):
  *  - jezero-ctx-mosaic-soc-008 (WMTS): verified 2026-11-12 (Milestone 0.1).
  *  - mola-hrsc-blend-200m-colorshade (WMTS): capabilities HTTP 200; tiles
- *    HTTP 200 image/jpeg at levels 0/7/8; levels 9/10 return HTTP 404
- *    (verified-served-levels = 9, i.e. levels 0..8); CORS reflection confirmed.
+ *    HTTP 200 image/jpeg at levels 0/7/8; the verified snapshot declares only
+ *    tile levels 0–8 (verified-served-levels = 9); CORS reflection confirmed.
  *  - Mars_MOLA_blend200ppx_HRSC_DEM... (ImageServer): metadata HTTP 200
  *    (S16, global, ~200 m/px declared pixel size 0.0033741°/px); identify
  *    HTTP 200 at the Jezero check point (77.42982°E, 18.46611°N) → −2520 m
@@ -117,11 +117,19 @@ export const JEZERO_CTX_DATASET: DatasetRecord = {
     'm/pixel at tile level 13 (finest served level). Product identifier states a nominal 6 m CTX imaging scale; exact mosaic production resolution is not stated in the service metadata.',
   attribution:
     'Imagery: NASA / JPL-Caltech / MSSS (MRO CTX). Service: NASA Trek (trek.nasa.gov).',
+  observationPeriod: '2006-01-01 – 2019-08-20 (source imagery content; USGS)',
+  sourcePublication: {
+    title: 'Mars 2020 Terrain Relative Navigation Context Camera Orthorectified Image Mosaic',
+    authors: 'USGS Astrogeology Science Center',
+    year: 2020,
+    doi: '10.5066/P9GV1ND3',
+    url: 'https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_context_camera_orthorectified_image_mosaic',
+  },
   limitations: [
-    'The tile matrix "ScaleDenominator" values in the Trek capabilities document are not consistent with the Mars sphere (they imply ~111,268 m per degree of longitude). SOLARA derives tile resolutions from the verified matrix geometry (matrix dimensions × Mars sphere circumference) instead of trusting those values.',
+    'The tile matrix "ScaleDenominator" values in the Trek capabilities document are not consistent with the Mars sphere (they imply ~111,195 m per degree — the Earth mean-sphere value, ~1.88× the Mars value of 59,274.7 m/deg). SOLARA derives tile resolutions from the verified matrix geometry (matrix dimensions × Mars sphere circumference) instead of trusting those values.',
     'The tile grid is a plate carrée (degree-based) grid: east–west ground distance at Jezero (~18.4°N) is ~5.1% smaller than the map projection scale. True scale applies only at the equator.',
     'Tiles fully outside the mosaic footprint return HTTP 404; smaller gaps can also exist inside the advertised bounding box.',
-    'The mosaic production institution and the acquisition dates of the component CTX images are not stated in the WMTS service metadata.',
+    'Production details are not stated in the WMTS service metadata itself, but are documented by the USGS source publication: produced by USGS Astrogeology (published 2020-07-24) as the Mars 2020 Lander Vision System truth map, built from three CTX stereo pairs with imagery content 2006-01-01 – 2019-08-20.',
     'This is historical imagery: it shows the surface as the component CTX images captured it, not necessarily current conditions.',
     'Optical imagery only. No elevation, slope, geology, rover, or environmental datasets are integrated in this milestone, and no terrain hazard assessment is performed.',
   ],
@@ -168,19 +176,25 @@ export const MOLA_HRSC_COLORSHADE_DATASET: DatasetRecord = {
     'Global: lon −180°E – +179.998°E, lat −89.999° – 90° (WMTS BoundingBox, full Mars).',
   boundingBox: {
     westLon: -180,
-    eastLon: 179.998447904411,
-    southLat: -89.9992239522054,
+    eastLon: 179.9984479044183,
+    southLat: -89.99922395220915,
     northLat: 90,
   },
-  spatialResolution: 231,
+  spatialResolution: 162.8,
   resolutionUnit:
-    'm/pixel at tile level 10 derived from the matrix geometry (360° / (1024 × 256) × 2πR/360). Levels 0–8 verified to serve tiles (level 8 ≈ 163 m/px in map scale); levels 9/10 are declared but return HTTP 404, so the tile grid is truncated to level 8.',
+    'm/pixel at tile level 8, the finest served level (verified from matrix geometry); product nominal 200 m/px.',
   attribution:
     'Topography blend: NASA/MGS MOLA + ESA/Mars Express HRSC, via NASA Trek (trek.nasa.gov).',
+  sourcePublication: {
+    title: 'Mars MGS MOLA-MEX HRSC Blended Shaded Relief Global 200m',
+    authors: 'Fergason, R. L., Hare, T. M., and Laura, J.',
+    year: 2018,
+    url: 'https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_shaded_relief_200m',
+  },
   limitations: [
     'Colorized hillshade rendering: colors encode elevation ranges, but this layer is a visual product — read quantitative elevations from the DEM query layer, not from colors.',
-    'The tile matrix "ScaleDenominator" values are inconsistent with the Mars sphere; SOLARA derives resolutions from matrix geometry.',
-    'Only tile levels 0–8 return imagery (verified 2026-11-13); finer declared levels 404, so the map caps zoom at level 8 for this layer (~163 m/px).',
+    'The tile matrix "ScaleDenominator" values imply ~111,195 m per degree (Earth mean sphere), ~1.88× the Mars value of 59,274.7 m/deg; SOLARA derives resolutions from matrix geometry.',
+    'The verified capabilities snapshot declares tile levels 0–8; no finer levels are declared, and the map caps zoom at level 8 for this layer (~162.8 m/px).',
     'Merged product of two instruments of different generations and resolutions; blending artifacts can exist where HRSC and MOLA disagree.',
     'Global, regional-scale topography — NOT hazard-grade local terrain detail. Rock-scale hazards are invisible at this resolution.',
   ],
@@ -244,10 +258,16 @@ export const MOLA_HRSC_BLEND_DEM_DATASET: DatasetRecord = {
   units: 'metres (elevation, S16 integers)',
   attribution:
     'Topography blend: NASA/MGS MOLA + ESA/Mars Express HRSC, via NASA Trek (trek.nasa.gov).',
-  observationStart: undefined,
-  observationEnd: undefined,
+  observationPeriod: 'MOLA laser points 1999–2001; blended product published 2018',
+  sourcePublication: {
+    title: 'Mars MGS MOLA-MEX HRSC Blended DEM Global 200m v2',
+    authors: 'Fergason, R. L., Hare, T. M., and Laura, J.',
+    year: 2018,
+    url: 'https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m',
+  },
   limitations: [
     'Elevation is relative to the Mars areoid (MOLA reference); the blend is registered to MOLA topography. Treat values as derived, not raw MOLA observations.',
+    'Total elevation uncertainty ≥ ±3 m (areoid ±1.8 m); HRSC covers ~44% of Mars; USGS: blending artifacts exist — "care should be taken".',
     'Nominal ~200 m ground resolution: crater floors and rims are resolved, but rock-scale hazards, small scarps, and landing-zone-scale roughness are NOT represented. A route on this grid is a regional terrain-cost candidate only.',
     'The prepared route grid was fetched 2026-11-13 and validated against the live identify endpoint (centre-point difference 10.5 m, bilinear vs nearest-neighbour sampling). If the source service updates, the grid and the live service can disagree.',
     'Vertical alignment artifacts between HRSC and MOLA can exist in blend seams.',
@@ -304,6 +324,14 @@ export const USGS_SIM3292_GEOLOGY_DATASET: DatasetRecord = {
     'Published at 1:20,000,000 scale (global compilation). Effective ground detail is kilometres-scale; unit boundaries are generalized.',
   attribution:
     'Geology: Tanaka, K.L., Skinner, J.A., Jr., Dohm, J.M., et al. (2014), Geologic Map of Mars, USGS SIM 3292. Served via NASA Trek (trek.nasa.gov).',
+  sourcePublication: {
+    title: 'Geologic Map of Mars (SIM 3292)',
+    authors:
+      'Tanaka, K. L., Skinner, J. A., Dohm, J. M., Irwin, R. P., Kolb, E. J., Fortezzo, C. M., Platz, T., Michael, G. G., and Hare, T. M.',
+    year: 2014,
+    doi: '10.3133/sim3292',
+    url: 'https://pubs.usgs.gov/sim/3292/',
+  },
   limitations: [
     'Global 1:20M compilation: this is regional geologic context, NOT a site-scale Jezero hazard or mineral map.',
     'Only 2 units intersect the prepared extent (mNhm — Middle Noachian highland massif unit; HNt — Hesperian and Noachian transition unit). Jezero-crater-scale mapping (e.g. delta fan units) is below this map\'s resolution.',

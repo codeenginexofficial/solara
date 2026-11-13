@@ -72,6 +72,9 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         </span>
         <span>{formatDistance(total)} ground distance</span>
       </div>
+      <p className="text-[10px] leading-snug text-ink-subtle">
+        Areoid-referenced elevation from the prepared ~200 m/px grid — derived, coarse.
+      </p>
     </div>
   );
 }

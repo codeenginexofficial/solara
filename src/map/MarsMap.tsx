@@ -25,7 +25,6 @@ import View from 'ol/View.js';
 import { defaults as defaultControls } from 'ol/control/defaults.js';
 import Attribution from 'ol/control/Attribution.js';
 import ScaleLine from 'ol/control/ScaleLine.js';
-import Zoom from 'ol/control/Zoom.js';
 import type BaseLayer from 'ol/layer/Base.js';
 import type MapBrowserEvent from 'ol/MapBrowserEvent.js';
 import { unByKey } from 'ol/Observable.js';
@@ -62,6 +61,8 @@ import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmts
 import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
 import type {
   MapLocation,
+  OverlayLoadState,
+  OverlayStatusMap,
   SourceStatus,
   TileFailureKind,
   TileStats,
@@ -86,10 +87,14 @@ export interface MarsMapProps {
   route: RouteResult | null;
   /** Field Tablet's manually selected / simulated astronaut position. */
   positionMarker?: GeoPoint | null;
+  /** The point currently inspected in the mission-operations panel. */
+  selectedMarker?: GeoPoint | null;
   onPointerLocationChange: (location: MapLocation | null) => void;
   onLocationSelect: (location: MapLocation) => void;
   onViewChange: (view: ViewInfo) => void;
   onSourceStatusChange: (status: SourceStatus) => void;
+  /** Overlay asset load states, keyed by dataset id (serializable). */
+  onOverlayStatusChange?: (status: OverlayStatusMap) => void;
   /** Parent handle used to trigger view actions such as re-fitting. */
   ref?: Ref<MarsMapHandle>;
 }
@@ -97,6 +102,9 @@ export interface MarsMapProps {
 export interface MarsMapHandle {
   /** Re-fit the view to the region's advertised footprint. */
   fitToRegion: () => void;
+  /** Zoom the view by one tile level (custom React controls). */
+  zoomIn: () => void;
+  zoomOut: () => void;
 }
 
 const VIEW_PADDING_PX = 48;
@@ -143,6 +151,20 @@ function coordinatePair(coordinate: number[] | undefined): [number, number] | nu
   return [x, y];
 }
 
+/** Serializable load states only — no ol objects or error details. */
+function simplifyOverlayStatus(
+  load: Record<string, { state: OverlayLoadState }>,
+): OverlayStatusMap {
+  const out: OverlayStatusMap = {};
+  for (const [id, entry] of Object.entries(load)) out[id] = entry.state;
+  return out;
+}
+
+/** Plain number compare on lon/lat (no projection round-trip). */
+function isSamePoint(a: GeoPoint | null | undefined, b: GeoPoint | null | undefined): boolean {
+  return a != null && b != null && a.lon === b.lon && a.lat === b.lat;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mission overlay styling                                             */
 /* ------------------------------------------------------------------ */
@@ -175,6 +197,22 @@ function markerStyle(color: string, label: string): Style {
 
 const START_MARKER_STYLE = markerStyle('rgba(103, 232, 249, 1)', 'START');
 const TARGET_MARKER_STYLE = markerStyle('rgba(251, 146, 60, 1)', 'TARGET');
+/** Waypoint token tone: light ring, semi-transparent fill. */
+const SELECTED_MARKER_STYLE = new Style({
+  image: new CircleStyle({
+    radius: 7,
+    fill: new Fill({ color: 'rgba(240, 231, 216, 0.25)' }),
+    stroke: new Stroke({ color: 'rgba(240, 231, 216, 1)', width: 2 }),
+  }),
+  text: new Text({
+    text: 'SELECTED',
+    offsetY: -16,
+    font: '600 10px ui-monospace, monospace',
+    fill: new Fill({ color: 'rgba(240, 231, 216, 1)' }),
+    stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
+    overflow: true,
+  }),
+});
 /** The astronaut position is ALWAYS labelled simulated — there is no Mars
  *  positioning source integrated (Design.md §6). */
 const POSITION_MARKER_STYLE = new Style({
@@ -202,10 +240,12 @@ export default function MarsMap({
   target,
   route,
   positionMarker,
+  selectedMarker,
   onPointerLocationChange,
   onLocationSelect,
   onViewChange,
   onSourceStatusChange,
+  onOverlayStatusChange,
   ref,
 }: MarsMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -221,9 +261,21 @@ export default function MarsMap({
 
   /* Latest callbacks kept in refs so the mount effect never re-runs on
    * callback identity changes (the map must initialize exactly once). */
-  const callbacksRef = useRef({ onPointerLocationChange, onLocationSelect, onViewChange, onSourceStatusChange });
+  const callbacksRef = useRef({
+    onPointerLocationChange,
+    onLocationSelect,
+    onViewChange,
+    onSourceStatusChange,
+    onOverlayStatusChange,
+  });
   useEffect(() => {
-    callbacksRef.current = { onPointerLocationChange, onLocationSelect, onViewChange, onSourceStatusChange };
+    callbacksRef.current = {
+      onPointerLocationChange,
+      onLocationSelect,
+      onViewChange,
+      onSourceStatusChange,
+      onOverlayStatusChange,
+    };
   });
 
   const [tileStats, setTileStats] = useState<TileStats>({
@@ -233,7 +285,19 @@ export default function MarsMap({
     noData: 0,
     lastFailure: null,
   });
-  const [overlayErrors, setOverlayErrors] = useState<string[]>([]);
+  /** Structured overlay asset load state (serializable; no ol objects). */
+  const [overlayLoad, setOverlayLoad] = useState<
+    Record<string, { state: OverlayLoadState; message?: string }>
+  >({});
+
+  const zoomView = (delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const view = map.getView();
+    const zoom = view.getZoom();
+    if (zoom === undefined) return;
+    view.animate({ zoom: zoom + delta, duration: 120 });
+  };
 
   useImperativeHandle(
     ref,
@@ -251,6 +315,8 @@ export default function MarsMap({
             padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
           });
       },
+      zoomIn: () => zoomView(1),
+      zoomOut: () => zoomView(-1),
     }),
     [],
   );
@@ -309,15 +375,25 @@ export default function MarsMap({
         if (kind === 'route-start') return START_MARKER_STYLE;
         if (kind === 'route-target') return TARGET_MARKER_STYLE;
         if (kind === 'position') return POSITION_MARKER_STYLE;
+        if (kind === 'selected') return SELECTED_MARKER_STYLE;
         return undefined;
       },
       properties: { datasetId: 'solara-mission-overlay' },
     });
+    // Overlays are appended via addLayer and would otherwise render above
+    // the mission overlay.
+    routeLayer.setZIndex(100);
 
     /* --- Overlay GeoJSON assets ---------------------------------------- */
-    // Loaded once per mount from the prepared static assets; failures are
-    // surfaced in the UI (missing overlays are never silently skipped).
-    setOverlayErrors([]);
+    // Loaded once per mount from the prepared static assets; per-dataset
+    // load state is reported to the parent (missing overlays are never
+    // silently skipped).
+    const initialOverlayLoad: Record<string, { state: OverlayLoadState; message?: string }> = {};
+    for (const overlay of overlays) {
+      initialOverlayLoad[overlay.datasetId] = { state: 'loading' };
+    }
+    setOverlayLoad(initialOverlayLoad);
+    callbacksRef.current.onOverlayStatusChange?.(simplifyOverlayStatus(initialOverlayLoad));
     const overlayPromises = overlays.map(async ({ datasetId }) => {
       const dataset = getDatasetById(datasetId);
       if (!dataset?.preparedAssetUrl) {
@@ -351,7 +427,6 @@ export default function MarsMap({
         ],
       }),
       controls: defaultControls({ attribution: false, zoom: false }).extend([
-        new Zoom(),
         new Attribution({ collapsible: false }),
         new ScaleLine({ units: 'metric' }),
       ]),
@@ -544,22 +619,23 @@ export default function MarsMap({
     /* --- Overlay assets load (async, non-blocking) ---------------------- */
     void Promise.allSettled(overlayPromises).then((settled) => {
       if (controller.signal.aborted) return;
-      const errors: string[] = [];
+      const statusMap = { ...initialOverlayLoad };
       settled.forEach((outcome, index) => {
+        const datasetId = overlays[index]!.datasetId;
         if (outcome.status === 'fulfilled') {
-          const created = outcome.value;
-          map.addLayer(created.layer);
-          overlayLayerRecordsRef.current.push({ datasetId: overlays[index]!.datasetId, layer: created.layer });
+          map.addLayer(outcome.value.layer);
+          overlayLayerRecordsRef.current.push({ datasetId, layer: outcome.value.layer });
+          statusMap[datasetId] = { state: 'active' };
         } else {
           const reason = outcome.reason;
-          errors.push(
-            `Overlay "${overlays[index]!.datasetId}" could not be loaded: ${
-              reason instanceof Error ? reason.message : String(reason)
-            }`,
-          );
+          statusMap[datasetId] = {
+            state: 'failed',
+            message: reason instanceof Error ? reason.message : String(reason),
+          };
         }
       });
-      setOverlayErrors(errors);
+      setOverlayLoad(statusMap);
+      callbacksRef.current.onOverlayStatusChange?.(simplifyOverlayStatus(statusMap));
     });
 
     return () => {
@@ -602,7 +678,7 @@ export default function MarsMap({
       if (!overlay) continue;
       record.layer.setVisible(overlay.visible);
     }
-  }, [overlays, overlayErrors]);
+  }, [overlays, overlayLoad]);
 
   /* Mission route / markers sync -------------------------------------- */
   useEffect(() => {
@@ -610,7 +686,7 @@ export default function MarsMap({
     if (!source) return;
     source.clear();
 
-    const addPointFeature = (point: GeoPoint, kind: 'route-start' | 'route-target' | 'position') => {
+    const addPointFeature = (point: GeoPoint, kind: 'route-start' | 'route-target' | 'position' | 'selected') => {
       const [x, y] = lonLatToMarsMetres(point.lon, point.lat);
       const feature = new Feature({ geometry: new Point([x, y]) });
       feature.set('solara:kind', kind);
@@ -620,6 +696,10 @@ export default function MarsMap({
     if (start) addPointFeature(start, 'route-start');
     if (target) addPointFeature(target, 'route-target');
     if (positionMarker) addPointFeature(positionMarker, 'position');
+    // The selected point is hidden when it duplicates start/target.
+    if (selectedMarker && !isSamePoint(selectedMarker, start) && !isSamePoint(selectedMarker, target)) {
+      addPointFeature(selectedMarker, 'selected');
+    }
 
     if (routeVisible && route && route.points.length >= 2) {
       const coordinates = route.points.map((p) => lonLatToMarsMetres(p.lon, p.lat));
@@ -627,7 +707,7 @@ export default function MarsMap({
       lineFeature.set('solara:kind', 'route-line');
       source.addFeature(lineFeature);
     }
-  }, [start, target, route, routeVisible, positionMarker]);
+  }, [start, target, route, routeVisible, positionMarker, selectedMarker]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-surface">
@@ -636,6 +716,26 @@ export default function MarsMap({
         className="h-full w-full [&_.ol-viewport]:cursor-crosshair"
         data-testid="mars-map-container"
       />
+      {/* Custom zoom controls (stock ol Zoom control removed) — see
+          .solara-map-zoom positioning in index.css. */}
+      <div className="solara-map-zoom" role="group" aria-label="Map zoom">
+        <button
+          type="button"
+          className="solara-map-zoom-button"
+          aria-label="Zoom in"
+          onClick={() => zoomView(1)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="solara-map-zoom-button"
+          aria-label="Zoom out"
+          onClick={() => zoomView(-1)}
+        >
+          −
+        </button>
+      </div>
       {baseLayers.every((l) => !l.visible) && (
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border border-edge bg-panel-raised/85 px-3 py-2 text-xs text-ink-muted"
@@ -677,16 +777,17 @@ export default function MarsMap({
           no imagery expected there
         </div>
       )}
-      {overlayErrors.length > 0 && (
-        <div
-          className="pointer-events-none absolute bottom-3 left-3 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
-          data-testid="overlay-errors"
-        >
-          {overlayErrors.map((e) => (
-            <div key={e}>{e}</div>
-          ))}
-        </div>
-      )}
+      {Object.entries(overlayLoad)
+        .filter(([, entry]) => entry.state === 'failed')
+        .map(([datasetId, entry]) => (
+          <div
+            key={datasetId}
+            className="pointer-events-none absolute bottom-3 left-3 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
+            data-testid={`overlay-errors-${datasetId}`}
+          >
+            {`Overlay "${datasetId}" could not be loaded: ${entry.message ?? 'cause not determined'}`}
+          </div>
+        ))}
     </div>
   );
 }

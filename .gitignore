@@ -25,3 +25,7 @@ Thumbs.db
 # Temporary
 *.tsbuildinfo
 .playwright-cli/
+
+# Wrangler / Cloudflare local state and secrets (never committed)
+.dev.vars
+.wrangler/

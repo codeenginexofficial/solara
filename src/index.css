@@ -91,14 +91,35 @@ body {
   outline: none;
 }
 
-.ol-zoom {
+/*
+ * Custom zoom controls (React-rendered; the stock ol Zoom control is not
+ * used). Positioning declared here because ol.css is not imported.
+ */
+.solara-map-zoom {
+  position: absolute;
   top: 10px;
   left: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.ol-zoom .ol-zoom-in,
-.ol-zoom .ol-zoom-out {
-  margin-bottom: 3px;
+.solara-map-zoom-button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-edge);
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--color-panel-raised) 88%, transparent);
+  color: var(--color-ink-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.solara-map-zoom-button:hover {
+  color: var(--color-ink);
+  background-color: var(--color-edge);
 }
 
 .ol-attribution {

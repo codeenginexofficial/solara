@@ -5,7 +5,7 @@
 
 import type { MapLocation, SourceStatus, ViewInfo } from '../../../map/mapTypes';
 import type { DatasetRecord, VerificationStatus } from '../../../data/catalog/types';
-import { MARS_EQUIRECTANGULAR, PROJECTION_INFO } from '../../../map/projections/ProjectionRegistry';
+import { MARS_EQUIRECTANGULAR, PROJECTION_INFO } from '../../../lib/marsCrs';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon, formatResolution } from '../../../lib/format';
 

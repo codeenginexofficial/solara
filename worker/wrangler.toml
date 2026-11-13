@@ -1,0 +1,14 @@
+name = "solara-copilot-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+# Non-secret configuration. The model id is overridable per environment;
+# "openrouter/free" is OpenRouter's Free Models Router (verified 2026-11-13),
+# which auto-selects a currently available free model.
+[vars]
+OPENROUTER_MODEL = "openrouter/free"
+
+# Secrets are never stored in this file. Set with:
+#   npx wrangler secret put OPENROUTER_API_KEY
+# For local dev, create worker/.dev.vars (git-ignored):
+#   OPENROUTER_API_KEY=sk-or-...

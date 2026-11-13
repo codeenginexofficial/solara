@@ -19,7 +19,8 @@
  *    declared CRS: TopLeftCorner is (-180, 90) and the grid spans the full
  *    globe (360° × 180°) with 256×256 tiles and matrix sizes 2^(L+1) × 2^L.
  *    The declared ScaleDenominator values are inconsistent with the Mars
- *    sphere (they imply ~111,268 m per degree). SOLARA therefore derives
+ *    sphere (they imply ~111,195 m per degree — the Earth mean sphere,
+ *    ~1.88× the Mars value 59,274.7 m/deg). SOLARA therefore derives
  *    tile resolutions from the matrix geometry and the verified Mars sphere
  *    radius — see map/trek/tileGrid.ts.
  *  - Some layers declare more tile levels than the tile cache serves; only

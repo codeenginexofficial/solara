@@ -58,6 +58,15 @@ export interface TileStats {
 }
 
 /**
+ * Load state of one prepared GeoJSON overlay asset. Reported by MarsMap
+ * once the async asset fetch settles; serializable, no ol objects.
+ */
+export type OverlayLoadState = 'loading' | 'active' | 'failed';
+
+/** Overlay asset load states keyed by dataset id. */
+export type OverlayStatusMap = Record<string, OverlayLoadState>;
+
+/**
  * State of the live capabilities verification. The map always renders from
  * the verified embedded configuration; this status only describes whether
  * the live document was successfully re-verified against it.

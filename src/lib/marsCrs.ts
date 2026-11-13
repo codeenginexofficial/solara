@@ -1,0 +1,55 @@
+/**
+ * Mars CRS metadata — plain, ol-free constants shared by shell components
+ * and the map layer. Keeping this module free of `ol`/`proj4` imports is
+ * what keeps those libraries out of the statically-imported shell bundle.
+ *
+ * The projection definitions themselves live in
+ * src/map/projections/ProjectionRegistry.ts (which re-exports these ids).
+ */
+
+/** Working projected CRS: equirectangular on the Mars 2000 sphere.
+ *  Internal identifier — not an authority-registered code. */
+export const MARS_EQUIRECTANGULAR = 'SOLARA:MARS_EQC_IAU2015';
+
+/** Geographic lon/lat (degrees) on the Mars 2000 sphere.
+ *  Internal identifier used for display and reference transforms. */
+export const MARS_GEOGRAPHIC = 'SOLARA:MARS_2000_SPHERE_LONLAT';
+
+/** The CRS URN exactly as declared by the NASA Trek WMTS document.
+ *  Preserved as source metadata — it does not resolve to the projected
+ *  CRS the service actually serves (verified equivalent to IAU:2015:49910;
+ *  see Architecture.md §6.1). */
+export const TREK_DECLARED_CRS_URN = 'urn:ogc:def:crs:EPSG::104905';
+
+export const MARS_2000_SPHERE_RADIUS_M = 3_396_190;
+
+/** Metres along the equator per degree of longitude on the Mars 2000 sphere:
+ *  2πR / 360. */
+export const MARS_METRES_PER_DEGREE = (2 * Math.PI * MARS_2000_SPHERE_RADIUS_M) / 360;
+
+/** Verified PROJ export of the served projection (IAU:2015:49910). */
+export const MARS_EQC_PROJ4 =
+  '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs';
+
+export const MARS_GEOGRAPHIC_PROJ4 = '+proj=longlat +R=3396190 +no_defs';
+
+/** CRS descriptions shown in the UI. Honest about internal vs authoritative. */
+export const PROJECTION_INFO = {
+  [MARS_EQUIRECTANGULAR]: {
+    id: MARS_EQUIRECTANGULAR,
+    label:
+      'SOLARA:MARS_EQC_IAU2015 — internal id; numerically equivalent to IAU:2015:49910 (Mars sphere equirectangular, clon 0)',
+    datum: 'Mars sphere, R = 3,396,190 m (IAU 2015; anchor: Viking 1 lander, 47.95137°W)',
+    units: 'metres',
+    proj4: MARS_EQC_PROJ4,
+    sourceDefinition: TREK_DECLARED_CRS_URN,
+  },
+  [MARS_GEOGRAPHIC]: {
+    id: MARS_GEOGRAPHIC,
+    label: 'SOLARA:MARS_2000_SPHERE_LONLAT — internal id; geographic lon/lat on the Mars 2000 sphere',
+    datum: 'Mars sphere, R = 3,396,190 m (IAU 2015)',
+    units: 'degrees',
+    proj4: MARS_GEOGRAPHIC_PROJ4,
+    sourceDefinition: 'Derived from the same sphere as IAU:2015:49900 (Mars (2015) - Sphere)',
+  },
+} as const;

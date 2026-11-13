@@ -12,9 +12,10 @@
  */
 
 import { useRef, useState } from 'react';
-import { Download, Flag, Play, RotateCcw, Upload, MapPin } from 'lucide-react';
+import { ChevronDown, Download, Flag, Play, RotateCcw, Upload, MapPin } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Section } from '../../../components/ui/section';
+import { cn } from '../../../lib/utils';
 import { formatLat, formatLon } from '../../../lib/format';
 import type { MapLocation } from '../../../map/mapTypes';
 import { ElevationProfile } from '../../mission/components/ElevationProfile';
@@ -87,6 +88,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
   const mission = useMissionState();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const useSelectedAsStart = () => {
     if (!selectedLocation) return;
@@ -129,7 +131,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
 
   return (
     <div data-testid="mission-panel">
-      <Section title="Mission planning" hint="prototype">
+      <Section title="Mission planning (prototype)">
         <div className="flex flex-col gap-2">
           <PointRow
             label="Start"
@@ -148,44 +150,62 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
             selectedDisabled={!selectedLocation}
           />
 
-          {/* Cost parameters */}
-          <div className="rounded-md border border-edge px-2.5 py-2">
-            <div className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">Cost model parameters</div>
-            <label className="mt-1.5 flex items-center gap-2">
-              <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Slope cost / degree</span>
-              <input
-                type="range"
-                min={0}
-                max={0.3}
-                step={0.005}
-                value={mission.params.slopeCostPerDeg}
-                onChange={(e) => setRouteParams({ slopeCostPerDeg: Number(e.target.value) })}
-                className="solara-range min-w-0 flex-1"
-                aria-label="Slope cost per degree"
-              />
-              <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
-                {mission.params.slopeCostPerDeg.toFixed(3)}
+          {/* Prototype cost parameters — collapsed by default. */}
+          <div className="rounded-md border border-edge">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
+              aria-expanded={advancedOpen}
+              aria-controls="mission-advanced-params"
+              onClick={() => setAdvancedOpen((v) => !v)}
+            >
+              <span className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">
+                Advanced (prototype parameters)
               </span>
-            </label>
-            <label className="mt-1.5 flex items-center gap-2">
-              <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Max slope (block)</span>
-              <input
-                type="range"
-                min={10}
-                max={60}
-                step={1}
-                value={mission.params.maxSlopeDeg}
-                onChange={(e) => setRouteParams({ maxSlopeDeg: Number(e.target.value) })}
-                className="solara-range min-w-0 flex-1"
-                aria-label="Maximum slope in degrees before blocking"
+              <ChevronDown
+                aria-hidden="true"
+                className={cn('size-3.5 shrink-0 text-ink-subtle transition-transform duration-150', advancedOpen && 'rotate-180')}
               />
-              <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
-                {mission.params.maxSlopeDeg}°
-              </span>
-            </label>
-            <p className="mt-1 text-[10px] leading-snug text-ink-subtle">
-              Prototype thresholds — not operational safety limits.
-            </p>
+            </button>
+            {advancedOpen && (
+              <div id="mission-advanced-params" className="border-t border-edge px-2.5 py-2">
+                <label className="flex items-center gap-2">
+                  <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Slope cost / degree</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.3}
+                    step={0.005}
+                    value={mission.params.slopeCostPerDeg}
+                    onChange={(e) => setRouteParams({ slopeCostPerDeg: Number(e.target.value) })}
+                    className="solara-range min-w-0 flex-1"
+                    aria-label="Slope cost per degree"
+                  />
+                  <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
+                    {mission.params.slopeCostPerDeg.toFixed(3)}
+                  </span>
+                </label>
+                <label className="mt-1.5 flex items-center gap-2">
+                  <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Max slope (block)</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={60}
+                    step={1}
+                    value={mission.params.maxSlopeDeg}
+                    onChange={(e) => setRouteParams({ maxSlopeDeg: Number(e.target.value) })}
+                    className="solara-range min-w-0 flex-1"
+                    aria-label="Maximum slope in degrees before blocking"
+                  />
+                  <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
+                    {mission.params.maxSlopeDeg}°
+                  </span>
+                </label>
+                <p className="mt-1 text-[10px] leading-snug text-ink-subtle">
+                  Prototype thresholds — not operational safety limits.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">

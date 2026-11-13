@@ -25,7 +25,7 @@ import type { DatasetRecord } from '../../data/catalog/types';
 
 /** Verified USGS SIM 3292 unit colours for the Jezero extent (muted, dark-
  *  UI friendly). Unknown unit codes fall back to a neutral fill — the legend
- *  in DatasetPanel lists the verified codes. */
+ *  in DatasetDetails lists the verified codes. */
 const GEOLOGY_UNIT_STYLE: Readonly<Record<string, { fill: string; stroke: string }>> = {
   mNhm: { fill: 'rgba(164, 122, 84, 0.30)', stroke: 'rgba(214, 174, 128, 0.9)' },
   HNt: { fill: 'rgba(104, 122, 168, 0.30)', stroke: 'rgba(158, 178, 224, 0.9)' },

@@ -1,34 +1,59 @@
 /**
- * LocationPanel — right panel: the map location selected by clicking.
+ * LocationPanel — the map location selected by clicking, shown in the
+ * mission-operations panel.
  *
- * Elevation is queried LIVE from the verified Trek ImageServer
- * (MOLA+HRSC blend DEM). When the live query fails, the prepared grid asset
- * (cross-validated against the live service at preparation time) provides a
- * fallback, clearly labelled as derived-from-prepared-grid. When neither is
- * available, elevation is shown as Unknown. Slope at a single point and
- * surface conditions are NOT derivable from integrated data and are shown
- * as unknown with reasons (Context.md §7).
+ * Elevation is queried LIVE from the verified Trek ImageServer (the static
+ * MOLA+HRSC blend DEM, 2018 v2 — a fixed product, not current conditions).
+ * When the live query fails, the prepared grid asset (cross-validated
+ * against the live service at preparation time) provides a fallback, clearly
+ * labelled as derived-from-prepared-grid. When neither is available,
+ * elevation is shown as Unknown. Slope at a single point and surface
+ * conditions are NOT derivable from integrated data and are shown as
+ * unknown with reasons (Context.md §7).
+ *
+ * Region membership is an exact compare against the exploration bounding
+ * box — out-of-region points are never clamped or rejected.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Crosshair } from 'lucide-react';
 import type { MapLocation } from '../../../map/mapTypes';
+import type { RegionRecord } from '../../../data/catalog/types';
 import { Section, DataRow } from '../../../components/ui/section';
+import { Button } from '../../../components/ui/button';
+import { cn } from '../../../lib/utils';
 import { formatLat, formatLon, formatMetreSigned, formatUtcTime } from '../../../lib/format';
+import { isInsideBoundingBox } from '../../../lib/bbox';
 import { identifyElevation } from '../../../data/adapters/demService';
 import { fetchElevationGrid, sampleElevation, type ElevationGrid } from '../../../data/adapters/elevationGrid';
 import { getDatasetById } from '../../../data/catalog/datasets';
 
 export interface LocationPanelProps {
   location: MapLocation | null;
+  /** Exploration region for the membership row (honest in/out compare). */
+  region?: RegionRecord;
+  /** Reports the current elevation state up (Copilot context building). */
+  onElevationStateChange?: (state: ElevationState | null) => void;
 }
 
-type ElevationState =
+export type ElevationState =
   | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'live'; value: number; fetchedAt: string }
-  | { kind: 'no-data'; fetchedAt: string }
-  | { kind: 'error'; message: string; fallbackValue: number | null; fallbackLabel: string | null };
+  | { kind: 'loading'; locationKey?: string }
+  | { kind: 'live'; value: number; fetchedAt: string; locationKey?: string }
+  | { kind: 'no-data'; fetchedAt: string; locationKey?: string }
+  | {
+      kind: 'error';
+      message: string;
+      fallbackValue: number | null;
+      fallbackLabel: string | null;
+      locationKey?: string;
+    };
+
+/** Stable key for the location an elevation state belongs to; lets the
+ *  reporter never pair an old elevation value with a new location. */
+function locationKeyOf(location: MapLocation): string {
+  return `${location.lon.toFixed(6)},${location.lat.toFixed(6)}`;
+}
 
 /** Module-level cache of the prepared grid (loaded at most once). */
 let preparedGridPromise: Promise<ElevationGrid | null> | null = null;
@@ -63,16 +88,16 @@ function ElevationRow({ state }: { state: ElevationState }) {
     case 'idle':
     case 'loading':
       main = '…';
-      detail = state.kind === 'idle' ? 'Querying the live DEM service…' : 'Awaiting query…';
+      detail = state.kind === 'idle' ? 'Querying the Trek DEM service…' : 'Awaiting query…';
       break;
     case 'live':
       main = `${state.value.toLocaleString('en-US')} m`;
-      detail = `Live DEM service query, ${formatUtcTime(state.fetchedAt)}`;
+      detail = `Queried from Trek DEM service (static MOLA+HRSC blend, 2018 v2), ${formatUtcTime(state.fetchedAt)}`;
       break;
     case 'no-data':
       main = 'Unknown';
       tone = 'warn';
-      detail = 'The live DEM service reports NoData at this point.';
+      detail = 'The DEM service reports NoData at this point.';
       break;
     case 'error':
       main = 'Unknown';
@@ -99,8 +124,10 @@ function ElevationRow({ state }: { state: ElevationState }) {
   );
 }
 
-export function LocationPanel({ location }: LocationPanelProps) {
+export function LocationPanel({ location, region, onElevationStateChange }: LocationPanelProps) {
   const [elevationState, setElevationState] = useState<ElevationState>({ kind: 'idle' });
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'failed'>('idle');
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!location) {
@@ -110,7 +137,8 @@ export function LocationPanel({ location }: LocationPanelProps) {
     let cancelled = false;
     const lon = Number(location.lon.toFixed(6));
     const lat = Number(location.lat.toFixed(6));
-    setElevationState({ kind: 'loading' });
+    const key = locationKeyOf(location);
+    setElevationState({ kind: 'loading', locationKey: key });
 
     const timer = setTimeout(() => {
       void (async () => {
@@ -118,9 +146,14 @@ export function LocationPanel({ location }: LocationPanelProps) {
           const result = await identifyElevation(lon, lat);
           if (cancelled) return;
           if (result.noData) {
-            setElevationState({ kind: 'no-data', fetchedAt: result.fetchedAt });
+            setElevationState({ kind: 'no-data', fetchedAt: result.fetchedAt, locationKey: key });
           } else {
-            setElevationState({ kind: 'live', value: result.elevationM ?? Number.NaN, fetchedAt: result.fetchedAt });
+            setElevationState({
+              kind: 'live',
+              value: result.elevationM ?? Number.NaN,
+              fetchedAt: result.fetchedAt,
+              locationKey: key,
+            });
           }
         } catch (e) {
           if (cancelled) return;
@@ -142,7 +175,7 @@ export function LocationPanel({ location }: LocationPanelProps) {
             // Fallback stays unavailable; the primary Unknown stands.
           }
           if (!cancelled) {
-            setElevationState({ kind: 'error', message, fallbackValue, fallbackLabel });
+            setElevationState({ kind: 'error', message, fallbackValue, fallbackLabel, locationKey: key });
           }
         }
       })();
@@ -153,6 +186,23 @@ export function LocationPanel({ location }: LocationPanelProps) {
       clearTimeout(timer);
     };
   }, [location]);
+
+  /* Report the elevation state that belongs to the CURRENT location only —
+   * a state keyed to a previous location is reported as a pending query
+   * instead of being paired with the new point. */
+  useEffect(() => {
+    if (!location) {
+      onElevationStateChange?.(null);
+      return;
+    }
+    const key = locationKeyOf(location);
+    const stateKey = elevationState.kind === 'idle' ? undefined : elevationState.locationKey;
+    onElevationStateChange?.(stateKey === key ? elevationState : { kind: 'loading', locationKey: key });
+  }, [elevationState, location, onElevationStateChange]);
+
+  useEffect(() => () => {
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+  }, []);
 
   if (!location) {
     return (
@@ -170,6 +220,26 @@ export function LocationPanel({ location }: LocationPanelProps) {
     );
   }
 
+  const bbox = region?.boundingBox;
+  const inside = bbox !== undefined && isInsideBoundingBox(location, bbox);
+
+  const handleCopy = () => {
+    const text = `${formatLon(location.lon)}, ${formatLat(location.lat)}`;
+    const reset = (state: 'ok' | 'failed') => {
+      setCopyState(state);
+      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = setTimeout(() => setCopyState('idle'), 1500);
+    };
+    if (!navigator.clipboard) {
+      reset('failed');
+      return;
+    }
+    navigator.clipboard
+      .writeText(text)
+      .then(() => reset('ok'))
+      .catch(() => reset('failed'));
+  };
+
   return (
     <div data-testid="location-panel">
       <Section title="Selected location" hint="clicked point">
@@ -178,6 +248,24 @@ export function LocationPanel({ location }: LocationPanelProps) {
           <DataRow label="Latitude" mono>{formatLat(location.lat)}</DataRow>
           <DataRow label="Projected X (easting)" mono>{formatMetreSigned(location.x)}</DataRow>
           <DataRow label="Projected Y (northing)" mono>{formatMetreSigned(location.y)}</DataRow>
+        </div>
+        {bbox && (
+          <div
+            className={cn(
+              'mt-2 rounded border px-2 py-1.5 text-[10.5px] leading-snug',
+              inside ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn',
+            )}
+            data-testid="region-membership"
+          >
+            {inside
+              ? 'Inside exploration region'
+              : 'Outside exploration region — global imagery and elevation products only; route planning unavailable here.'}
+          </div>
+        )}
+        <div className="mt-2">
+          <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy coordinates">
+            {copyState === 'ok' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy coordinates'}
+          </Button>
         </div>
       </Section>
 

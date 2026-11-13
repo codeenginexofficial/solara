@@ -95,7 +95,23 @@ export interface DatasetRecord {
   resolutionUnit?: string;
   observationStart?: string;
   observationEnd?: string;
+  /**
+   * Observation/acquisition period when a simple start/end pair is not
+   * adequate (e.g. blended products, compiled maps). Verbatim source wording.
+   */
+  observationPeriod?: string;
   units?: string;
+  /**
+   * The published product this dataset serves/derives from, when the source
+   * documents one (USGS/NASA publication). Values verbatim from the source.
+   */
+  sourcePublication?: {
+    title: string;
+    authors: string;
+    year: number;
+    doi?: string;
+    url: string;
+  };
   attribution: string;
   limitations: string[];
   verification: VerificationStatus;

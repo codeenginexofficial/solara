@@ -15,7 +15,7 @@ import { Suspense, lazy, useCallback, useRef, useState } from 'react';
 import { Download, MapPin, Play, RotateCcw, Upload, X } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions } from '../../data/catalog/datasets';
-import type { LayerUiState } from '../habitat-mode/components/LayerPanel';
+import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
 import {
   buildPlanFile,
   clearRoute,

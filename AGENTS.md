@@ -68,6 +68,28 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 - `src/workers/` — `route.worker.ts` (A*, 8-connected, no corner cutting, unknown cells impassable, snapping + warnings + provenance) + `routeClient.ts` (module singleton; typed `RouteClientError` codes: grid-not-loaded/start-outside/target-outside/start-unknown/target-unknown/no-path/invalid-params).
 - `src/features/mission/` — `store.ts` (module singleton via `useSyncExternalStore`; start/target/route/params/position/gridMeta; plan export/import `solara-plan/1`), `components/ElevationProfile.tsx`, `components/RouteSummary.tsx`, `components/MissionPanel.tsx` (habitat).
 - `src/features/field-tablet/FieldTabletMode.tsx` — map-dominant, bottom mission sheet, simulated position (always labelled SIMULATED), nearest-route-point card, plan import.
-- `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `LayerPanel` (map layers vs query-only datasets), `LocationPanel` (live DEM identify + prepared-grid fallback), `MissionPanel`.
+- `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `MissionOperationsPanel` (mission area, grouped map layers with runtime state chips, query-only datasets, selected location with region-membership row, mission planning with an "Advanced (prototype parameters)" disclosure), `CopilotPanel` (right-panel Mission Copilot; expanded mode is width-only and preserves history), `LocationPanel`, `MissionPanel`, `DatasetPanel` (details renderer). `LayerPanel.tsx` was superseded by `MissionOperationsPanel` and removed.
+- `src/features/copilot/` — `copilotClient.ts`: typed client for `POST /api/copilot/chat`; `MAX_CONVERSATION_MESSAGES = 24` matches the Worker's server-side limit; no credentials client-side.
+- `worker/` — Cloudflare Worker copilot proxy (`POST /api/copilot/chat`): validates/clamps the payload, injects server-side honesty guardrails + verified dataset facts, forwards to OpenRouter (`OPENROUTER_MODEL` var, default `openrouter/free`); secrets `OPENROUTER_API_KEY` via `wrangler secret put` (`.dev.vars` git-ignored, never committed). Dev: `npm run dev:copilot` + Vite proxy `/api/copilot` → 127.0.0.1:8787.
+- `src/lib/marsCrs.ts` — ol-free CRS ids/sphere constants/display metadata (re-exported by ProjectionRegistry); shell components import from here so proj4/ol stay out of the shell bundle. `src/lib/bbox.ts` — shared `isInsideBoundingBox`.
 - `public/data/mars/jezero/` — prepared verified assets (geology 2 units, traverse 332 sol-tagged segments, landing ellipse, DEM grid 160×151) from `scripts/prepare-jezero-assets.mjs`.
 - Base layer order (bottom-first): `['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008']` — topography under imagery, in both modes.
+
+## Specialist subagent workflow (project config in `.opencode/agent/`)
+
+Four project subagents are defined in `.opencode/agent/` (verified against opencode 1.19.5):
+
+| Agent | Focus | Writes |
+| --- | --- | --- |
+| `solara-ui-specialist` | React 19 / TS / Tailwind v4, layout, accessibility | Yes — only on explicit assignment |
+| `solara-gis-specialist` | OpenLayers, proj4, CRS, WMTS tile grids | No — read-only analysis |
+| `solara-science-researcher` | Mars/Jezero science, provenance, validation | No — read-only research |
+| `solara-code-reviewer` | TS correctness, architecture, regressions, security | No — strictly read-only |
+
+Orchestration rules for the main agent (the project lead):
+
+- The main agent owns task assignment, sequencing, integration, and final approval. Subagents never commit; only the lead integrates.
+- Delegate independent research/inspection in parallel (e.g. GIS + science questions on the same change), but never give two write-capable agents overlapping files at the same time.
+- Subagents cannot talk to each other. Pass relevant findings between them yourself, through the main agent's context.
+- Every subagent task must end with a report: findings, files inspected, assumptions, risks, recommendations. Research agents must add source URLs and how each claim was verified. The reviewer must cite the actual diff commands and test results it ran.
+- Review all subagent outputs before acting on them; verify claims against the repo docs (this file, Architecture.md, Context.md) rather than trusting the summary.
