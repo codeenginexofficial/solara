@@ -11,12 +11,16 @@ These are the source of truth. If code and docs disagree, the docs describe the 
 ## Commands
 
 ```powershell
-npm run dev        # Vite dev server, port 5173
-npm run typecheck  # tsc --noEmit
-npm run build      # typecheck + production build (run after meaningful changes)
+npm run dev               # Vite dev server, port 5173
+npm run dev:copilot       # Copilot Worker (wrangler) on 127.0.0.1:8787 — Vite proxies /api/copilot to it
+npm run typecheck         # tsc --noEmit
+npm run typecheck:copilot # tsc --noEmit -p worker
+npm run build             # typecheck + production build (run after meaningful changes)
 ```
 
 There is no test framework and no linter. The verification loop is: `typecheck` → `build` → manual browser checks (`npx playwright-cli open http://localhost:5173 --browser msedge`; session supports `reload`, `eval`, `route`, `network-state-set`, `console`, `screenshot`).
+
+Copilot development needs **both** processes running. Without the Worker, copilot sends fail with honest errors (`copilot-unconfigured` / `offline` / `invalid-response`) — that is correct behavior, not a bug to fix.
 
 ## Environment gotchas (Windows / PowerShell 5.1)
 
@@ -28,7 +32,7 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 ## CRS facts (do not re-derive or "fix" these)
 
 - NASA Trek declares `urn:ogc:def:crs:EPSG::104905`, but that URN does **not** resolve under EPSG (registry has no 104905; under ESRI it is `GCS_Mars_2000`, a geographic CRS). The projection Trek actually serves was verified equivalent to **IAU:2015:49910** (Mars sphere R = 3,396,190 m, equirectangular, lat_ts 0, clon 0, metres). Full evidence trail: `Architecture.md` §6.1.
-- SOLARA uses its own internal ids `SOLARA:MARS_EQC_IAU2015` / `SOLARA:MARS_2000_SPHERE_LONLAT` (defined in `src/map/projections/ProjectionRegistry.ts`). They make no authority claim — never display `EPSG:104905` as the working projection; the declared URN is kept verbatim only as source metadata.
+- SOLARA uses its own internal ids `SOLARA:MARS_EQC_IAU2015` / `SOLARA:MARS_2000_SPHERE_LONLAT` (defined in `src/lib/marsCrs.ts`, re-exported by `ProjectionRegistry.ts`). They make no authority claim — never display `EPSG:104905` as the working projection; the declared URN is kept verbatim only as source metadata.
 - proj4 quirk (verified on 2.22.0): the eqc forward transform flips y's sign at exactly ±90° latitude. Pole coordinates (tile-grid origin, world extent) must be computed analytically (±πR/2) as done in `src/map/trek/tileGrid.ts`; never take them from proj4 output.
 - The WMTS tile matrix is a degree-based plate carrée pyramid, inconsistent with its metre CRS and with its declared `ScaleDenominator`s. Resolutions are derived analytically from matrix geometry in `tileGrid.ts`.
 
@@ -38,14 +42,27 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 - Trek answers 404 for out-of-footprint tiles **without** an `Access-Control-Allow-Origin` header, so each such request is CORS-rejected by the browser and logged as console errors. The tile loader therefore marks tiles fully outside the advertised footprint as `TileState.EMPTY` before fetching — out-of-footprint tiles must never be requested.
 - Tile counters reset on `change:resolution` (a new pyramid level means new tiles); panning within a level keeps accumulating.
 - `ol.css` is not imported; control positioning (`position: absolute`, attribution, scale line) is hand-declared in `src/index.css`. Add positioning rules there when adding controls.
-- No ol object (`Map`, `Layer`, `Source`) may live in React state — ol stays inside `src/map/MarsMap.tsx`. `MarsMap` is `React.lazy`-loaded; do not import ol in shell code or the code-split is lost.
-- ol quirk (verified 2026-11-13, fixed in `ProjectionRegistry.ts`): with a proj4-registered projection, ol's default `getPointResolution` estimates scale by transforming a pixel window to EPSG:4326 and measuring it on the **Earth** sphere (`node_modules/ol/proj.js` estimation path). For the Mars sphere this inflates the estimate by ≈ (R⊕/R♂)·(1+cos φ)/2 — ×1.83 at 18.5°N — so the ol `ScaleLine` control drew bars ~1.8–3.6× too short (a "20 km" bar actually spanned ~36.6 km). Fixed by `setGetPointResolution((r) => r)` on the eqc projection — exact, because eqc at lat_ts 0 is equidistant in x and y. Never remove that call; verify with a screenshot or pixel measure (5 km bar = 90 px at the fitted 55.44 m/px view).
+- No ol object (`Map`, `Layer`, `Source`) may live in React state — ol stays inside `src/map/MarsMap.tsx`. `MarsMap` is `React.lazy`-loaded; do not import ol in shell code or the code-split is lost. Same for constants: shell components import CRS ids/metadata from `src/lib/marsCrs.ts` (ol-free), **never** from `ProjectionRegistry.ts` — importing even constants from the registry pulls proj4 + ol/proj into the shell chunk (measured regression: index chunk 492 → 342 kB when fixed, 2026-11-13). The MarsMap chunk may exceed Vite's 500 kB chunk warning — that is the intended split, do not "fix" it by un-splitting.
+- ol quirk (verified 2026-11-13, fixed in `ProjectionRegistry.ts`): with a proj4-registered projection, ol's default `getPointResolution` estimates scale by transforming a pixel window to EPSG:4326 and measuring it on the **Earth** sphere (`node_modules/ol/proj.js` estimation path). For the Mars sphere this inflates the estimate by ≈ (R⊕/R♂)·(1+cos φ)/2 — ×1.83 at 18.5°N — so the ol `ScaleLine` control drew bars ~1.8–3.6× too short (a "20 km" bar actually spanned ~36.6 km). Fixed by `setGetPointResolution((r) => r)` on the eqc projection — exact, because eqc at lat_ts 0 is equidistant in x and y. Never remove that call; verify with a screenshot or pixel measure (a 5 km bar spans 5000/res pixels, e.g. 120 px at ~42 m/px, 90 px at 55.44 m/px).
 - ol `View.fit()` does NOT snap resolution to a custom `resolutions` list (`constrainResolution` defaults to false) — fitted views land at fractional zooms between tile levels (e.g. zoom 9.554 → 55.44 m/px). Expected, not a bug.
+- GeoJSON overlay layers stack above the route layer in default render order; the route layer is pinned on top with `routeLayer.setZIndex(100)` in `MarsMap.tsx`. Any new layer needs an explicit zIndex or stacking will surprise you.
 
 ## Capabilities / data semantics
 
 - The map always builds from the embedded verified capabilities snapshot; the live Trek fetch only re-verifies via grid fingerprint. Do not wire map construction to live-fetch results, and do not present "live" status unless the fingerprint matched (states: `checking | live | schema-changed | unavailable`).
 - Every displayed scientific value must be labeled observed / derived / modelled / historical / unavailable (Context.md §7). "Unknown" must be visible as unknown. Routes are "proposed terrain-cost candidates", never "safest". Delayed observations are never "live weather".
+
+## Mission Copilot contract (verified 2026-11-13)
+
+- `MAX_CONVERSATION_MESSAGES = 24` (`src/features/copilot/copilotClient.ts`) is a shared contract with the Worker's `MAX_MESSAGES` (`worker/src/index.ts`): the client trims history before sending; the Worker 400-rejects over-limit payloads. Change both sides together or sends brick on `invalid-request`.
+- `CopilotPanel` guards the clear-during-pending race with `sendSequenceRef` (in-flight resolutions whose sequence is stale are dropped; a failed send reverts the optimistic user message and restores the draft). Removing the guard resurrects cleared conversations.
+- Client `CopilotClientError` codes are the UI's honest-error mapping (`network-error`/`invalid-response` added client-side; the rest come from the Worker). Keep `worker/src/index.ts` and `copilotClient.ts` error vocabularies in sync.
+- The Worker has no auth or rate limiting — local dev only; add both before any public deployment. No OpenRouter credentials may ever reach the client (no `VITE_*` vars).
+
+## Selection / coordinate semantics (verified 2026-11-13)
+
+- Clicks outside the exploration region are legitimate user input (global-view pan). Do **not** clamp them: the selected-location card shows an "Inside / Outside exploration region" row via the shared `isInsideBoundingBox` (`src/lib/bbox.ts`) and states the consequences honestly (route planning unavailable outside).
+- LocationPanel elevation states carry a `locationKey` (lon/lat at 6 dp); the reporting effect only pairs a state with the location it was fetched for, otherwise it reports loading. Never render an elevation value under a different point.
 
 ## Reference values for validation (Jezero CTX, verified)
 
@@ -69,7 +86,7 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 - `src/features/mission/` — `store.ts` (module singleton via `useSyncExternalStore`; start/target/route/params/position/gridMeta; plan export/import `solara-plan/1`), `components/ElevationProfile.tsx`, `components/RouteSummary.tsx`, `components/MissionPanel.tsx` (habitat).
 - `src/features/field-tablet/FieldTabletMode.tsx` — map-dominant, bottom mission sheet, simulated position (always labelled SIMULATED), nearest-route-point card, plan import.
 - `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `MissionOperationsPanel` (mission area, grouped map layers with runtime state chips, query-only datasets, selected location with region-membership row, mission planning with an "Advanced (prototype parameters)" disclosure), `CopilotPanel` (right-panel Mission Copilot; expanded mode is width-only and preserves history), `LocationPanel`, `MissionPanel`, `DatasetPanel` (details renderer). `LayerPanel.tsx` was superseded by `MissionOperationsPanel` and removed.
-- `src/features/copilot/` — `copilotClient.ts`: typed client for `POST /api/copilot/chat`; `MAX_CONVERSATION_MESSAGES = 24` matches the Worker's server-side limit; no credentials client-side.
+- `src/features/copilot/` — `copilotClient.ts`: typed client for `POST /api/copilot/chat`; see "Mission Copilot contract" above for the shared limits/error codes; no credentials client-side.
 - `worker/` — Cloudflare Worker copilot proxy (`POST /api/copilot/chat`): validates/clamps the payload, injects server-side honesty guardrails + verified dataset facts, forwards to OpenRouter (`OPENROUTER_MODEL` var, default `openrouter/free`); secrets `OPENROUTER_API_KEY` via `wrangler secret put` (`.dev.vars` git-ignored, never committed). Dev: `npm run dev:copilot` + Vite proxy `/api/copilot` → 127.0.0.1:8787.
 - `src/lib/marsCrs.ts` — ol-free CRS ids/sphere constants/display metadata (re-exported by ProjectionRegistry); shell components import from here so proj4/ol stay out of the shell bundle. `src/lib/bbox.ts` — shared `isInsideBoundingBox`.
 - `public/data/mars/jezero/` — prepared verified assets (geology 2 units, traverse 332 sol-tagged segments, landing ellipse, DEM grid 160×151) from `scripts/prepare-jezero-assets.mjs`.
