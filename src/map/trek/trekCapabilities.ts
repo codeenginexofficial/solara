@@ -1,15 +1,13 @@
 /**
  * NASA Trek WMTS capabilities parsing.
  *
- * The embedded VERIFIED_CAPABILITIES_XML below is the actual
- * WMTSCapabilities.xml retrieved from
- * https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/WMTSCapabilities.xml
- * on 2026-11-12 (HTTP 200, application/xml). It is the fallback configuration
- * used when the live document cannot be fetched from the browser; the live
- * document is always preferred and is re-validated with the same parser.
+ * VERIFIED_CAPABILITIES_XML_BY_ID below contains the actual WMTSCapabilities.xml
+ * documents retrieved from trek.nasa.gov (HTTP 200) on 2026-11-12/13. They are
+ * the fallback configuration used when a live document cannot be fetched; live
+ * documents are always preferred and re-validated with the same parser.
  *
- * Verified quirks of this Trek service:
- *  - The document declares the CRS URN urn:ogc:def:crs:EPSG::104905 (both as
+ * Verified quirks of the Trek EQ services:
+ *  - Layers declare the CRS URN urn:ogc:def:crs:EPSG::104905 (both as
  *    TileMatrixSet SupportedCRS and as the Layer BoundingBox crs attribute).
  *    That URN does NOT resolve under the EPSG authority (the official EPSG
  *    registry has no CRS 104905; ESRI:104905 denotes the *geographic* Mars
@@ -17,13 +15,16 @@
  *    but renders with the internal projection SOLARA:MARS_EQC_IAU2015,
  *    verified numerically equivalent to IAU:2015:49910 — see
  *    map/projections/ProjectionRegistry.ts and Architecture.md §6.
- *  - The tile matrix values are expressed in DEGREES despite the metre-based
+ *  - Tile matrix values are expressed in DEGREES despite the metre-based
  *    declared CRS: TopLeftCorner is (-180, 90) and the grid spans the full
  *    globe (360° × 180°) with 256×256 tiles and matrix sizes 2^(L+1) × 2^L.
  *    The declared ScaleDenominator values are inconsistent with the Mars
  *    sphere (they imply ~111,268 m per degree). SOLARA therefore derives
  *    tile resolutions from the matrix geometry and the verified Mars sphere
  *    radius — see map/trek/tileGrid.ts.
+ *  - Some layers declare more tile levels than the tile cache serves; only
+ *    levels verified to return tile imagery (HTTP 200) are enabled per
+ *    dataset (see DatasetRecord.verifiedServedLevels in the catalog).
  */
 
 import type { GeographicBoundingBox } from '../../data/catalog/types';
@@ -225,8 +226,12 @@ export function parseTrekCapabilitiesXml(xml: string): TrekWmtsConfig {
 
   const formatEl = firstByTag(layerEl, WMTS_NS, 'Format');
   const format = textContentOf(formatEl);
-  if (format !== 'image/png') {
-    throw new TrekCapabilitiesError(`Unexpected tile format "${format}" — expected image/png.`);
+  // Verified Trek EQ tile formats are image/png (CTX mosaic) and
+  // image/jpeg (MOLA blend layers). Anything else is not verified.
+  if (format !== 'image/png' && format !== 'image/jpeg') {
+    throw new TrekCapabilitiesError(
+      `Unexpected tile format "${format}" — verified formats are image/png and image/jpeg.`,
+    );
   }
 
   const resourceUrlEls = allByTag(layerEl, WMTS_NS, 'ResourceURL');
@@ -275,8 +280,9 @@ export function parseTrekCapabilitiesXml(xml: string): TrekWmtsConfig {
 }
 
 /**
- * The verified capabilities document (fetched 2026-11-12). Used verbatim as
- * the fallback configuration; the live document is preferred at runtime.
+ * The verified capabilities document for the Jezero CTX mosaic
+ * (fetched 2026-11-12). Used verbatim as the fallback configuration; the
+ * live document is preferred at runtime.
  */
 export const VERIFIED_CAPABILITIES_XML = String.raw`<?xml version="1.0" encoding="UTF-8"?>
 <Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xsi:schemaLocation="http://www.opengis.net/wmts/1.0 http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd" version="1.0.0">
@@ -365,6 +371,125 @@ export const VERIFIED_CAPABILITIES_XML = String.raw`<?xml version="1.0" encoding
     <ServiceMetadataURL xlink:href="https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/WMTSCapabilities.xml"/>
 </Capabilities>
 `;
+
+/**
+ * The verified capabilities document for the MOLA + HRSC blend color
+ * hillshade layer (fetched 2026-11-13). Declares exactly tile levels 0–8,
+ * all of which serve imagery (verified: level 8 tiles HTTP 200 image/jpeg);
+ * the commented-out alternative TileMatrixSet block inside the document is
+ * ignored by the namespace-aware parser.
+ */
+export const VERIFIED_MOLA_BLEND_200M_CAPABILITIES_XML = String.raw`<?xml version="1.0" encoding="UTF-8"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xsi:schemaLocation="http://www.opengis.net/wmts/1.0 http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd" version="1.0.0">
+    <!-- Service Identification -->
+    <ows:ServiceIdentification>
+        <ows:Title>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</ows:Title>
+        <ows:ServiceType>OGC WMTS</ows:ServiceType>
+        <ows:ServiceTypeVersion>1.0.0</ows:ServiceTypeVersion>
+    </ows:ServiceIdentification> <!-- Operations Metadata -->
+    <ows:OperationsMetadata>
+        <ows:Operation name="GetCapabilities">
+            <ows:DCP>
+                <ows:HTTP>
+                    <ows:Get xlink:href="https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/WMTSCapabilities.xml">
+                        <ows:Constraint name="GetEncoding">
+                            <ows:AllowedValues>
+                                <ows:Value>RESTful</ows:Value>
+                            </ows:AllowedValues>
+                        </ows:Constraint>
+                    </ows:Get>
+
+                </ows:HTTP>
+            </ows:DCP>
+        </ows:Operation>
+        <ows:Operation name="GetTile">
+            <ows:DCP>
+                <ows:HTTP>
+                    <ows:Get xlink:href="https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/">
+                        <ows:Constraint name="GetEncoding">
+                            <ows:AllowedValues>
+                                <ows:Value>RESTful</ows:Value>
+                            </ows:AllowedValues>
+                        </ows:Constraint>
+                    </ows:Get>
+
+                </ows:HTTP>
+            </ows:DCP>
+        </ows:Operation>
+    </ows:OperationsMetadata>
+    <Contents>
+        <!--Layer-->
+        <Layer>
+            <ows:Title>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</ows:Title>
+            <ows:Identifier>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</ows:Identifier>
+            <ows:BoundingBox crs="urn:ogc:def:crs:EPSG::104905">
+                <ows:LowerCorner>-180.0 -89.999224</ows:LowerCorner>
+                <ows:UpperCorner>179.9984479 90.0</ows:UpperCorner>
+            </ows:BoundingBox>
+            <ows:WGS84BoundingBox crs="urn:ogc:def:crs:OGC:2:84">
+                <ows:LowerCorner>-180.0 -89.999224</ows:LowerCorner>
+                <ows:UpperCorner>179.9984479 90.0</ows:UpperCorner>
+            </ows:WGS84BoundingBox>
+
+            <Style isDefault="true">
+                <ows:Title>Default Style</ows:Title>
+                <ows:Identifier>default</ows:Identifier>
+            </Style>
+            <Format>image/jpeg</Format>
+            <TileMatrixSetLink>
+                <TileMatrixSet>default028mm</TileMatrixSet>
+            </TileMatrixSetLink>
+            <ResourceURL format="image/jpeg" resourceType="tile" template="https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0//{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpg"/>
+        </Layer> <!--TileMatrixSet-->
+        <TileMatrixSet>
+            <ows:Title>default</ows:Title>
+            <ows:Abstract>The tile matrix set that has scale values calculated based on the dpi defined by OGC specification (dpi assumes 0.28mm as the physical distance of a pixel).</ows:Abstract>
+            <ows:Identifier>default028mm</ows:Identifier>
+            <ows:SupportedCRS>urn:ogc:def:crs:EPSG::104905</ows:SupportedCRS>
+            <TileMatrix><ows:Identifier>0</ows:Identifier><ScaleDenominator>2.7922763629807472E+08</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>2.0</MatrixWidth><MatrixHeight>1.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>1</ows:Identifier><ScaleDenominator>1.3961381814903736E+08</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>4.0</MatrixWidth><MatrixHeight>2.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>2</ows:Identifier><ScaleDenominator>6.9806909074518681E+07</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>8.0</MatrixWidth><MatrixHeight>4.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>3</ows:Identifier><ScaleDenominator>3.4903454537259340E+07</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>16.0</MatrixWidth><MatrixHeight>8.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>4</ows:Identifier><ScaleDenominator>1.7451727268629670E+07</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>32.0</MatrixWidth><MatrixHeight>16.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>5</ows:Identifier><ScaleDenominator>8.7258636343148351E+06</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>64.0</MatrixWidth><MatrixHeight>32.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>6</ows:Identifier><ScaleDenominator>4.3629318171574175E+06</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>128.0</MatrixWidth><MatrixHeight>64.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>7</ows:Identifier><ScaleDenominator>2.1814659085787088E+06</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>256.0</MatrixWidth><MatrixHeight>128.0</MatrixHeight></TileMatrix>
+<TileMatrix><ows:Identifier>8</ows:Identifier><ScaleDenominator>1.0907329542893544E+06</ScaleDenominator><TopLeftCorner>-180.0 90.0</TopLeftCorner><TileWidth>256</TileWidth><TileHeight>256</TileHeight><MatrixWidth>512.0</MatrixWidth><MatrixHeight>256.0</MatrixHeight></TileMatrix>
+
+            <!--<TileMatrix>
+                <ows:Identifier>0</ows:Identifier>
+                <ScaleDenominator>2.3623511904761901E8</ScaleDenominator>
+                <TopLeftCorner>-180.0 90.0</TopLeftCorner>
+                <TileWidth>256</TileWidth>
+                <TileHeight>256</TileHeight>
+                <MatrixWidth>3</MatrixWidth>
+                <MatrixHeight>2</MatrixHeight>
+            </TileMatrix>
+            <TileMatrix>
+                <ows:Identifier>1</ows:Identifier>
+                <ScaleDenominator>1.1811755952380951E8</ScaleDenominator>
+                <TopLeftCorner>-180.0 90.0</TopLeftCorner>
+                <TileWidth>256</TileWidth>
+                <TileHeight>256</TileHeight>
+                <MatrixWidth>5</MatrixWidth>
+                <MatrixHeight>3</MatrixHeight>
+            </TileMatrix>
+            -->
+
+        </TileMatrixSet>
+    </Contents>
+    <ServiceMetadataURL xlink:href="https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/WMTSCapabilities.xml"/>
+</Capabilities>
+`;
+
+/**
+ * The verified capabilities documents, keyed by dataset id. Used verbatim as
+ * fallback configuration; the live documents are preferred at runtime.
+ */
+export const VERIFIED_CAPABILITIES_XML_BY_ID: Readonly<Record<string, string>> = {
+  'jezero-ctx-mosaic-soc-008': VERIFIED_CAPABILITIES_XML,
+  'mola-hrsc-blend-200m-colorshade': VERIFIED_MOLA_BLEND_200M_CAPABILITIES_XML,
+};
 
 /** Fetch and parse the live capabilities document from the browser. */
 export async function fetchLiveTrekCapabilities(

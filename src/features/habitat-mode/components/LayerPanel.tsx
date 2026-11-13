@@ -4,7 +4,7 @@
  * Only datasets whose verification is 'integrated' expose controls.
  */
 
-import { Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { Image as ImageIcon, ExternalLink, Database } from 'lucide-react';
 import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../data/catalog/types';
 import { Badge } from '../../../components/ui/badge';
 import { Section, DataRow } from '../../../components/ui/section';
@@ -57,6 +57,11 @@ export function LayerPanel({
   onOpacityChange,
 }: LayerPanelProps) {
   const integrated = datasets.filter((d) => d.verification === 'integrated');
+  // Map layers (WMTS/GeoJSON assets) get visibility/opacity controls; live
+  // query datasets (DEM identify) have no map layer — they are listed for
+  // provenance only.
+  const mapLayers = integrated.filter((d) => d.accessMethod !== 'api');
+  const queryDatasets = integrated.filter((d) => d.accessMethod === 'api');
 
   const bbox = region.boundingBox;
   const latCenter = (bbox.southLat + bbox.northLat) / 2;
@@ -65,9 +70,9 @@ export function LayerPanel({
 
   return (
     <div className="flex min-h-0 flex-col overflow-y-auto">
-      <Section title="Map layers" hint={`${integrated.length} integrated`}>
+      <Section title="Map layers" hint={`${mapLayers.length} integrated`}>
         <ul className="flex flex-col gap-1.5">
-          {integrated.map((dataset) => {
+          {mapLayers.map((dataset) => {
             const state = layerStates[dataset.id] ?? { visible: false, opacity: 1 };
             const badge = VERIFICATION_BADGE[dataset.verification];
             return (
@@ -128,12 +133,53 @@ export function LayerPanel({
             );
           })}
         </ul>
+        {mapLayers.length === 0 && (
+          <p className="text-[11px] text-ink-subtle">No verified map layers yet.</p>
+        )}
         {datasets.length > integrated.length && (
           <p className="mt-2 text-[10px] leading-snug text-ink-subtle">
             {datasets.length - integrated.length} dataset(s) recorded but not yet verified for display. Controls appear only after verification.
           </p>
         )}
       </Section>
+
+      {queryDatasets.length > 0 && (
+        <Section title="Query datasets" hint="no map layer">
+          <ul className="flex flex-col gap-1.5">
+            {queryDatasets.map((dataset) => (
+              <li key={dataset.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectDataset(dataset.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectDataset(dataset.id);
+                    }
+                  }}
+                  className={cn(
+                    'flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors duration-150',
+                    dataset.id === selectedDatasetId
+                      ? 'border-accent/50 bg-panel-raised'
+                      : 'border-edge bg-transparent hover:bg-panel-raised/60',
+                  )}
+                >
+                  <Database className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-ink" title={dataset.title}>
+                      {dataset.title}
+                    </div>
+                    <div className="text-[10px] leading-snug text-ink-subtle">
+                      Live queries only (elevation) — used by mission planning; not drawn on the map.
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Exploration area">
         <div className="flex flex-col gap-1">

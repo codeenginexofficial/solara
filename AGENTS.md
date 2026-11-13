@@ -23,6 +23,7 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 - Editing files via PowerShell string commands (`Get-Content`/`Set-Content`/`.Replace`) silently corrupts UTF-8 characters (`°`, `λ`). Use the Read/Edit file tools instead.
 - `curl` is aliased to `Invoke-WebRequest` here; use `curl.exe` for real curl syntax.
 - Screenshots and probe scripts are disposable: delete them when done. Validation PNGs have accidentally been committed before — never stage them.
+- The Vite dev server watches the project root: writing any file into the repo while it runs (playwright snapshots, console logs, downloads) can trigger a full page reload, which resets in-memory module state (mission store: start/target/route). Keep validation artifacts OUTSIDE the repo (use `C:\Users\aas03\AppData\Local\Temp\opencode`), or expect reloads mid-test. Mission state is intentionally in-memory only — a browser reload discards the current route; plans survive only via export/import files.
 
 ## CRS facts (do not re-derive or "fix" these)
 
@@ -38,6 +39,8 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 - Tile counters reset on `change:resolution` (a new pyramid level means new tiles); panning within a level keeps accumulating.
 - `ol.css` is not imported; control positioning (`position: absolute`, attribution, scale line) is hand-declared in `src/index.css`. Add positioning rules there when adding controls.
 - No ol object (`Map`, `Layer`, `Source`) may live in React state — ol stays inside `src/map/MarsMap.tsx`. `MarsMap` is `React.lazy`-loaded; do not import ol in shell code or the code-split is lost.
+- ol quirk (verified 2026-11-13, fixed in `ProjectionRegistry.ts`): with a proj4-registered projection, ol's default `getPointResolution` estimates scale by transforming a pixel window to EPSG:4326 and measuring it on the **Earth** sphere (`node_modules/ol/proj.js` estimation path). For the Mars sphere this inflates the estimate by ≈ (R⊕/R♂)·(1+cos φ)/2 — ×1.83 at 18.5°N — so the ol `ScaleLine` control drew bars ~1.8–3.6× too short (a "20 km" bar actually spanned ~36.6 km). Fixed by `setGetPointResolution((r) => r)` on the eqc projection — exact, because eqc at lat_ts 0 is equidistant in x and y. Never remove that call; verify with a screenshot or pixel measure (5 km bar = 90 px at the fitted 55.44 m/px view).
+- ol `View.fit()` does NOT snap resolution to a custom `resolutions` list (`constrainResolution` defaults to false) — fitted views land at fractional zooms between tile levels (e.g. zoom 9.554 → 55.44 m/px). Expected, not a bug.
 
 ## Capabilities / data semantics
 
@@ -55,3 +58,16 @@ There is no test framework and no linter. The verification loop is: `typecheck` 
 
 - Never commit unless explicitly asked. Work in small increments; leave commits to the user unless instructed.
 - Keep scope: Mars/Jezero only, MVP features from Context.md §6. Don't install dependencies or swap frameworks without a concrete, stated reason.
+
+## Implemented module map (Milestone 2, as-built 2026-11-13)
+
+- `src/data/catalog/` — `types.ts` + `datasets.ts` (6 verified records: CTX, MOLA colorshade, MOLA blend DEM api-record, SIM 3292 geology, Perseverance traverse, landing ellipse; per-record verification evidence; `verifiedServedLevels`; `preparedAssetUrl`/`queryEndpoint` for non-WMTS data). `src/map/trek/trekCapabilities.ts` holds the embedded verified capabilities XML snapshots keyed by dataset id (`VERIFIED_CAPABILITIES_XML_BY_ID`) and parses them once.
+- `src/map/layers/` — `createWmtsLayer.ts` (truncates declared levels to `verifiedServedLevels`, analytic footprint via `marsBboxToMetresExtent`), `createGeojsonLayer.ts` (kind-based styles for geology/rover overlays; throws on non-FeatureCollection).
+- `src/data/adapters/` — `elevationGrid.ts` + `demService.ts`: prepared-grid loader/sampler (ol-free) and live Trek ImageServer identify (5-decimal cache; NoData → unknown). Main-thread fallback identify uses the same prepared grid asset.
+- `src/science/terrain/` — `geometry.ts` (haversine on the Mars sphere R = 3,396,190 m) + `cost.ts` (prototype cost model: `cost = groundM × (1 + slopeCostPerDeg × slopeDeg)`, documented as prototype; no operational safety claim).
+- `src/workers/` — `route.worker.ts` (A*, 8-connected, no corner cutting, unknown cells impassable, snapping + warnings + provenance) + `routeClient.ts` (module singleton; typed `RouteClientError` codes: grid-not-loaded/start-outside/target-outside/start-unknown/target-unknown/no-path/invalid-params).
+- `src/features/mission/` — `store.ts` (module singleton via `useSyncExternalStore`; start/target/route/params/position/gridMeta; plan export/import `solara-plan/1`), `components/ElevationProfile.tsx`, `components/RouteSummary.tsx`, `components/MissionPanel.tsx` (habitat).
+- `src/features/field-tablet/FieldTabletMode.tsx` — map-dominant, bottom mission sheet, simulated position (always labelled SIMULATED), nearest-route-point card, plan import.
+- `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `LayerPanel` (map layers vs query-only datasets), `LocationPanel` (live DEM identify + prepared-grid fallback), `MissionPanel`.
+- `public/data/mars/jezero/` — prepared verified assets (geology 2 units, traverse 332 sol-tagged segments, landing ellipse, DEM grid 160×151) from `scripts/prepare-jezero-assets.mjs`.
+- Base layer order (bottom-first): `['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008']` — topography under imagery, in both modes.

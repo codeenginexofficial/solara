@@ -1,10 +1,13 @@
 /**
- * MarsMap — the OpenLayers map for a verified Mars dataset.
+ * MarsMap — the OpenLayers map for SOLARA's verified Mars datasets.
  *
  * Responsibilities (Architecture.md §7):
  *  - Owns the OpenLayers Map instance and all mutable map objects, kept in
  *    refs. React state is only used for serializable UI status values.
- *  - Renders verified WMTS layers built from the dataset catalog.
+ *  - Renders verified WMTS base layers and prepared GeoJSON overlays, built
+ *    from the dataset catalog (verified capabilities snapshots for WMTS).
+ *  - Renders the mission route candidate and start/target markers from
+ *    plain serializable props.
  *  - Reports pointer coordinates, view changes, and source availability to
  *    the parent through callbacks.
  *  - Handles resize and full cleanup on unmount (StrictMode-safe).
@@ -28,26 +31,35 @@ import type MapBrowserEvent from 'ol/MapBrowserEvent.js';
 import { unByKey } from 'ol/Observable.js';
 import type { EventsKey } from 'ol/events.js';
 import type { Projection } from 'ol/proj.js';
+import type { Extent } from 'ol/extent.js';
+import { intersects } from 'ol/extent.js';
+import Feature from 'ol/Feature.js';
+import LineString from 'ol/geom/LineString.js';
+import Point from 'ol/geom/Point.js';
+import VectorSource from 'ol/source/Vector.js';
+import VectorLayer from 'ol/layer/Vector.js';
+import { Fill, Stroke, Style, Text } from 'ol/style.js';
+import CircleStyle from 'ol/style/Circle.js';
 
+import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL } from '../data/catalog/datasets';
 import type { DatasetRecord } from '../data/catalog/types';
+import type { GeoPoint, RouteResult } from '../workers/routeClient';
 import {
   ensureMarsProjectionsRegistered,
   getMarsEquirectangular,
   lonLatToMarsMetres,
+  marsBboxToMetresExtent,
   marsMetresToLonLat,
 } from './projections/ProjectionRegistry';
 import {
-  TREK_CAPABILITIES_URL,
-} from '../data/catalog/datasets';
-import {
   parseTrekCapabilitiesXml,
   fetchLiveTrekCapabilities,
-  VERIFIED_CAPABILITIES_XML,
+  VERIFIED_CAPABILITIES_XML_BY_ID,
   TrekCapabilitiesError,
 } from './trek/trekCapabilities';
 import { gridFingerprint } from './trek/tileGrid';
 import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
-import { intersects } from 'ol/extent.js';
+import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
 import type {
   MapLocation,
   SourceStatus,
@@ -56,10 +68,24 @@ import type {
   ViewInfo,
 } from './mapTypes';
 
+/** Serializable layer visibility/opacity state, keyed by dataset id. */
+export interface MarsMapLayerState {
+  visible: boolean;
+  opacity: number;
+}
+
 export interface MarsMapProps {
-  /** The verified dataset to render. */
-  dataset: DatasetRecord;
-  layerState: { visible: boolean; opacity: number };
+  /** WMTS base layers, bottom-first (rendering order = array order). */
+  baseLayers: Array<{ datasetId: string } & MarsMapLayerState>;
+  /** GeoJSON overlay datasets (rendered above the base layers). */
+  overlays: Array<{ datasetId: string; visible: boolean }>;
+  regionBoundingBox: DatasetRecord['boundingBox'];
+  routeVisible: boolean;
+  start: GeoPoint | null;
+  target: GeoPoint | null;
+  route: RouteResult | null;
+  /** Field Tablet's manually selected / simulated astronaut position. */
+  positionMarker?: GeoPoint | null;
   onPointerLocationChange: (location: MapLocation | null) => void;
   onLocationSelect: (location: MapLocation) => void;
   onViewChange: (view: ViewInfo) => void;
@@ -69,8 +95,8 @@ export interface MarsMapProps {
 }
 
 export interface MarsMapHandle {
-  /** Re-fit the view to the dataset's advertised footprint. */
-  fitToDataset: () => void;
+  /** Re-fit the view to the region's advertised footprint. */
+  fitToRegion: () => void;
 }
 
 const VIEW_PADDING_PX = 48;
@@ -85,15 +111,27 @@ const FAILURE_DESCRIPTION: Record<TileFailureKind, string> = {
   unknown: 'cause not determined',
 };
 
+/** The verified capabilities document URL for a WMTS dataset id. */
+function capabilitiesUrlFor(datasetId: string): string {
+  switch (datasetId) {
+    case 'jezero-ctx-mosaic-soc-008':
+      return TREK_CAPABILITIES_URL;
+    case 'mola-hrsc-blend-200m-colorshade':
+      return TREK_MOLA_200M_CAPABILITIES_URL;
+    default:
+      throw new Error(`No verified capabilities URL for WMTS dataset "${datasetId}".`);
+  }
+}
+
 function bboxToMetresExtent(bbox: {
   westLon: number;
   eastLon: number;
   southLat: number;
   northLat: number;
 }): [number, number, number, number] {
-  const [westX, southY] = lonLatToMarsMetres(bbox.westLon, bbox.southLat);
-  const [eastX, northY] = lonLatToMarsMetres(bbox.eastLon, bbox.northLat);
-  return [westX, southY, eastX, northY];
+  // Analytic conversion — see ProjectionRegistry.marsBboxToMetresExtent for
+  // why the proj4 path must not be used for pole-touching boxes.
+  return marsBboxToMetresExtent(bbox);
 }
 
 /** Safely extract a 2-element coordinate from an OpenLayers event. */
@@ -105,9 +143,65 @@ function coordinatePair(coordinate: number[] | undefined): [number, number] | nu
   return [x, y];
 }
 
+/* ------------------------------------------------------------------ */
+/* Mission overlay styling                                             */
+/* ------------------------------------------------------------------ */
+
+const ROUTE_LINE_STYLE = new Style({
+  stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.55)', width: 6 }),
+});
+
+const ROUTE_LINE_INNER_STYLE = new Style({
+  stroke: new Stroke({ color: 'rgba(103, 232, 249, 0.95)', width: 2.5 }),
+});
+
+function markerStyle(color: string, label: string): Style {
+  return new Style({
+    image: new CircleStyle({
+      radius: 7,
+      fill: new Fill({ color }),
+      stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.9)', width: 2 }),
+    }),
+    text: new Text({
+      text: label,
+      offsetY: -16,
+      font: '600 10px ui-monospace, monospace',
+      fill: new Fill({ color }),
+      stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
+      overflow: true,
+    }),
+  });
+}
+
+const START_MARKER_STYLE = markerStyle('rgba(103, 232, 249, 1)', 'START');
+const TARGET_MARKER_STYLE = markerStyle('rgba(251, 146, 60, 1)', 'TARGET');
+/** The astronaut position is ALWAYS labelled simulated — there is no Mars
+ *  positioning source integrated (Design.md §6). */
+const POSITION_MARKER_STYLE = new Style({
+  image: new CircleStyle({
+    radius: 8,
+    fill: new Fill({ color: 'rgba(250, 204, 21, 0.25)' }),
+    stroke: new Stroke({ color: 'rgba(250, 204, 21, 1)', width: 2 }),
+  }),
+  text: new Text({
+    text: 'YOU · SIM',
+    offsetY: -18,
+    font: '600 10px ui-monospace, monospace',
+    fill: new Fill({ color: 'rgba(250, 204, 21, 1)' }),
+    stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
+    overflow: true,
+  }),
+});
+
 export default function MarsMap({
-  dataset,
-  layerState,
+  baseLayers,
+  overlays,
+  regionBoundingBox,
+  routeVisible,
+  start,
+  target,
+  route,
+  positionMarker,
   onPointerLocationChange,
   onLocationSelect,
   onViewChange,
@@ -116,10 +210,14 @@ export default function MarsMap({
 }: MarsMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  const layerRef = useRef<BaseLayer | null>(null);
   const resolutionsRef = useRef<number[]>([]);
-  const datasetExtentRef = useRef<[number, number, number, number] | null>(null);
+  const regionExtentRef = useRef<[number, number, number, number] | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const baseLayerRecordsRef = useRef<
+    Array<{ datasetId: string; layer: BaseLayer; source: import('ol/source/WMTS.js').default; footprint: Extent }>
+  >([]);
+  const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: VectorLayer<VectorSource> }>>([]);
+  const routeSourceRef = useRef<VectorSource | null>(null);
 
   /* Latest callbacks kept in refs so the mount effect never re-runs on
    * callback identity changes (the map must initialize exactly once). */
@@ -135,13 +233,14 @@ export default function MarsMap({
     noData: 0,
     lastFailure: null,
   });
+  const [overlayErrors, setOverlayErrors] = useState<string[]>([]);
 
   useImperativeHandle(
     ref,
     () => ({
-      fitToDataset: () => {
+      fitToRegion: () => {
         const map = mapRef.current;
-        const extent = datasetExtentRef.current;
+        const extent = regionExtentRef.current;
         if (!map || !extent) return;
         const size = map.getSize();
         if (!size || size[0] === 0 || size[1] === 0) return;
@@ -166,30 +265,90 @@ export default function MarsMap({
     ensureMarsProjectionsRegistered();
     const projection: Projection = getMarsEquirectangular();
 
-    // Build the layer from the verified capabilities snapshot; the live
-    // document is fetched in parallel below to confirm availability.
-    const snapshotConfig = parseTrekCapabilitiesXml(VERIFIED_CAPABILITIES_XML);
-    const created = createTrekWmtsLayer(snapshotConfig, dataset);
-    layerRef.current = created.layer;
-    resolutionsRef.current = created.resolutions;
+    /* --- Base WMTS layers from verified snapshots ---------------------- */
+    const baseRecords = baseLayers.map(({ datasetId }) => {
+      const dataset = getDatasetById(datasetId);
+      if (!dataset) throw new Error(`Unknown WMTS dataset id "${datasetId}".`);
+      const verifiedXml = VERIFIED_CAPABILITIES_XML_BY_ID[datasetId];
+      if (!verifiedXml) throw new Error(`No verified capabilities snapshot for "${datasetId}".`);
+      const snapshotConfig = parseTrekCapabilitiesXml(verifiedXml);
+      const created = createTrekWmtsLayer(snapshotConfig, dataset);
+      const bbox = dataset.boundingBox ?? snapshotConfig.layer.boundingBox;
+      const footprint: Extent = marsBboxToMetresExtent(bbox);
+      return { datasetId, layer: created.layer as BaseLayer, source: created.source, footprint };
+    });
+    baseLayerRecordsRef.current = baseRecords;
 
-    const datasetExtent = bboxToMetresExtent(dataset.boundingBox ?? snapshotConfig.layer.boundingBox);
-    datasetExtentRef.current = datasetExtent;
+    // The view uses the finest available level set across base layers
+    // (currently the CTX grid; the MOLA blend serves fewer levels and is
+    // upscaled by OpenLayers beyond its finest served level).
+    const resolutionsPerLayer = baseRecords.map((rec) =>
+      rec.source.getTileGrid()?.getResolutions() ?? [],
+    );
+    const viewResolutions =
+      resolutionsPerLayer.reduce<number[]>(
+        (acc, res) => (res.length > acc.length ? (res as number[]) : acc),
+        [],
+      ) ?? [];
+    resolutionsRef.current = viewResolutions;
+    if (viewResolutions.length === 0) {
+      throw new Error('No base WMTS layer provided a tile grid resolution set.');
+    }
+
+    const regionExtent = regionBoundingBox ? bboxToMetresExtent(regionBoundingBox) : null;
+    regionExtentRef.current = regionExtent;
+
+    /* --- Mission route overlay (topmost) ------------------------------- */
+    const routeSource = new VectorSource();
+    routeSourceRef.current = routeSource;
+    const routeLayer = new VectorLayer({
+      source: routeSource,
+      style: (feature) => {
+        const kind = feature.get('solara:kind');
+        if (kind === 'route-line') return [ROUTE_LINE_STYLE, ROUTE_LINE_INNER_STYLE];
+        if (kind === 'route-start') return START_MARKER_STYLE;
+        if (kind === 'route-target') return TARGET_MARKER_STYLE;
+        if (kind === 'position') return POSITION_MARKER_STYLE;
+        return undefined;
+      },
+      properties: { datasetId: 'solara-mission-overlay' },
+    });
+
+    /* --- Overlay GeoJSON assets ---------------------------------------- */
+    // Loaded once per mount from the prepared static assets; failures are
+    // surfaced in the UI (missing overlays are never silently skipped).
+    setOverlayErrors([]);
+    const overlayPromises = overlays.map(async ({ datasetId }) => {
+      const dataset = getDatasetById(datasetId);
+      if (!dataset?.preparedAssetUrl) {
+        throw new Error(`Overlay dataset "${datasetId}" has no prepared asset URL.`);
+      }
+      const response = await fetch(dataset.preparedAssetUrl);
+      if (!response.ok) {
+        throw new Error(`Overlay asset for "${datasetId}" failed: HTTP ${response.status}.`);
+      }
+      const geojson: unknown = await response.json();
+      return createGeojsonOverlayLayer(geojson, dataset);
+    });
 
     const map = new Map({
       target: container,
-      layers: [created.layer],
+      layers: [...baseRecords.map((r) => r.layer), routeLayer],
       view: new View({
         projection,
-        resolutions: created.resolutions,
-        center: [
-          (datasetExtent[0] + datasetExtent[2]) / 2,
-          (datasetExtent[1] + datasetExtent[3]) / 2,
-        ],
+        resolutions: viewResolutions,
+        center: regionExtent
+          ? [(regionExtent[0] + regionExtent[2]) / 2, (regionExtent[1] + regionExtent[3]) / 2]
+          : [0, 0],
         zoom: 8,
-        maxZoom: created.resolutions.length - 1,
+        maxZoom: viewResolutions.length - 1,
         minZoom: 0,
-        extent: created.worldExtent,
+        extent: [
+          -Math.PI * 3396190,
+          (-Math.PI * 3396190) / 2,
+          Math.PI * 3396190,
+          (Math.PI * 3396190) / 2,
+        ],
       }),
       controls: defaultControls({ attribution: false, zoom: false }).extend([
         new Zoom(),
@@ -199,25 +358,17 @@ export default function MarsMap({
     });
     mapRef.current = map;
 
-    const size = map.getSize();
-    if (size && (size[0] ?? 0) > 0 && (size[1] ?? 0) > 0) {
-      map.getView().fit(datasetExtent, {
-        size,
-        padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
-      });
+    if (regionExtent) {
+      const size = map.getSize();
+      if (size && (size[0] ?? 0) > 0 && (size[1] ?? 0) > 0) {
+        map.getView().fit(regionExtent, {
+          size,
+          padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
+        });
+      }
     }
 
     /* --- Tile progress (display-only plain state) ---------------------- */
-    // Classification (per tile, from the fetch loader + advertised footprint):
-    //  - tile fully outside the mosaic footprint → expected no imagery
-    //    (counted separately, never shown as a failure);
-    //  - any other error (404 inside the footprint, 5xx, network failure,
-    //    non-image response) → genuine failure, always surfaced.
-    // Counters are per view state: tiles that failed at one zoom level are
-    // irrelevant to a different zoom level (a different tile pyramid level
-    // is requested), so the counters reset on resolution change. Panning
-    // within the same level keeps accumulating real failures.
-    const source = created.source;
     const stats: TileStats = {
       loading: 0,
       loaded: 0,
@@ -233,34 +384,38 @@ export default function MarsMap({
         setTileStats({ ...stats });
       }, 120);
     };
-    const tileKeys: EventsKey[] = [
-      source.on('tileloadstart', () => {
-        stats.loading += 1;
-        scheduleFlush();
-      }),
-      source.on('tileloadend', () => {
-        stats.loading = Math.max(0, stats.loading - 1);
-        stats.loaded += 1;
-        scheduleFlush();
-      }),
-      source.on('tileloaderror', (evt) => {
-        stats.loading = Math.max(0, stats.loading - 1);
-        const tile = evt.tile;
-        const failure = getTrekTileFailureKind(tile);
-        const grid = source.getTileGrid();
-        const tileExtent = grid?.getTileCoordExtent(tile.getTileCoord());
-        const coverage = datasetExtentRef.current;
-        if (tileExtent && coverage && !intersects(tileExtent, coverage)) {
-          // Fully outside the advertised footprint: the verified service
-          // behaviour (HTTP 404) — expected no-data, not a failure.
-          stats.noData += 1;
-        } else {
-          stats.failed += 1;
-          stats.lastFailure = failure ?? 'unknown';
-        }
-        scheduleFlush();
-      }),
-    ];
+    const tileKeys: EventsKey[] = [];
+    for (const record of baseRecords) {
+      const source = record.source;
+      tileKeys.push(
+        source.on('tileloadstart', () => {
+          stats.loading += 1;
+          scheduleFlush();
+        }),
+        source.on('tileloadend', () => {
+          stats.loading = Math.max(0, stats.loading - 1);
+          stats.loaded += 1;
+          scheduleFlush();
+        }),
+        source.on('tileloaderror', (evt) => {
+          stats.loading = Math.max(0, stats.loading - 1);
+          const tile = evt.tile;
+          const failure = getTrekTileFailureKind(tile);
+          const grid = source.getTileGrid();
+          const tileExtent = grid?.getTileCoordExtent(tile.getTileCoord());
+          const coverage = record.footprint;
+          if (tileExtent && coverage && !intersects(tileExtent, coverage)) {
+            // Fully outside the advertised footprint: the verified service
+            // behaviour (HTTP 404) — expected no-data, not a failure.
+            stats.noData += 1;
+          } else {
+            stats.failed += 1;
+            stats.lastFailure = failure ?? 'unknown';
+          }
+          scheduleFlush();
+        }),
+      );
+    }
     const resolutionKey = map.getView().on('change:resolution', () => {
       stats.failed = 0;
       stats.noData = 0;
@@ -331,50 +486,81 @@ export default function MarsMap({
     resizeObserverRef.current = observer;
 
     /* --- Live capabilities check (source status) ------------------------ */
-    // The map is built from the verified embedded configuration BEFORE and
+    // The map is built from the verified embedded configurations BEFORE and
     // INDEPENDENT of this check, so a temporary capabilities outage never
     // prevents the map from displaying. This check only re-verifies that the
-    // live document still matches the verified snapshot.
+    // live documents still match the verified snapshots.
     const controller = new AbortController();
     callbacksRef.current.onSourceStatusChange({
       capabilities: 'checking',
       lastCheckedAt: null,
-      message: 'Re-verifying the live capabilities document against the verified configuration…',
+      message: 'Re-verifying the live capabilities documents against the verified configurations…',
     });
     void (async () => {
-      try {
-        const live = await fetchLiveTrekCapabilities(TREK_CAPABILITIES_URL, controller.signal);
-        const same = gridFingerprint(live) === gridFingerprint(snapshotConfig);
-        const now = new Date().toISOString();
-        if (same) {
-          callbacksRef.current.onSourceStatusChange({
-            capabilities: 'live',
-            lastCheckedAt: now,
-            message: 'Live capabilities document matches the verified configuration.',
-          });
-        } else {
-          callbacksRef.current.onSourceStatusChange({
-            capabilities: 'schema-changed',
-            lastCheckedAt: now,
-            message:
-              'Live capabilities differ from the verified configuration. Displaying the last verified configuration; investigate before trusting this layer.',
-          });
-        }
-      } catch (e) {
-        if (controller.signal.aborted) return;
+      const results = await Promise.allSettled(
+        baseRecords.map(async (record) => {
+          const live = await fetchLiveTrekCapabilities(capabilitiesUrlFor(record.datasetId), controller.signal);
+          const snapshot = parseTrekCapabilitiesXml(VERIFIED_CAPABILITIES_XML_BY_ID[record.datasetId]!);
+          return { datasetId: record.datasetId, same: gridFingerprint(live) === gridFingerprint(snapshot) };
+        }),
+      );
+      if (controller.signal.aborted) return;
+      const now = new Date().toISOString();
+      const failures = results.filter((r) => r.status === 'rejected');
+      const mismatches = results.filter(
+        (r): r is PromiseFulfilledResult<{ datasetId: string; same: boolean }> =>
+          r.status === 'fulfilled' && !r.value.same,
+      );
+      if (failures.length === 0 && mismatches.length === 0) {
+        callbacksRef.current.onSourceStatusChange({
+          capabilities: 'live',
+          lastCheckedAt: now,
+          message: 'Live capabilities documents match the verified configurations.',
+        });
+      } else if (mismatches.length > 0) {
+        callbacksRef.current.onSourceStatusChange({
+          capabilities: 'schema-changed',
+          lastCheckedAt: now,
+          message:
+            `Live capabilities differ from the verified configuration for: ${mismatches.map((m) => m.value.datasetId).join(', ')}. Displaying the last verified configuration; investigate before trusting these layers.`,
+        });
+      } else {
+        const firstFailure = failures[0] as PromiseRejectedResult;
+        const reason = firstFailure.reason;
         const detail =
-          e instanceof TrekCapabilitiesError
-            ? `unexpected source response (${e.message})`
-            : e instanceof Error
-              ? e.message
-              : String(e);
+          reason instanceof TrekCapabilitiesError
+            ? `unexpected source response (${reason.message})`
+            : reason instanceof Error
+              ? reason.message
+              : String(reason);
         callbacksRef.current.onSourceStatusChange({
           capabilities: 'unavailable',
-          lastCheckedAt: new Date().toISOString(),
-          message: `Live capabilities check failed — ${detail}. Displaying the verified snapshot configuration (2026-11-12); tile requests still go to the live service and failures surface as tile errors.`,
+          lastCheckedAt: now,
+          message: `Live capabilities check failed — ${detail}. Displaying the verified snapshot configurations (2026-11-12/13); tile requests still go to the live services and failures surface as tile errors.`,
         });
       }
     })();
+
+    /* --- Overlay assets load (async, non-blocking) ---------------------- */
+    void Promise.allSettled(overlayPromises).then((settled) => {
+      if (controller.signal.aborted) return;
+      const errors: string[] = [];
+      settled.forEach((outcome, index) => {
+        if (outcome.status === 'fulfilled') {
+          const created = outcome.value;
+          map.addLayer(created.layer);
+          overlayLayerRecordsRef.current.push({ datasetId: overlays[index]!.datasetId, layer: created.layer });
+        } else {
+          const reason = outcome.reason;
+          errors.push(
+            `Overlay "${overlays[index]!.datasetId}" could not be loaded: ${
+              reason instanceof Error ? reason.message : String(reason)
+            }`,
+          );
+        }
+      });
+      setOverlayErrors(errors);
+    });
 
     return () => {
       controller.abort();
@@ -390,17 +576,58 @@ export default function MarsMap({
       map.setTarget(undefined);
       map.dispose();
       mapRef.current = null;
-      layerRef.current = null;
+      baseLayerRecordsRef.current = [];
+      overlayLayerRecordsRef.current = [];
+      routeSourceRef.current = null;
     };
-    // The dataset is the only intentional dependency; callbacks go through refs.
+    // Base layer set + overlays are fixed per mount; dynamic props sync via
+    // the effects below and callbacks go through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset]);
+  }, []);
 
-  /* Layer visibility / opacity sync */
+  /* Base layer visibility / opacity sync */
   useEffect(() => {
-    layerRef.current?.setVisible(layerState.visible);
-    layerRef.current?.setOpacity(layerState.opacity);
-  }, [layerState.visible, layerState.opacity]);
+    for (const record of baseLayerRecordsRef.current) {
+      const state = baseLayers.find((l) => l.datasetId === record.datasetId);
+      if (!state) continue;
+      record.layer.setVisible(state.visible);
+      record.layer.setOpacity(state.opacity);
+    }
+  }, [baseLayers]);
+
+  /* Overlay visibility sync */
+  useEffect(() => {
+    for (const record of overlayLayerRecordsRef.current) {
+      const overlay = overlays.find((o) => o.datasetId === record.datasetId);
+      if (!overlay) continue;
+      record.layer.setVisible(overlay.visible);
+    }
+  }, [overlays, overlayErrors]);
+
+  /* Mission route / markers sync -------------------------------------- */
+  useEffect(() => {
+    const source = routeSourceRef.current;
+    if (!source) return;
+    source.clear();
+
+    const addPointFeature = (point: GeoPoint, kind: 'route-start' | 'route-target' | 'position') => {
+      const [x, y] = lonLatToMarsMetres(point.lon, point.lat);
+      const feature = new Feature({ geometry: new Point([x, y]) });
+      feature.set('solara:kind', kind);
+      source.addFeature(feature);
+    };
+
+    if (start) addPointFeature(start, 'route-start');
+    if (target) addPointFeature(target, 'route-target');
+    if (positionMarker) addPointFeature(positionMarker, 'position');
+
+    if (routeVisible && route && route.points.length >= 2) {
+      const coordinates = route.points.map((p) => lonLatToMarsMetres(p.lon, p.lat));
+      const lineFeature = new Feature({ geometry: new LineString(coordinates) });
+      lineFeature.set('solara:kind', 'route-line');
+      source.addFeature(lineFeature);
+    }
+  }, [start, target, route, routeVisible, positionMarker]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-surface">
@@ -409,7 +636,7 @@ export default function MarsMap({
         className="h-full w-full [&_.ol-viewport]:cursor-crosshair"
         data-testid="mars-map-container"
       />
-      {!layerState.visible && (
+      {baseLayers.every((l) => !l.visible) && (
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border border-edge bg-panel-raised/85 px-3 py-2 text-xs text-ink-muted"
           data-testid="map-empty"
@@ -423,7 +650,7 @@ export default function MarsMap({
           data-testid="map-initial-loading"
         >
           <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
-          Loading {dataset.instrument ?? 'dataset'} imagery…
+          Loading imagery…
         </div>
       )}
       {tileStats.loading > 0 && tileStats.loaded > 0 && (
@@ -446,8 +673,18 @@ export default function MarsMap({
           className="pointer-events-none absolute bottom-12 right-3 max-w-md rounded border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-subtle"
           data-testid="tile-nodata"
         >
-          {tileStats.noData} tile{tileStats.noData === 1 ? '' : 's'} outside the mosaic footprint —
+          {tileStats.noData} tile{tileStats.noData === 1 ? '' : 's'} outside the advertised footprint —
           no imagery expected there
+        </div>
+      )}
+      {overlayErrors.length > 0 && (
+        <div
+          className="pointer-events-none absolute bottom-3 left-3 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
+          data-testid="overlay-errors"
+        >
+          {overlayErrors.map((e) => (
+            <div key={e}>{e}</div>
+          ))}
         </div>
       )}
     </div>

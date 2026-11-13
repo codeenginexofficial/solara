@@ -17,10 +17,12 @@ import type { MarsMapHandle } from '../../map/MarsMap';
 import type { MapLocation, SourceStatus, ViewInfo } from '../../map/mapTypes';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
 import type { LayerUiState } from './components/LayerPanel';
+import { useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
 import { LayerPanel } from './components/LayerPanel';
 import { DatasetPanel } from './components/DatasetPanel';
 import { LocationPanel } from './components/LocationPanel';
+import { MissionPanel } from './components/MissionPanel';
 import { StatusBar } from './components/StatusBar';
 import { cn } from '../../lib/utils';
 
@@ -29,6 +31,16 @@ const MarsMap = lazy(() => import('../../map/MarsMap'));
 const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
+
+/** WMTS base layers, bottom-first rendering order (topography under imagery). */
+const BASE_LAYER_IDS = ['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008'] as const;
+/** Prepared GeoJSON overlay datasets, bottom-first rendering order. */
+const OVERLAY_IDS = [
+  'usgs-sim3292-jezero-geology',
+  'mars2020-landing-ellipse',
+  'mars2020-perseverance-traverse',
+] as const;
+
 const INITIAL_DATASET_ID = REGION.datasetIds[0] ?? '';
 
 /** Deliberate empty-map presentation while the map engine chunk loads. */
@@ -48,15 +60,15 @@ function MapWorkspaceFallback() {
 
 export default function HabitatMode() {
   const mapApi = useRef<MarsMapHandle | null>(null);
+  const mission = useMissionState();
 
-  const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() =>
-    Object.fromEntries(
-      DATASETS.filter((d) => d.verification === 'integrated').map((d) => [
-        d.id,
-        { visible: true, opacity: 1 },
-      ]),
-    ),
-  );
+  const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
+    const initial: Record<string, LayerUiState> = {};
+    for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
+      initial[id] = { visible: id === BASE_LAYER_IDS[0], opacity: 1 };
+    }
+    return initial;
+  });
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>(INITIAL_DATASET_ID);
   const [pointerLocation, setPointerLocation] = useState<MapLocation | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
@@ -80,16 +92,17 @@ export default function HabitatMode() {
   }, []);
 
   const handleFitRegion = useCallback(() => {
-    mapApi.current?.fitToDataset();
+    mapApi.current?.fitToRegion();
   }, []);
 
-  const datasetForMap =
-    selectedDataset && selectedDataset.verification === 'integrated'
-      ? selectedDataset
-      : DATASETS.find((d) => d.verification === 'integrated') ?? DATASETS[0]!;
-
-  const layerState: LayerUiState =
-    layerStates[datasetForMap.id] ?? { visible: true, opacity: 1 };
+  const baseLayers = BASE_LAYER_IDS.map((datasetId) => ({
+    datasetId,
+    ...(layerStates[datasetId] ?? { visible: false, opacity: 1 }),
+  }));
+  const overlays = OVERLAY_IDS.map((datasetId) => ({
+    datasetId,
+    visible: layerStates[datasetId]?.visible ?? false,
+  }));
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -126,8 +139,13 @@ export default function HabitatMode() {
           <Suspense fallback={<MapWorkspaceFallback />}>
             <MarsMap
               ref={mapApi}
-              dataset={datasetForMap}
-              layerState={layerState}
+              baseLayers={baseLayers}
+              overlays={overlays}
+              regionBoundingBox={REGION.boundingBox}
+              routeVisible
+              start={mission.start}
+              target={mission.target}
+              route={mission.route}
               onPointerLocationChange={setPointerLocation}
               onLocationSelect={setSelectedLocation}
               onViewChange={setViewInfo}
@@ -136,23 +154,24 @@ export default function HabitatMode() {
           </Suspense>
         </main>
 
-        {/* Right panel — dataset provenance and selected location */}
+        {/* Right panel — dataset provenance, selected location, mission planning */}
         <aside
           className={cn(
             'absolute inset-y-0 right-0 z-20 w-80 flex-col overflow-y-auto border-l border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
             rightPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
-          aria-label="Dataset details and selected location"
+          aria-label="Dataset details, selected location and mission planning"
         >
           {selectedDataset && <DatasetPanel dataset={selectedDataset} />}
           <LocationPanel location={selectedLocation} />
+          <MissionPanel selectedLocation={selectedLocation} />
         </aside>
       </div>
 
       <StatusBar
         pointerLocation={pointerLocation}
         viewInfo={viewInfo}
-        dataset={datasetForMap}
+        dataset={selectedDataset}
         sourceStatus={sourceStatus}
       />
     </div>

@@ -101,6 +101,21 @@ export interface DatasetRecord {
   verification: VerificationStatus;
   /** ISO date of the last verification pass against the live source. */
   lastVerifiedAt?: string;
+  /**
+   * WMTS tile levels actually verified to serve tiles. Several Trek EQ layers
+   * advertise more levels in their capabilities document than the tile cache
+   * serves (levels beyond this return HTTP 404). The tile grid is truncated
+   * to this count so the map never requests known-missing levels. Absent =
+   * all declared levels serve (verified individually).
+   */
+  verifiedServedLevels?: number;
+  /**
+   * For prepared/derived datasets: where the prepared asset lives
+   * (e.g. /data/mars/jezero/...), separate from the upstream service URL.
+   */
+  preparedAssetUrl?: string;
+  /** For live query datasets (DEM identify): the exact query endpoint. */
+  queryEndpoint?: string;
 }
 
 /** Regions SOLARA knows about. Detailed planning is only offered inside

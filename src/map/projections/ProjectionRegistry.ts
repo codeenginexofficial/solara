@@ -111,6 +111,21 @@ export function ensureMarsProjectionsRegistered(): void {
   proj4.defs(MARS_EQUIRECTANGULAR, MARS_EQC_PROJ4);
   proj4.defs(MARS_GEOGRAPHIC, MARS_GEOGRAPHIC_PROJ4);
   register(proj4);
+
+  // ol's default getPointResolution estimates scale by transforming a pixel
+  // window to EPSG:4326 and measuring it on the EARTH sphere (ol/proj.js,
+  // getPointResolution estimation path; transform made available by
+  // register(proj4)). For a Mars-sphere projection that inflates the estimate
+  // by ≈ (R_earth/R_mars)·(1+cosφ)/2 — e.g. ×1.83 at φ = 18.5°N — which made
+  // the ol ScaleLine control report ~1.83× too-small bars (verified
+  // empirically 2026-11-13: view resolution 55.44 m/px rendered as if
+  // ~202 m/px). The equirectangular projection is equidistant in x and y on
+  // the sphere at lat_ts = 0, so the exact point resolution IS the view
+  // resolution; supply it explicitly. (The geographic projection is never
+  // used as a view projection, so it keeps ol's default behaviour.)
+  getProjection(MARS_EQUIRECTANGULAR)?.setGetPointResolution(
+    (resolution: number) => resolution,
+  );
   registered = true;
 }
 
@@ -140,4 +155,27 @@ export function marsMetresToLonLat(x: number, y: number): [number, number] {
   ensureMarsProjectionsRegistered();
   const out = proj4(MARS_EQUIRECTANGULAR, MARS_GEOGRAPHIC, [x, y]);
   return [out[0] as number, out[1] as number];
+}
+
+/**
+ * Convert a geographic bounding box to a working-projection metres extent.
+ *
+ * Computed ANALYTICALLY (x = R·λ, y = R·φ on the sphere), never through
+ * proj4: the verified proj4 quirk flips the sign of y at exactly ±90°
+ * latitude, which silently collapses any pole-touching bounding box (e.g.
+ * a global layer's north edge) to a degenerate extent — see the quirk note
+ * in the header and map/trek/tileGrid.ts.
+ */
+export function marsBboxToMetresExtent(bbox: {
+  westLon: number;
+  eastLon: number;
+  southLat: number;
+  northLat: number;
+}): [number, number, number, number] {
+  const toRad = Math.PI / 180;
+  const x0 = bbox.westLon * toRad * MARS_2000_SPHERE_RADIUS_M;
+  const x1 = bbox.eastLon * toRad * MARS_2000_SPHERE_RADIUS_M;
+  const y0 = bbox.southLat * toRad * MARS_2000_SPHERE_RADIUS_M;
+  const y1 = bbox.northLat * toRad * MARS_2000_SPHERE_RADIUS_M;
+  return [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)];
 }

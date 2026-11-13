@@ -28,7 +28,7 @@ import type ImageTile from 'ol/ImageTile.js';
 import type TileGrid from 'ol/tilegrid/TileGrid.js';
 import type { Extent } from 'ol/extent.js';
 import { intersects } from 'ol/extent.js';
-import { getMarsEquirectangular, lonLatToMarsMetres } from '../projections/ProjectionRegistry';
+import { getMarsEquirectangular, marsBboxToMetresExtent } from '../projections/ProjectionRegistry';
 import { buildMetreTileGrid } from '../trek/tileGrid';
 import type { TrekWmtsConfig } from '../trek/trekCapabilities';
 import type { DatasetRecord } from '../../data/catalog/types';
@@ -132,16 +132,23 @@ export function createTrekWmtsLayer(
   config: TrekWmtsConfig,
   dataset: DatasetRecord,
 ): CreatedWmtsLayer {
-  const grid = buildMetreTileGrid(config);
+  // Some Trek layers declare more tile levels than the tile cache serves
+  // (finer levels answer HTTP 404). The catalog records the levels verified
+  // to serve imagery (DatasetRecord.verifiedServedLevels); the tile grid is
+  // truncated accordingly so the map never requests known-missing levels.
+  // OpenLayers then upscales the finest served level at finer zooms.
+  const declaredCount = config.matrices.length;
+  const servedCount = dataset.verifiedServedLevels;
+  const matrices =
+    servedCount !== undefined && servedCount < declaredCount
+      ? config.matrices.slice(0, servedCount)
+      : config.matrices;
+  const grid = buildMetreTileGrid({ ...config, matrices });
+  // Footprint extent is computed analytically (marsBboxToMetresExtent): the
+  // global layers' pole-touching bounding boxes would be silently collapsed
+  // if run through proj4 (verified ±90° sign-flip quirk).
   const bbox = config.layer.boundingBox;
-  const [x0, y0] = lonLatToMarsMetres(bbox.westLon, bbox.southLat);
-  const [x1, y1] = lonLatToMarsMetres(bbox.eastLon, bbox.northLat);
-  const footprintMetres: Extent = [
-    Math.min(x0, x1),
-    Math.min(y0, y1),
-    Math.max(x0, x1),
-    Math.max(y0, y1),
-  ];
+  const footprintMetres: Extent = marsBboxToMetresExtent(bbox);
 
   const source = new WMTS({
     requestEncoding: 'REST',
