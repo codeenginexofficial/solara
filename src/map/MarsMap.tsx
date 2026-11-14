@@ -14,6 +14,7 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -300,26 +301,28 @@ export default function MarsMap({
     view.animate({ zoom: zoom + delta, duration: 120 });
   };
 
+  const fitRegion = useCallback(() => {
+    const map = mapRef.current;
+    const extent = regionExtentRef.current;
+    if (!map || !extent) return;
+    const size = map.getSize();
+    if (!size || size[0] === 0 || size[1] === 0) return;
+    map
+      .getView()
+      .fit(extent, {
+        size,
+        padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
+      });
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
-      fitToRegion: () => {
-        const map = mapRef.current;
-        const extent = regionExtentRef.current;
-        if (!map || !extent) return;
-        const size = map.getSize();
-        if (!size || size[0] === 0 || size[1] === 0) return;
-        map
-          .getView()
-          .fit(extent, {
-            size,
-            padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
-          });
-      },
+      fitToRegion: fitRegion,
       zoomIn: () => zoomView(1),
       zoomOut: () => zoomView(-1),
     }),
-    [],
+    [fitRegion],
   );
 
   /* ------------------------------------------------------------------ */
@@ -742,7 +745,7 @@ export default function MarsMap({
           className="solara-map-zoom-button"
           aria-label="Fit view to region"
           title="Fit view to region"
-          onClick={() => fitToRegion()}
+          onClick={fitRegion}
         >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5" aria-hidden="true">
             <circle cx="8" cy="8" r="5" />

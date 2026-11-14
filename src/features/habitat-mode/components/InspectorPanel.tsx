@@ -11,6 +11,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Disclosure } from '../../../components/ui/disclosure';
 import { CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbnails';
 import { DatasetDetails } from './DatasetPanel';
+import { DATASET_SHORT_NAMES } from './MissionOperationsPanel';
 import { LocationPanel, type ElevationState } from './LocationPanel';
 import { ElevationProfile } from '../../mission/components/ElevationProfile';
 import { RouteSummary } from '../../mission/components/RouteSummary';
@@ -74,7 +75,7 @@ export function InspectorPanel({
             )}
             <div className="min-w-0 flex-1">
               <h4 className="truncate text-sm font-semibold text-ink" title={dataset.title}>
-                {dataset.title}
+                {DATASET_SHORT_NAMES[dataset.id] ?? dataset.title}
               </h4>
               <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-muted">
                 {dataset.description}

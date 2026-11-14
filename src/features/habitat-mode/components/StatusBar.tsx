@@ -4,7 +4,7 @@
  * Solara Mars Mission Dashboard reference).
  */
 
-import { Download, MoreHorizontal, Play, Upload } from 'lucide-react';
+import { Download, MoreHorizontal, Play } from 'lucide-react';
 import type { MapLocation, SourceStatus, ViewInfo } from '../../../map/mapTypes';
 import type { DatasetRecord, VerificationStatus } from '../../../data/catalog/types';
 import type { ElevationState } from './LocationPanel';

@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { ChevronDown, Download, Flag, MapPin, Play, RotateCcw, Target, Upload } from 'lucide-react';
+import { ChevronDown, Download, Flag, Play, RotateCcw, Target, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon } from '../../../lib/format';

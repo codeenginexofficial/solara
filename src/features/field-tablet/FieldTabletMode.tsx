@@ -161,17 +161,16 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
 
         {/* Position status chip */}
         <div
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-edge/60 bg-surface/50 px-2.5 py-1 text-xs text-ink-muted"
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-edge/60 bg-surface/50 px-2 py-1 text-xs text-ink-muted whitespace-nowrap"
           data-testid="position-status"
           title={mission.position ? 'Simulated position (manually set)' : 'No simulated position set yet'}
         >
           <span
-            className={cn('size-2 rounded-full', mission.position ? 'bg-warn' : 'bg-ink-subtle')}
+            className={cn('size-2 shrink-0 rounded-full', mission.position ? 'bg-warn' : 'bg-ink-subtle')}
             aria-hidden="true"
           />
-          <span className="sm:hidden">{mission.position ? 'SIMULATED' : 'No position'}</span>
-          <span className="hidden sm:inline">
-            {mission.position ? 'Position: SIMULATED' : 'No position (tap map)'}
+          <span className="text-[11px] font-medium leading-none">
+            {mission.position ? 'SIMULATED' : 'No position'}
           </span>
         </div>
 

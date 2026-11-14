@@ -10,19 +10,16 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
-  Compass,
   Crosshair,
   Database,
   Layers,
   Mountain,
   Navigation,
 } from 'lucide-react';
-import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../data/catalog/types';
+import type { DatasetRecord, RegionRecord } from '../../../data/catalog/types';
 import type { MapLocation, OverlayLoadState, OverlayStatusMap } from '../../../map/mapTypes';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
-import { Disclosure } from '../../../components/ui/disclosure';
-import { Section } from '../../../components/ui/section';
 import { Switch } from '../../../components/ui/switch';
 import { JezeroThumbnail } from '../../../components/ui/thumbnails';
 import { DatasetDetails } from './DatasetPanel';
@@ -151,7 +148,9 @@ export function MissionOperationsPanel({
         >
           <JezeroThumbnail className="size-11 shrink-0 rounded-sm border border-edge/60" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13.5px] font-semibold text-ink">{region.name}</div>
+            <div className="truncate text-[13.5px] font-semibold text-ink" title={region.name}>
+              Jezero Crater
+            </div>
             <div className="font-mono text-xs text-ink-muted">18.44°N, 77.45°E</div>
           </div>
           <ChevronRight

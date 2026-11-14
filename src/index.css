@@ -212,6 +212,28 @@ body {
   text-align: right;
 }
 
+@media (max-width: 640px) {
+  .ol-attribution {
+    max-width: calc(100% - 100px);
+    bottom: 10px;
+    right: 10px;
+  }
+  .ol-attribution ul {
+    font-size: 9.5px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
+  }
+  .ol-scale-line {
+    bottom: 10px;
+    left: 10px;
+    padding: 2px 6px;
+  }
+}
+
 .ol-attribution ul {
   display: inline-block;
   font-size: 11px;
