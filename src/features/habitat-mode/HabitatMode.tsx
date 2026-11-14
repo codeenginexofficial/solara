@@ -43,6 +43,7 @@ import { isInsideBoundingBox } from '../../lib/bbox';
 import { cn } from '../../lib/utils';
 
 const MarsMap = lazy(() => import('../../map/MarsMap'));
+const MarsGlobe = lazy(() => import('../mars-globe/MarsGlobe'));
 
 const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
@@ -124,6 +125,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   });
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
   const [locationElevation, setLocationElevation] = useState<ElevationState | null>(null);
+  const [globeActive, setGlobeActive] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   /* One boolean drives both the desktop docked panel and the <lg overlay
    * drawer; initialize open on desktop widths. */
@@ -286,6 +288,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         regionLabel={REGION.name}
         sourceStatus={sourceStatus}
         onFitRegion={handleFitRegion}
+        onToggleGlobe={() => setGlobeActive((active) => !active)}
+        globeActive={globeActive}
         onToggleLeftPanel={() => setLeftPanelOpen((v) => !v)}
         onToggleRightPanel={() => setWorkspaceOpen((v) => !v)}
         onSwitchToTablet={onSwitchToTablet}
@@ -296,7 +300,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         <aside
           className={cn(
             'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
-            leftPanelOpen ? 'flex' : 'hidden lg:flex',
+            globeActive ? 'hidden' : leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
           aria-label="Mission operations"
         >
@@ -315,34 +319,52 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
 
         {/* Main map workspace — rounded instrument card */}
         <main className="relative min-w-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
-          <Suspense fallback={<MapWorkspaceFallback />}>
-            <MarsMap
-              ref={mapApi}
-              baseLayers={baseLayers}
-              overlays={overlays}
-              regionBoundingBox={REGION.boundingBox}
-              routeVisible
-              start={mission.start}
-              target={mission.target}
-              route={mission.route}
-              selectedMarker={selectedLocation}
-              onPointerLocationChange={setPointerLocation}
-              onLocationSelect={(loc) => {
-                setSelectedFeature(null);
-                setSelectedLocation(loc);
-              }}
-              onFeatureSelect={setSelectedFeature}
-              onViewChange={setViewInfo}
-              onSourceStatusChange={setSourceStatus}
-              onOverlayStatusChange={setOverlayStatus}
-            />
-          </Suspense>
+          {globeActive ? (
+            <Suspense fallback={<MapWorkspaceFallback />}>
+              <MarsGlobe
+                selectedLocation={selectedLocation}
+                onLocationSelect={(loc) => {
+                  setSelectedFeature(null);
+                  setSelectedLocation(loc);
+                }}
+                onSelectTraverse={() => {
+                  setWorkspaceTab('rover');
+                  setWorkspaceOpen(true);
+                }}
+                onSwitchToMap={() => setGlobeActive(false)}
+              />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<MapWorkspaceFallback />}>
+              <MarsMap
+                ref={mapApi}
+                baseLayers={baseLayers}
+                overlays={overlays}
+                regionBoundingBox={REGION.boundingBox}
+                routeVisible
+                start={mission.start}
+                target={mission.target}
+                route={mission.route}
+                selectedMarker={selectedLocation}
+                initialFocusLocation={selectedLocation}
+                onPointerLocationChange={setPointerLocation}
+                onLocationSelect={(loc) => {
+                  setSelectedFeature(null);
+                  setSelectedLocation(loc);
+                }}
+                onFeatureSelect={setSelectedFeature}
+                onViewChange={setViewInfo}
+                onSourceStatusChange={setSourceStatus}
+                onOverlayStatusChange={setOverlayStatus}
+              />
+            </Suspense>
+          )}
         </main>
 
         {/* Right workspace — tabbed Inspector | Copilot, resizable and
             collapsible (overlay drawer below lg). */}
         <ContextWorkspace
-          open={workspaceOpen}
+          open={!globeActive && workspaceOpen}
           onClose={() => setWorkspaceOpen(false)}
           tab={workspaceTab}
           onTabChange={setWorkspaceTab}
@@ -364,14 +386,14 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
           copilot={<CopilotPanel context={copilotContext} />}
           roverPov={
             <RoverPovPanel
-              active={workspaceOpen && workspaceTab === 'rover'}
+              active={!globeActive && workspaceOpen && workspaceTab === 'rover'}
               location={selectedLocation}
             />
           }
         />
       </div>
 
-      <StatusBar
+      {!globeActive && <StatusBar
         pointerLocation={pointerLocation}
         selectedLocation={selectedLocation}
         elevationState={locationElevation}
@@ -383,7 +405,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         onComputeRoute={() => computeRoute()}
         onExportPlan={handleExportPlan}
         onImportPlan={() => fileInputRef.current?.click()}
-      />
+      />}
 
       <input
         ref={fileInputRef}

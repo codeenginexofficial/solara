@@ -14,7 +14,7 @@
 2. [Tech stack](#2-tech-stack)
 3. [Architecture](#3-architecture)
 4. [Data sources & dataset catalog](#4-data-sources--dataset-catalog)
-5. [Mapping system (OpenLayers & CRS)](#5-mapping-system-openlayers--crs)
+5. [Mapping system (OpenLayers, globe & CRS)](#5-mapping-system-openlayers-globe--crs)
 6. [Mission planning & route engine](#6-mission-planning--route-engine)
 7. [Solara AI (AI integration)](#7-solara-ai-ai-integration)
 8. [UI & design system](#8-ui--design-system)
@@ -72,13 +72,14 @@ Global Mars context uses genuinely global datasets (MOLA+HRSC blend). Detailed p
 | Components | Hand-built token-styled primitives on `class-variance-authority` + `clsx` + `tailwind-merge` | cva ^0.7.1 |
 | Icons | Lucide React | ^1.72.0 |
 | Map renderer | OpenLayers | ^10.11.0 |
+| 3D planetary renderer | CesiumJS | 1.140.0 (lazy-loaded) |
 | Coordinate transforms | proj4 | ^2.22.0 |
 | Route search | A* in a Web Worker (own `MinHeap`, no graph library) | — |
 | Copilot proxy | Cloudflare Worker (Wrangler) | wrangler ^4.161.0 (dev) |
 | Fonts | IBM Plex Sans / IBM Plex Mono via `@fontsource/*` (locally bundled, no external font requests) | ^5.3.0 |
 | AI provider | OpenRouter chat completions (server-side only) | — |
 
-Deliberately excluded (`Architecture.md §1`): Next.js, TanStack Start, Three.js/R3F, Cesium, Redux, Supabase, any database. There is **no test framework and no linter**; the verification loop is `typecheck` → `build` → manual browser checks.
+Deliberately excluded: Next.js, TanStack Start, Three.js/R3F, Redux, Supabase, any database. CesiumJS is isolated to the requested, lazy-loaded planetary globe; OpenLayers remains the scientific planning map. There is **no test framework and no linter**; the verification loop is `typecheck` → `build` → manual browser checks.
 
 ---
 
@@ -129,8 +130,9 @@ flowchart TB
 | Area | Location | Responsibility |
 |---|---|---|
 | App shell | `src/App.tsx`, `src/main.tsx` | Mode switch (`habitat` \| `tablet`), StrictMode root |
-| Modes | `src/features/habitat-mode/`, `src/features/field-tablet/` | The two interfaces; compose UI panels and the lazy `MarsMap` |
+| Modes | `src/features/habitat-mode/`, `src/features/field-tablet/` | The two interfaces; compose UI panels and switch between lazy `MarsMap` and `MarsGlobe` |
 | Map engine | `src/map/MarsMap.tsx` + `src/map/**` | All OpenLayers objects live here; never in React state |
+| 3D globe | `src/features/mars-globe/MarsGlobe.tsx` | Separate CesiumJS viewer and ion Mars 3D Tiles; serializable location handoff only |
 | Projections | `src/map/projections/ProjectionRegistry.ts` (+ ol-free constants in `src/lib/marsCrs.ts`) | Registers/provides the verified Mars CRS |
 | Tile grids | `src/map/trek/tileGrid.ts`, `trekCapabilities.ts` | Analytic degree-plate-carrée pyramid; embedded verified WMTS capabilities snapshots |
 | Layers | `src/map/layers/createWmtsLayer.ts`, `createGeojsonLayer.ts` | Catalog record → ol layer (footprint-aware WMTS; kind-styled GeoJSON) |
@@ -182,7 +184,7 @@ The catalog (`src/data/catalog/datasets.ts`) holds **6 verified records** + **1 
 
 ---
 
-## 5. Mapping system (OpenLayers & CRS)
+## 5. Mapping system (OpenLayers, globe & CRS)
 
 ### CRS policy — verified, not assumed (`Architecture.md §6/§6.1`)
 
@@ -194,6 +196,14 @@ The catalog (`src/data/catalog/datasets.ts`) holds **6 verified records** + **1 
   - The declared URN is kept verbatim as **source metadata only** and is never displayed as the working projection.
 - Latitude is planetocentric (identical to planetographic on a sphere); longitude is east-positive.
 - proj4 definitions: `+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs` and `+proj=longlat +R=3396190 +no_defs`.
+
+### 3D Mars globe (`src/features/mars-globe/MarsGlobe.tsx`)
+
+- CesiumJS runs as a separate, lazy-loaded workspace; it does not replace or share OpenLayers objects with the 2D map. Cesium ion asset `3644333` streams global Viking imagery and MOLA/HRSC elevation geometry, with finer Jezero 3D Tiles where the asset provides them.
+- Cesium uses the Mars ellipsoid (equatorial radius 3,396,190 m; polar radius 3,376,200 m), while the planning map uses a 3,396,190 m sphere. Globe picks are converted to east-positive longitude and planetocentric latitude; map metres are calculated analytically in `src/lib/marsCrs.ts`. Ellipsoid latitudes are used only to position/focus Cesium geometry. Cartesian coordinates are never passed to OpenLayers.
+- Map selection is held by the active mode shell and passed as plain `MapLocation` values. A selected globe point remains centered when switching to OpenLayers; a fresh map session still fits Jezero. Mission route state stays in the existing mission store.
+- `VITE_CESIUM_ION_TOKEN` is required to stream the real tiles. Without it, SOLARA shows setup instructions and no planet is drawn. See `.env.example` and `SOURCES.md`; use a public browser token restricted to `assets:read`, asset 3644333, and the app origins. Confirm ion plan and content terms before public deployment.
+- The optional traverse overlay reads the prepared Mars 2020 traverse GeoJSON and is labeled historical (Sols 14–1176), never a current rover position. The globe does not invent camera locations or headings.
 
 ### Tile grid handling (`src/map/trek/tileGrid.ts`, `createWmtsLayer.ts`)
 
@@ -351,13 +361,14 @@ Asset coordinate notes: vector services return lon/lat degrees in the ESRI "Mars
 
 ## 10. Environment variables
 
-SOLARA intentionally has **no client-side environment variables** — no `VITE_*` values exist, and OpenRouter credentials must never reach the browser.
+SOLARA has one optional client-side configuration value: the public, restricted Cesium ion browser token. OpenRouter credentials must never reach the browser.
 
 | Variable | Where | Kind | Purpose |
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | Cloudflare Worker secret (`worker/src/index.ts`) | Secret | OpenRouter authorization; set via `npx wrangler secret put OPENROUTER_API_KEY` or the git-ignored `worker/.dev.vars` for local dev |
 | `OPENROUTER_MODEL` | Cloudflare Worker var (`worker/wrangler.toml` `[vars]`) | Public var | Model id forwarded to OpenRouter; default `openrouter/free` |
 | `NASA_API_KEY` | Cloudflare Worker secret (`worker/src/index.ts`) | Secret | NASA API authorization for future integrations (e.g. DONKI); set via `npx wrangler secret put NASA_API_KEY` or git-ignored `worker/.dev.vars`. (Note: MEDA PDS archive is public and does not require an API key). |
+| `VITE_CESIUM_ION_TOKEN` | Vite client (`src/features/mars-globe/MarsGlobe.tsx`) | Public browser token | `assets:read` access to Cesium Mars asset 3644333; restrict by asset and application origin. If unset, globe shows a configuration state. Never use a private or unrestricted token. |
 
 Missing `OPENROUTER_API_KEY` is an honest runtime state: the Worker answers `copilot-unconfigured` (HTTP 503) and the UI shows an honest error. `.dev.vars`, `.env*`, and `.wrangler/` are git-ignored and must never be committed.
 
@@ -411,6 +422,9 @@ npm run build             # typecheck + production build
 
 ## 13. Build & deployment
 
+- The CesiumJS runtime is isolated in a lazy-loaded chunk. With `VITE_CESIUM_ION_TOKEN` set before the build, the local production build emitted a ~4.86 MB minified Cesium chunk (~1.34 MB gzip); map-only sessions do not load it. The Vite build copies the required Cesium runtime files under `dist/cesium/`.
+- Vite embeds `VITE_CESIUM_ION_TOKEN` at build time. Set it in the local `.env` before `npm run dev`/`npm run build`, or in the hosted frontend's build environment. A build without it shows setup instructions and does not include CesiumJS or draw a substitute globe.
+
 - `npm run build` = `tsc --noEmit` + `vite build`. Output in `dist/`: shell chunk (`index-*.js`), lazy map chunk (`MarsMap-*.js` — intentionally exceeds Vite's 500 kB chunk warning; that is the desired code-split, do not "fix" it by un-splitting), route worker (`route.worker-*.js`, ~11 kB), CSS (fonts bundled locally), and IBM Plex woff2/woff assets.
 - **Initial deployment target: Cloudflare Pages** (static frontend + prepared assets), per `Architecture.md §14`. No deployment pipeline exists in this repository yet.
 - The Copilot Worker deploys with Wrangler (`worker/wrangler.toml`, name `solara-copilot-proxy`); its dev port is 8787.
@@ -421,6 +435,8 @@ npm run build             # typecheck + production build
 ## 14. Performance
 
 Implemented rules (`Architecture.md §12`):
+
+- CesiumJS and its widget CSS are dynamically imported only when a user opens the globe. Required Cesium runtime files are served under `/cesium/`; the 3D viewer is destroyed when leaving the mode, releasing its WebGL context. The ion tileset refines progressively from global to regional detail.
 
 - The OpenLayers map engine is **code-split** (`React.lazy` + Suspense) so the initial shell loads without ol/proj4; shell components import CRS constants from ol-free `src/lib/marsCrs.ts` only (importing from `ProjectionRegistry.ts` pulls proj4+ol into the shell chunk — measured 492 → 342 kB regression when fixed).
 - Route search runs in a **Web Worker**; the grid is loaded once per session inside the worker.
@@ -433,7 +449,7 @@ Implemented rules (`Architecture.md §12`):
 
 ## 15. Security
 
-- **Credentials:** `OPENROUTER_API_KEY` exists only as a Worker secret; no `VITE_*` vars; `.dev.vars`/`.env*` git-ignored. The browser client holds no key and sends no auth.
+- **Credentials:** `OPENROUTER_API_KEY` exists only as a Worker secret. `VITE_CESIUM_ION_TOKEN` is intentionally public and must be narrowly scoped, asset-restricted, and origin-restricted; no private credentials belong in any `VITE_*` variable. `.dev.vars`/`.env*` are git-ignored.
 - **Prompt-injection surface:** the Worker strips `#`-prefixed lines from app context, allowlists context keys, clamps every string, and never reflects invalid payloads verbatim.
 - **Payload validation:** strict message array validation (roles, length, char limits), body-size limits both by declared `content-length` and post-read.
 - **Transport:** all external requests are HTTPS; the tile loader decodes responses via blob URLs (keeps the map canvas untainted).
@@ -472,7 +488,7 @@ There is no automated test framework. Validation is a documented, repeatable pro
 | Out-of-footprint tiles "missing" | Marked `EMPTY` before fetching (404s carry no CORS header) | Expected; counted as expected no-data |
 | Fitted views land at fractional zooms (e.g. zoom 9.554) | ol `View.fit()` does not snap to a custom `resolutions` list | Expected, not a bug |
 | Scale line looked wrong historically | ol's default `getPointResolution` measures Mars on the Earth sphere | Fixed via `setGetPointResolution((r) => r)`; verify a 5 km bar spans `5000/res` px |
-| MarsMap chunk warning > 500 kB | Intended code-split | Do not un-split |
+| MarsMap / Cesium chunk warning > 500 kB | Intentional lazy-loaded rendering chunks | Do not un-split |
 | ContextWorkspace resize drag not re-verified after the redesign | Test gap | Manual check pending |
 | Console shows CORS-rejected 404 tile requests in older sessions | Superseded by footprint-aware `EMPTY` marking | Fixed; out-of-footprint tiles are never requested |
 

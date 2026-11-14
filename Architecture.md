@@ -17,6 +17,7 @@ The stack below is the agreed starting direction for the MVP. The repository mus
 | UI primitives | shadcn/ui | Accessible, customizable components |
 | Icons | Lucide React | Interface icons |
 | Map renderer | OpenLayers | Raster/vector map, pan/zoom, map interactions |
+| 3D globe renderer | CesiumJS (lazy-loaded) | Separate globe and streamed Mars 3D Tiles; OpenLayers remains the planning map |
 | Coordinate transforms | Proj4js | Custom Mars projection definitions and transforms |
 | Scientific preprocessing | Python + GDAL | Inspect, crop, reproject, derive, and prepare raster/vector data |
 | Route search | A* (A-star) | Search a DEM-derived terrain-cost grid |
@@ -699,3 +700,23 @@ This section records what was actually built for the Milestone 2 scope (multi-da
 - Browser (Playwright, msedge): route computed (13.34 km ground / 14.17 km cost-equivalent, warnings visible), elevation profile SVG, live elevation −2,642 m with timestamp, prepared-grid fallback labelled, all five layers toggled and pixel-verified (geology tint diff ≤ 63/255 on 8/35 sample points), plan export → import round-trip with "not re-verified" note, nearest-route-point card (167 m), tablet position chip SIMULATED, zero console errors at each step.
 - Analytic: scale bar re-measured after the `getPointResolution` fix in both modes; view-centre check 77.42982°E/18.46611°N ↔ (4,589,629, 1,094,573) m reproduced after every MarsMap mount.
 - `npm run typecheck` and `npm run build` pass; worker chunk built separately (`route.worker-*.js`, ~11 kB).
+
+## 17. 3D Mars globe implementation record (as-built 2026-11-15)
+
+### 17.1 Renderer and data
+
+- `src/features/mars-globe/MarsGlobe.tsx` is a separate CesiumJS workspace, lazy-loaded from Habitat Mode and Field Tablet Mode. It does not replace OpenLayers or create a second mission store.
+- The globe streams Cesium ion Mars asset `3644333`, a global 3D Tiles dataset combining Viking global imagery with MOLA/MGS and HRSC/Mars Express elevation geometry. Cesium documents approximately 232 m/pixel imagery and 200 m terrain globally, with finer Jezero content in the same tileset. It is not a standard imagery layer or Cesium terrain provider.
+- The optional Perseverance path reads the prepared `mars2020-perseverance-traverse` GeoJSON and is labeled historical (Sols 14–1176), never current. No rover camera positions or orientations are inferred.
+
+### 17.2 Mars coordinate handoff
+
+- The selected point crosses between workspaces as `MapLocation` longitude/latitude and SOLARA projected metres. Longitude is east-positive; latitude is planetocentric for the internal sphere CRS.
+- Cesium renders on its Mars ellipsoid (a = 3,396,190 m; c = 3,376,200 m). For Cesium placement/focus, SOLARA planetocentric latitude is converted to planetographic latitude using that ellipsoid. For globe picks, Cartesian direction yields planetocentric latitude, then `marsPlanetocentricToEqc` computes the internal map metres analytically. Cesium Cartesian positions are never passed to OpenLayers or mission routing.
+- On return to the 2D map, the selected location is retained and becomes the initial center. A fresh map launch without a selection still fits the Jezero region. Locations outside the exploration region remain un-clamped and keep the existing route-planning limitation.
+
+### 17.3 Configuration and limits
+
+- `VITE_CESIUM_ION_TOKEN` is a browser-visible token and is required for streaming. Create a token with only `assets:read`, restrict it to asset 3644333 and the app's allowed origins, and provide it through a local `.env` file. `.env.example` contains setup guidance only; never store a private or unrestricted token in the repository.
+- With no configured token, the interface gives setup instructions and does not draw substitute imagery. Cesium's WebGL viewer is destroyed when the globe workspace unmounts; Cesium worker/widget assets are served under `/cesium/` by Vite's static-copy plugin.
+- The ion stream was not browser-verified in the current checkout because no token is configured. Review current Cesium ion quotas, terms, and attribution requirements before public deployment. See `SOURCES.md` for the source and attribution audit.

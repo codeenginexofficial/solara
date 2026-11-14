@@ -94,6 +94,12 @@ export interface MarsMapProps {
   positionMarker?: GeoPoint | null;
   /** The point currently inspected in the mission-operations panel. */
   selectedMarker?: GeoPoint | null;
+  /**
+   * Initial location handoff from the Mars globe. MarsMap remains responsible
+   * for its own map objects; this plain geographic value only sets the first
+   * view when the map is mounted again.
+   */
+  initialFocusLocation?: MapLocation | null;
   onPointerLocationChange: (location: MapLocation | null) => void;
   onLocationSelect: (location: MapLocation) => void;
   /** Fires when the click landed on a named science waypoint. */
@@ -249,6 +255,7 @@ export default function MarsMap({
   route,
   positionMarker,
   selectedMarker,
+  initialFocusLocation,
   onPointerLocationChange,
   onLocationSelect,
   onFeatureSelect,
@@ -387,6 +394,19 @@ export default function MarsMap({
 
     const regionExtent = regionBoundingBox ? bboxToMetresExtent(regionBoundingBox) : null;
     regionExtentRef.current = regionExtent;
+    const initialFocusIsInRegion = Boolean(
+      initialFocusLocation &&
+        regionBoundingBox &&
+        initialFocusLocation.lon >= regionBoundingBox.westLon &&
+        initialFocusLocation.lon <= regionBoundingBox.eastLon &&
+        initialFocusLocation.lat >= regionBoundingBox.southLat &&
+        initialFocusLocation.lat <= regionBoundingBox.northLat,
+    );
+    const initialCenter = initialFocusLocation
+      ? [initialFocusLocation.x, initialFocusLocation.y]
+      : regionExtent
+        ? [(regionExtent[0] + regionExtent[2]) / 2, (regionExtent[1] + regionExtent[3]) / 2]
+        : [0, 0];
 
     /* --- Mission route overlay (topmost) ------------------------------- */
     const routeSource = new VectorSource();
@@ -443,10 +463,8 @@ export default function MarsMap({
       view: new View({
         projection,
         resolutions: viewResolutions,
-        center: regionExtent
-          ? [(regionExtent[0] + regionExtent[2]) / 2, (regionExtent[1] + regionExtent[3]) / 2]
-          : [0, 0],
-        zoom: 8,
+        center: initialCenter,
+        zoom: initialFocusLocation && !initialFocusIsInRegion ? 2 : 8,
         maxZoom: viewResolutions.length - 1,
         minZoom: 0,
         extent: [
@@ -463,7 +481,10 @@ export default function MarsMap({
     });
     mapRef.current = map;
 
-    if (regionExtent) {
+    // Keep a globe-selected point centred when handing off to the 2D map.
+    // A fresh map session still opens fitted to Jezero; selections outside
+    // the region remain at their own global-view focus and are never clamped.
+    if (regionExtent && !initialFocusLocation) {
       const size = map.getSize();
       if (size && (size[0] ?? 0) > 0 && (size[1] ?? 0) > 0) {
         map.getView().fit(regionExtent, {

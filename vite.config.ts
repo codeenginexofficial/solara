@@ -1,10 +1,25 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+const cesiumStaticDirectories = ['ThirdParty', 'Workers', 'Assets', 'Widgets'];
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  define: {
+    CESIUM_BASE_URL: JSON.stringify('/cesium/'),
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    viteStaticCopy({
+      targets: cesiumStaticDirectories.map((directory) => ({
+        src: `node_modules/cesium/Build/Cesium/${directory}`,
+        dest: 'cesium',
+      })),
+    }),
+  ],
   server: {
     port: 5173,
     // Dev proxy for the Cloudflare Worker (`npm run dev:copilot`,

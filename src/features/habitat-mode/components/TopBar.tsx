@@ -6,7 +6,7 @@
  * over the map): mode selection is an explicit, always-visible decision.
  */
 
-import { PanelLeft, PanelRight, Maximize2, MapPin } from 'lucide-react';
+import { PanelLeft, PanelRight, Maximize2, MapPin, Globe } from 'lucide-react';
 import type { SourceStatus, CapabilitiesStatus } from '../../../map/mapTypes';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -29,6 +29,8 @@ export interface TopBarProps {
   regionLabel: string;
   sourceStatus: SourceStatus;
   onFitRegion: () => void;
+  onToggleGlobe: () => void;
+  globeActive: boolean;
   onToggleLeftPanel: () => void;
   onToggleRightPanel: () => void;
   /** Provided when the app can switch to Field Tablet Mode from here. */
@@ -39,6 +41,8 @@ export function TopBar({
   regionLabel,
   sourceStatus,
   onFitRegion,
+  onToggleGlobe,
+  globeActive,
   onToggleLeftPanel,
   onToggleRightPanel,
   onSwitchToTablet,
@@ -86,12 +90,12 @@ export function TopBar({
         title={regionLabel}
       >
         <MapPin className="size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
-        <span className="truncate">Jezero Crater, Mars</span>
+        <span className="truncate">{globeActive ? 'Mars · Global 3D' : 'Jezero Crater, Mars'}</span>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
         {/* Source connection status */}
-        <div
+        {!globeActive && <div
           className="hidden min-w-0 items-center gap-1.5 sm:flex"
           title={sourceStatus.message}
         >
@@ -111,11 +115,11 @@ export function TopBar({
               • {formatUtcTime(sourceStatus.lastCheckedAt)}
             </span>
           )}
-        </div>
+        </div>}
 
         <span className="hidden h-4 w-px bg-edge sm:block" aria-hidden="true" />
 
-        <Button
+        {!globeActive && <Button
           variant="ghost"
           size="icon"
           aria-label="Fit view to region"
@@ -123,8 +127,19 @@ export function TopBar({
           onClick={onFitRegion}
         >
           <Maximize2 />
-        </Button>
+        </Button>}
         <Button
+          variant={globeActive ? 'accent' : 'outline'}
+          size="sm"
+          className="h-8 px-2.5 text-xs"
+          aria-pressed={globeActive}
+          aria-label={globeActive ? 'Return to 2D scientific map' : 'Open 3D Mars globe'}
+          onClick={onToggleGlobe}
+        >
+          <Globe className="size-3.5" aria-hidden="true" />
+          {globeActive ? '2D Map' : '3D Globe'}
+        </Button>
+        {!globeActive && <Button
           variant="ghost"
           size="icon"
           className="lg:hidden"
@@ -132,15 +147,15 @@ export function TopBar({
           onClick={onToggleLeftPanel}
         >
           <PanelLeft />
-        </Button>
-        <Button
+        </Button>}
+        {!globeActive && <Button
           variant="ghost"
           size="icon"
           aria-label="Toggle workspace panel"
           onClick={onToggleRightPanel}
         >
           <PanelRight />
-        </Button>
+        </Button>}
       </div>
     </header>
   );

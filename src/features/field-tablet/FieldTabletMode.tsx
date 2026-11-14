@@ -35,6 +35,7 @@ import { RouteSummary } from '../mission/components/RouteSummary';
 import { cn } from '../../lib/utils';
 
 const MarsMap = lazy(() => import('../../map/MarsMap'));
+const MarsGlobe = lazy(() => import('../mars-globe/MarsGlobe'));
 
 const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
@@ -111,6 +112,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
   const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
+  const [globeActive, setGlobeActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleToggleVisibility = useCallback((id: string, visible: boolean) => {
@@ -198,6 +200,16 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           variant="outline"
           size="sm"
           className="h-8 px-3 rounded-sm text-xs shrink-0"
+          aria-pressed={globeActive}
+          onClick={() => setGlobeActive((active) => !active)}
+        >
+          {globeActive ? '2D Map' : '3D Globe'}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 rounded-sm text-xs shrink-0"
           onClick={onExit}
         >
           Habitat
@@ -206,34 +218,55 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
 
       {/* Map — dominant instrument workspace */}
       <main className="relative min-h-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
-        <Suspense fallback={<MapWorkspaceFallback />}>
-          <MarsMap
-            baseLayers={baseLayers}
-            overlays={overlays}
-            regionBoundingBox={REGION.boundingBox}
-            routeVisible
-            start={mission.start}
-            target={mission.target}
-            route={route}
-            positionMarker={mission.position}
-            onPointerLocationChange={() => {}}
-            onLocationSelect={(loc) => {
-              setSelectedFeature(null);
-              setSelectedLocation(loc);
-              setPosition({ lon: loc.lon, lat: loc.lat });
-            }}
-            onFeatureSelect={setSelectedFeature}
-            onViewChange={() => {}}
-            onSourceStatusChange={() => {}}
-            onOverlayStatusChange={setOverlayStatus}
-          />
-        </Suspense>
+        {globeActive ? (
+          <Suspense fallback={<MapWorkspaceFallback />}>
+            <MarsGlobe
+              selectedLocation={selectedLocation}
+              onLocationSelect={(loc) => {
+                setSelectedFeature(null);
+                setSelectedLocation(loc);
+                setPosition({ lon: loc.lon, lat: loc.lat });
+              }}
+              onSelectTraverse={() => {
+                setSheetTab('rover');
+                setSheetOpen(true);
+              }}
+              onSwitchToMap={() => setGlobeActive(false)}
+            />
+          </Suspense>
+        ) : (
+          <Suspense fallback={<MapWorkspaceFallback />}>
+            <MarsMap
+              baseLayers={baseLayers}
+              overlays={overlays}
+              regionBoundingBox={REGION.boundingBox}
+              routeVisible
+              start={mission.start}
+              target={mission.target}
+              route={route}
+              positionMarker={mission.position}
+              selectedMarker={selectedLocation}
+              initialFocusLocation={selectedLocation}
+              onPointerLocationChange={() => {}}
+              onLocationSelect={(loc) => {
+                setSelectedFeature(null);
+                setSelectedLocation(loc);
+                setPosition({ lon: loc.lon, lat: loc.lat });
+              }}
+              onFeatureSelect={setSelectedFeature}
+              onViewChange={() => {}}
+              onSourceStatusChange={() => {}}
+              onOverlayStatusChange={setOverlayStatus}
+            />
+          </Suspense>
+        )}
       </main>
 
       {/* Bottom sheet — collapsible, touch-first */}
       <div
         className={cn(
           'shrink-0 overflow-y-auto rounded-t-2xl border-t border-x border-edge bg-panel transition-[max-height] duration-[220ms] ease-out',
+          globeActive && 'hidden',
           sheetOpen ? 'max-h-[52vh]' : 'max-h-13',
         )}
         data-testid="tablet-sheet"
@@ -591,7 +624,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           ) : (
             <div id="tablet-tabpanel-rover" role="tabpanel" className="h-[calc(52vh-7rem)] min-h-[220px] overflow-hidden">
               <RoverPovPanel
-                active={sheetOpen && sheetTab === 'rover'}
+                active={!globeActive && sheetOpen && sheetTab === 'rover'}
                 location={selectedLocation}
               />
             </div>

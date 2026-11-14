@@ -37,6 +37,24 @@ export const MARS_EQC_PROJ4 =
 export const MARS_GEOGRAPHIC_PROJ4 = '+proj=longlat +R=3396190 +no_defs';
 
 /**
+ * Analytic lon/lat to SOLARA's Mars-sphere equirectangular coordinates.
+ * Longitude is east-positive and latitude is planetocentric. This stays
+ * ol/proj4-free so a shell feature can pass coordinates into MarsMap without
+ * pulling OpenLayers into the app shell. The analytic formula also avoids
+ * proj4's pole-sign quirk documented in Architecture.md §6.1.
+ */
+export function marsPlanetocentricToEqc(
+  longitudeEastDeg: number,
+  latitudeNorthDeg: number,
+): [number, number] {
+  const radiansPerDegree = Math.PI / 180;
+  return [
+    longitudeEastDeg * radiansPerDegree * MARS_2000_SPHERE_RADIUS_M,
+    latitudeNorthDeg * radiansPerDegree * MARS_2000_SPHERE_RADIUS_M,
+  ];
+}
+
+/**
  * Esri MapServer's published MarsEC0 equirectangular CRS. Its Mars 2000
  * ellipsoid is retained as source metadata; OpenLayers reprojects these
  * cached image tiles into SOLARA's Mars-sphere working projection.
