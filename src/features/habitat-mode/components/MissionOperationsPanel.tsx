@@ -5,8 +5,8 @@
  *
  * Revision 2 composition (2026-11-14): the panel is a clean grouped list —
  * no boxed cards. Region description sits behind a disclosure; layer rows
- * are flat list items where active layers carry a crimson edge marker plus a
- * translucent crimson wash; opacity appears only on visible layers; runtime
+ * are flat list items where active layers carry a white edge marker plus a
+ * translucent white wash; opacity appears only on visible layers; runtime
  * chips render only when a layer is on (OFF is implied by the switch).
  *
  * Runtime chips are derived from real wiring only: WMTS bases report
@@ -152,7 +152,7 @@ export function MissionOperationsPanel({
         </div>
       </Section>
 
-      {/* (b) Map layers — flat grouped list, crimson markers on active layers */}
+      {/* (b) Map layers — flat grouped list, white markers on active layers */}
       <Section title="Map layers">
         <div className="flex flex-col gap-3.5">
           {LAYER_GROUPS.map((group) => (
@@ -244,7 +244,7 @@ export function MissionOperationsPanel({
       {queryDatasets.length > 0 && (
         <Section title="Query-only data">
           <p className="mb-2 text-[11px] leading-snug text-ink-subtle">
-            Used for elevation queries and mission-planning terrain costs; not drawn on the map.
+            Elevation queries and terrain costs; not drawn on the map.
           </p>
           <ul className="flex flex-col">
             {queryDatasets.map((dataset) => {

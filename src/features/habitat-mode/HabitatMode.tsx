@@ -76,7 +76,7 @@ function MapWorkspaceFallback() {
         className="flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs text-ink-muted"
         data-testid="map-workspace-loading"
       >
-        <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+        <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
         Loading map engine…
       </div>
     </div>
@@ -224,7 +224,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         {/* Left panel — mission operations */}
         <aside
           className={cn(
-            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto border-r border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
+            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto border-r border-edge bg-panel lg:static lg:z-auto lg:flex',
             leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
           aria-label="Mission operations"

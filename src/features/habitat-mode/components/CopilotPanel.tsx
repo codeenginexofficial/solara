@@ -252,7 +252,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
         )}
         {pending && (
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted" data-testid="copilot-waiting">
-            <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+            <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
             Waiting for the Copilot service…
           </div>
         )}
@@ -297,7 +297,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
           </Button>
         </div>
         <p className="mt-1.5 text-[10.5px] leading-snug text-ink-subtle">
-          In-memory conversation — lost on reload. Enter sends; Shift+Enter adds a newline.
+          In-memory — lost on reload. Enter sends.
         </p>
       </div>
     </div>

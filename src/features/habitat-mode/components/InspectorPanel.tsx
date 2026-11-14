@@ -50,11 +50,6 @@ export function InspectorPanel({
   const mission = useMissionState();
   const route = mission.route;
   const badge = dataset ? VERIFICATION_BADGE[dataset.verification] : undefined;
-  const observationPeriod =
-    dataset?.observationPeriod ??
-    (dataset?.observationStart
-      ? `${dataset.observationStart} – ${dataset.observationEnd ?? 'present'}`
-      : null);
 
   return (
     <div data-testid="inspector-panel">
@@ -75,21 +70,8 @@ export function InspectorPanel({
                 <Badge tone={badge!.tone}>{badge!.label}</Badge>
               </span>
             </div>
-            <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-ink-muted">{dataset.description}</p>
-            <div className="mt-2 flex flex-col gap-0.5 border-t border-edge/60 pt-2 text-[11px] leading-snug text-ink-muted">
-              <span>
-                <span className="text-ink-subtle">Provider:</span> {dataset.provider}
-              </span>
-              {observationPeriod && (
-                <span>
-                  <span className="text-ink-subtle">Observed:</span> {observationPeriod}
-                </span>
-              )}
-              <span className="truncate">
-                <span className="text-ink-subtle">Coverage:</span> {dataset.coverageDescription}
-              </span>
-            </div>
-            <Disclosure title="Full dataset metadata" className="mt-2">
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-muted">{dataset.description}</p>
+            <Disclosure title="Details & provenance" className="mt-2">
               <DatasetDetails dataset={dataset} embedded hideHeader hideDescription />
             </Disclosure>
           </div>

@@ -23,7 +23,7 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         style={{ height }}
         data-testid="elevation-profile-empty"
       >
-        Compute a route to see its elevation profile.
+        No route yet.
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         <polyline
           points={coords.join(' ')}
           fill="none"
-          stroke="rgba(255, 59, 48, 0.9)"
+          stroke="rgba(255, 255, 255, 0.9)"
           strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
           strokeLinejoin="round"
@@ -73,7 +73,7 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         <span className="ml-auto">{formatDistance(total)} ground distance</span>
       </div>
       <p className="text-[10.5px] leading-snug text-ink-subtle">
-        Areoid-referenced elevation from the prepared ~200 m/px grid — derived, coarse.
+        Areoid-referenced · ~200 m/px grid — derived, coarse.
       </p>
     </div>
   );

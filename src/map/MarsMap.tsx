@@ -174,7 +174,7 @@ const ROUTE_LINE_STYLE = new Style({
 });
 
 const ROUTE_LINE_INNER_STYLE = new Style({
-  stroke: new Stroke({ color: 'rgba(255, 59, 48, 0.95)', width: 2.5 }),
+  stroke: new Stroke({ color: 'rgba(255, 255, 255, 0.95)', width: 2.5 }),
 });
 
 function markerStyle(color: string, label: string): Style {
@@ -195,20 +195,21 @@ function markerStyle(color: string, label: string): Style {
   });
 }
 
-const START_MARKER_STYLE = markerStyle('rgba(255, 59, 48, 1)', 'START');
-const TARGET_MARKER_STYLE = markerStyle('rgba(209, 161, 92, 1)', 'TARGET');
+/* Monochrome mission markers — identity comes from the mono labels. */
+const START_MARKER_STYLE = markerStyle('rgba(255, 255, 255, 1)', 'START');
+const TARGET_MARKER_STYLE = markerStyle('rgba(255, 255, 255, 1)', 'TARGET');
 /** Waypoint token tone: light ring, semi-transparent fill (off-white ink). */
 const SELECTED_MARKER_STYLE = new Style({
   image: new CircleStyle({
     radius: 7,
-    fill: new Fill({ color: 'rgba(232, 220, 206, 0.25)' }),
-    stroke: new Stroke({ color: 'rgba(232, 220, 206, 1)', width: 2 }),
+    fill: new Fill({ color: 'rgba(255, 255, 255, 0.25)' }),
+    stroke: new Stroke({ color: 'rgba(255, 255, 255, 1)', width: 2 }),
   }),
   text: new Text({
     text: 'SELECTED',
     offsetY: -16,
     font: '600 10px ui-monospace, monospace',
-    fill: new Fill({ color: 'rgba(232, 220, 206, 1)' }),
+    fill: new Fill({ color: 'rgba(255, 255, 255, 1)' }),
     stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
     overflow: true,
   }),
@@ -218,14 +219,14 @@ const SELECTED_MARKER_STYLE = new Style({
 const POSITION_MARKER_STYLE = new Style({
   image: new CircleStyle({
     radius: 8,
-    fill: new Fill({ color: 'rgba(250, 204, 21, 0.25)' }),
-    stroke: new Stroke({ color: 'rgba(250, 204, 21, 1)', width: 2 }),
+    fill: new Fill({ color: 'rgba(255, 255, 255, 0.25)' }),
+    stroke: new Stroke({ color: 'rgba(255, 255, 255, 1)', width: 2 }),
   }),
   text: new Text({
     text: 'YOU · SIM',
     offsetY: -18,
     font: '600 10px ui-monospace, monospace',
-    fill: new Fill({ color: 'rgba(250, 204, 21, 1)' }),
+    fill: new Fill({ color: 'rgba(255, 255, 255, 1)' }),
     stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
     overflow: true,
   }),
@@ -749,13 +750,13 @@ export default function MarsMap({
           className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-md border border-edge bg-panel-raised/90 px-3 py-2 text-xs text-ink-muted"
           data-testid="map-initial-loading"
         >
-          <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+          <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
           Loading imagery…
         </div>
       )}
       {tileStats.loading > 0 && tileStats.loaded > 0 && (
         <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-md border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-muted">
-          <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+          <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
           Loading {tileStats.loading} tile{tileStats.loading === 1 ? '' : 's'}
         </div>
       )}

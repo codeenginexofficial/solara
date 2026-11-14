@@ -96,16 +96,16 @@ function ElevationRow({ state }: { state: ElevationState }) {
     case 'idle':
     case 'loading':
       main = '…';
-      detail = state.kind === 'idle' ? 'Querying the Trek DEM service…' : 'Awaiting query…';
+      detail = state.kind === 'idle' ? 'Querying DEM…' : 'Awaiting query…';
       break;
     case 'live':
       main = `${state.value.toLocaleString('en-US')} m`;
-      detail = `Queried from Trek DEM service (static MOLA+HRSC blend, 2018 v2), ${formatUtcTime(state.fetchedAt)}`;
+      detail = `Trek DEM (MOLA+HRSC blend) · ${formatUtcTime(state.fetchedAt)}`;
       break;
     case 'no-data':
       main = 'Unknown';
       tone = 'warn';
-      detail = 'The DEM service reports NoData at this point.';
+      detail = 'No data at this point (DEM NoData).';
       break;
     case 'error':
       main = 'Unknown';
@@ -223,7 +223,7 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
             <Crosshair className="size-5 text-accent" aria-hidden="true" />
             <span className="text-[13px] font-medium text-ink">No location selected</span>
             <p className="max-w-[26ch] text-[11.5px] leading-snug text-ink-subtle">
-              Click the map to inspect coordinates, elevation and coverage.
+              Select a map location.
             </p>
           </div>
         </Section>
@@ -286,7 +286,7 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
             >
               {inside
                 ? 'Inside exploration region'
-                : 'Outside exploration region — global imagery and elevation products only; route planning unavailable here.'}
+                : 'Outside exploration region — route planning unavailable here.'}
             </div>
           )}
         </div>
@@ -299,16 +299,16 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
         <div className="mt-1.5 divide-y divide-edge/60">
           <UnknownRow
             label="Slope"
-            reason="Site-scale slope needs terrain detail beyond the ~200 m/px DEM; no fine DEM is integrated."
+            reason="Needs terrain detail beyond the ~200 m/px DEM."
           />
           <UnknownRow
             label="Surface conditions"
-            reason="No rock/regolith/roughness dataset is integrated; imagery is historical."
+            reason="No surface dataset integrated; imagery is historical."
           />
         </div>
         <p className="mt-1.5 text-[10.5px] leading-relaxed text-ink-subtle">
-          Elevation is relative to the Mars areoid (MOLA-registered MOLA+HRSC blend, ~200 m/px) —
-          a coarse regional value, not a site survey.
+          Areoid-referenced (MOLA+HRSC blend, ~200 m/px) — a coarse regional value, not a site
+          survey.
         </p>
       </Section>
     </div>

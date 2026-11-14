@@ -36,7 +36,7 @@ export function RouteSummary({ route, computing, error }: RouteSummaryProps) {
   if (computing) {
     return (
       <div className="flex items-center gap-2 py-2 text-[11px] text-ink-muted" data-testid="route-summary-computing">
-        <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+        <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
         Computing terrain-cost candidate…
       </div>
     );
@@ -69,10 +69,9 @@ export function RouteSummary({ route, computing, error }: RouteSummaryProps) {
         <Stat label="Profile points" value={String(route.points.length)} />
       </div>
       <p className="mt-1.5 text-[10.5px] leading-relaxed text-ink-subtle">
-        Derived from the prepared {route.provenance.gridResolutionNote} grid
-        (prepared {route.provenance.gridPreparedAt.slice(0, 10)}); elevation relative to the Mars
-        areoid (MOLA-registered). This is a PROPOSED TERRAIN-COST CANDIDATE — not a validated or
-        safe route.
+        Prepared {route.provenance.gridResolutionNote} grid (
+        {route.provenance.gridPreparedAt.slice(0, 10)}). PROPOSED TERRAIN-COST CANDIDATE — not a
+        validated or safe route.
       </p>
     </Section>
   );

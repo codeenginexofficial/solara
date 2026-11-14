@@ -51,7 +51,7 @@ function MapWorkspaceFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-surface">
       <div className="flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink-muted">
-        <span className="inline-block size-2.5 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+        <span className="inline-block size-2.5 rounded-full bg-accent opacity-40" aria-hidden="true" />
         Loading map engine…
       </div>
     </div>
@@ -203,7 +203,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       {/* Bottom sheet — collapsible, touch-first */}
       <div
         className={cn(
-          'shrink-0 overflow-y-auto rounded-t-xl border-t border-edge bg-panel transition-[max-height] duration-200',
+          'shrink-0 overflow-y-auto rounded-t-xl border-t border-edge bg-panel transition-[max-height] duration-[220ms] ease-out',
           sheetOpen ? 'max-h-[52vh]' : 'max-h-14',
         )}
         data-testid="tablet-sheet"
@@ -266,8 +266,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                 </div>
               ) : (
                 <p className="text-xs leading-relaxed text-ink-muted">
-                  Tap the map to set a simulated position. There is no Mars GPS — the marker is
-                  labelled SIMULATED everywhere.
+                  Tap the map to set a simulated position — there is no Mars GPS.
                 </p>
               )}
 
@@ -386,14 +385,14 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                 )}
                 {mission.importedAt && (
                   <p className="text-[10.5px] leading-snug text-ink-subtle">
-                    Plan imported {mission.importedAt.slice(0, 10)} — displayed as loaded from the plan
-                    file; not re-verified against current terrain data.
+                    Plan imported {mission.importedAt.slice(0, 10)} — loaded from file, not
+                    re-verified.
                   </p>
                 )}
               </div>
             </Section>
 
-            {/* Layers — touch-sized toggle rows with crimson active markers */}
+            {/* Layers — touch-sized toggle rows with white active markers */}
             <Section title="Map layers" className="px-0">
               <div className="flex flex-col gap-0.5">
                 {[...BASE_LAYER_IDS, ...OVERLAY_IDS].map((id) => {

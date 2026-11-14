@@ -252,8 +252,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
           )}
           {mission.importedAt && (
             <p className="text-[10.5px] leading-snug text-ink-subtle" data-testid="plan-imported-note">
-              Plan imported {mission.importedAt.slice(0, 10)} — displayed as loaded from the plan file;
-              not re-verified against current terrain data.
+              Plan imported {mission.importedAt.slice(0, 10)} — loaded from file, not re-verified.
             </p>
           )}
         </div>

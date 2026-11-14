@@ -34,7 +34,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none inline-block size-3.5 rounded-full shadow transition-transform duration-150',
+          'pointer-events-none inline-block size-3.5 rounded-full transition-transform duration-150',
           checked ? 'translate-x-5 bg-surface' : 'translate-x-0.5 bg-ink-subtle',
         )}
       />

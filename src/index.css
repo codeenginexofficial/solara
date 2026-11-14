@@ -1,50 +1,49 @@
+/* Locally bundled IBM Plex (no external font request). */
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 @import "tailwindcss";
 
 /*
- * SOLARA design tokens — Visual identity "Red Planet Matrix" (2026-11-14).
- * Sophisticated deep-charcoal instrument surfaces with warm, Mars-inspired
- * undertones, and a single strong Oxide Crimson interaction accent.
+ * SOLARA design tokens — "Minimal Monochrome Dark" (2026-11-14).
+ * A flat, grayscale engineering interface: hierarchy comes from spacing,
+ * typography and contrast — not shadows, gradients or decorative color.
  *
  * Color roles:
- *  - The workspace is deep cosmic charcoal (#12131C base); panels step up
- *    through #191A24 → #20212B → #282934. Warmth lives in the text tones
- *    and the scientific imagery, not in large surface fills.
- *  - Oxide Crimson (#FF3B30) marks interaction: active navigation, selected
- *    tabs, primary actions, active layers, focus, route overlays. Dark
- *    readable text on crimson fills; the interface stays predominantly
- *    charcoal.
- *  - Status colors stay semantic and distinct: ok (green), warn (amber),
- *    danger (soft red — deliberately lighter than the crimson accent),
- *    info (steel blue).
+ *  - Surfaces are pure neutrals: #090909 base → #121212 panels → #1B1B1B
+ *    elevated → #242424 hover fills. Separation is border-based.
+ *  - The interaction "accent" is white itself: primary actions are the
+ *    highest-contrast element (white fill, near-black text); focus,
+ *    selection and active states use white too.
+ *  - Status colors (ok/warn/danger/info) stay semantic but muted — they
+ *    are informational indicators, not decoration, and always appear
+ *    together with a text label.
  *
- * Radius scale (rounded corners): 8px small controls/badges/icon buttons,
- * 10px standard buttons/inputs, 14px cards/groups, 18px major panels and
- * bottom sheets, 20px dialogs/overlays.
+ * Radius scale: 8px small badges, 12px buttons/inputs, 16px cards/panels,
+ * 20px drawers and bottom sheets.
  */
 @theme {
-  --color-surface: #12131c;
-  --color-panel: #191a24;
-  --color-panel-raised: #20212b;
-  --color-elevated: #282934;
-  /* Hover/quiet fill a step above elevated. */
-  --color-subtle: #2e2f39;
-  --color-edge: #34343e;
+  --color-surface: #090909;
+  --color-panel: #121212;
+  --color-panel-raised: #1b1b1b;
+  --color-elevated: #1b1b1b;
+  /* Hover/quiet fill, one step above elevated. */
+  --color-subtle: #242424;
+  --color-edge: #292929;
 
-  --color-ink: #f5f2f0;
-  --color-ink-muted: #c1b8b3;
-  --color-ink-subtle: #a1958e;
-  /* Supporting neutral (Martian Dust Gray). */
-  --color-dust: #7b6f68;
+  --color-ink: #ffffff;
+  --color-ink-muted: #a3a3a3;
+  --color-ink-subtle: #737373;
 
-  --color-accent: #ff3b30;
-  /* Hover for crimson fills (slightly deeper, per identity spec). */
-  --color-accent-hover: #e9342b;
-  /* Brighter crimson for accent text on dark surfaces. */
-  --color-accent-strong: #ff6f66;
-  /* Deep crimson for "filled" accent states (e.g. quiet chips). */
-  --color-accent-soft: #8c2b24;
-  /* Translucent crimson wash for selected/active backgrounds. */
-  --color-accent-subtle: rgba(255, 59, 48, 0.12);
+  /* The accent is contrast, not color: white fill, near-black text. */
+  --color-accent: #ffffff;
+  --color-accent-hover: #e5e5e5;
+  --color-accent-strong: #ffffff;
+  --color-accent-soft: #404040;
+  /* Translucent white wash for selected/active backgrounds. */
+  --color-accent-subtle: rgba(255, 255, 255, 0.08);
 
   --color-info: #8ca3c7;
   --color-ok: #7fbf9e;
@@ -52,21 +51,21 @@
   --color-danger: #e07b6f;
 
   /* Map overlay palette (route = proposed candidate; track = historical). */
-  --color-route: #ff3b30;
-  --color-track: #c1b8b3;
-  --color-waypoint: #f5f2f0;
+  --color-route: #ffffff;
+  --color-track: #a3a3a3;
+  --color-waypoint: #ffffff;
 
-  /* Radius system: 8/10/14/18/20. */
+  /* Radius system: 8/12/16/20. */
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-2xl: 20px;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas,
-    "SF Mono", Menlo, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "JetBrains Mono",
+    Consolas, "SF Mono", Menlo, monospace;
 }
 
 :root {
@@ -89,10 +88,10 @@ body {
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  background-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
-/* Focus visibility for keyboard users — crimson, clearly noticeable. */
+/* Focus visibility for keyboard users — white, clearly noticeable. */
 :focus-visible {
   outline: 1px solid var(--color-accent);
   outline-offset: 1px;
@@ -242,7 +241,7 @@ body {
 
 /*
  * Native range input (layer opacity, cost parameters) styled for the dark
- * instrument look with a crimson active thumb.
+ * instrument look with a white active thumb.
  */
 .solara-range {
   -webkit-appearance: none;
