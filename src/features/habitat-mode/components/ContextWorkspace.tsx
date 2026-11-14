@@ -92,8 +92,8 @@ export function ContextWorkspace({
       aria-label="Inspector and Copilot workspace"
       style={{ '--work-w': `${width}px` } as CSSProperties}
       className={cn(
-        'absolute inset-y-0 right-0 z-20 flex-col rounded-l-xl border-l border-edge bg-panel',
-        'w-[22rem] max-w-[calc(100vw-2rem)] lg:static lg:z-auto lg:max-w-none lg:rounded-none lg:w-[var(--work-w,22rem)]',
+        'absolute inset-y-0 right-0 z-20 flex-col rounded-l-2xl border-l border-edge bg-panel shadow-2xl',
+        'w-[22rem] max-w-[calc(100vw-2rem)] lg:static lg:z-auto lg:max-w-none lg:rounded-xl lg:border lg:border-edge lg:shadow-none lg:w-[var(--work-w,22rem)] overflow-hidden',
         open ? 'flex' : 'hidden',
       )}
     >
@@ -115,8 +115,12 @@ export function ContextWorkspace({
         className="absolute inset-y-0 left-0 z-10 hidden w-1.5 -translate-x-1/2 cursor-col-resize touch-none bg-transparent transition-colors duration-150 hover:bg-accent/40 focus-visible:bg-accent/60 lg:block"
       />
 
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-edge px-2">
-        <div role="tablist" aria-label="Workspace panel" className="flex min-w-0 flex-1 items-center gap-0.5">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-edge/60 px-3">
+        <div
+          role="tablist"
+          aria-label="Workspace panel"
+          className="flex items-center gap-1 rounded-md border border-edge/60 bg-surface/50 p-1"
+        >
           <button
             type="button"
             role="tab"
@@ -126,10 +130,10 @@ export function ContextWorkspace({
             data-testid="workspace-tab-inspector"
             onClick={() => onTabChange('inspector')}
             className={cn(
-              'whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors duration-[180ms] ease-out',
+              'h-7 min-w-[80px] rounded-sm px-3 text-xs font-medium transition-colors duration-[180ms] ease-out',
               tab === 'inspector'
-                ? 'bg-elevated font-medium text-ink'
-                : 'text-ink-muted hover:bg-subtle hover:text-ink',
+                ? 'bg-elevated text-ink shadow-none'
+                : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
             )}
           >
             Inspector
@@ -143,10 +147,10 @@ export function ContextWorkspace({
             data-testid="workspace-tab-copilot"
             onClick={() => onTabChange('copilot')}
             className={cn(
-              'whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors duration-[180ms] ease-out',
+              'h-7 min-w-[80px] rounded-sm px-3 text-xs font-medium transition-colors duration-[180ms] ease-out',
               tab === 'copilot'
-                ? 'bg-elevated font-medium text-ink'
-                : 'text-ink-muted hover:bg-subtle hover:text-ink',
+                ? 'bg-elevated text-ink shadow-none'
+                : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
             )}
           >
             Copilot

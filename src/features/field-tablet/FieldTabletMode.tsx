@@ -1,16 +1,10 @@
 /**
  * FieldTabletMode — touch-first surface-operations layout (Context.md §4.2,
- * Design.md §6).
+ * Design.md §6, Solara UI visual reference).
  *
  * The map dominates; secondary information lives in a collapsible bottom
- * sheet. The astronaut position is a manually selected (SIMULATED) point —
- * no Mars positioning system exists in SOLARA, and the UI never implies one.
- * Large touch targets (>= 44 px), no hover-dependent interactions.
- *
- * FieldTabletMode shares the exact mission store, catalog, and MarsMap
- * engine with Habitat Mode — one application, two interfaces. The header
- * carries its own mode navigation (this mode is active; Habitat is one tap
- * away), so no floating control overlaps the map or sheet.
+ * sheet. The astronaut position is a manually selected (SIMULATED) point.
+ * Large touch targets (>= 44 px), consistent corner radii and monochrome styling.
  */
 
 import { Suspense, lazy, useCallback, useRef, useState } from 'react';
@@ -18,6 +12,7 @@ import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions } from '../../data/catalog/datasets';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
+import { DATASET_SHORT_NAMES } from '../habitat-mode/components/MissionOperationsPanel';
 import {
   buildPlanFile,
   clearRoute,
@@ -32,7 +27,6 @@ import { groundDistanceMeters } from '../../science/terrain/geometry';
 import { formatDistance, formatLat, formatLon } from '../../lib/format';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Section } from '../../components/ui/section';
 import { Switch } from '../../components/ui/switch';
 import { ElevationProfile } from '../mission/components/ElevationProfile';
 import { RouteSummary } from '../mission/components/RouteSummary';
@@ -96,8 +90,6 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
-      // Initial presentation (Revision 2): CTX imagery + rover traverse on;
-      // the scientific colorshade raster stays off until asked for.
       initial[id] = {
         visible: id === 'jezero-ctx-mosaic-soc-008' || id === 'mars2020-perseverance-traverse',
         opacity: 1,
@@ -152,36 +144,49 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   };
 
   const canCompute = mission.start !== null && mission.target !== null && mission.routeStatus !== 'computing';
-
   const toggleSheet = () => setSheetOpen((v) => !v);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* Compact header with this mode's navigation */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-edge bg-panel px-3">
-        <img src="/solara.svg" alt="" aria-hidden="true" className="size-5 shrink-0" />
-        <span className="shrink-0 text-sm font-semibold tracking-[0.14em] text-ink">SOLARA</span>
-        <span className="shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-semibold text-surface">
+    <div className="flex h-screen w-screen min-h-0 flex-col gap-2 p-2 sm:gap-3 sm:p-3 bg-surface overflow-hidden">
+      {/* Header bar */}
+      <header className="flex h-12 shrink-0 items-center gap-2 rounded-xl border border-edge bg-panel px-3">
+        <div className="flex items-center gap-2">
+          <img src="/solara.svg" alt="" aria-hidden="true" className="size-5 shrink-0" />
+          <span className="shrink-0 text-sm font-medium tracking-[0.2em] text-ink">SOLARA</span>
+        </div>
+
+        <span className="shrink-0 rounded-sm bg-elevated border border-edge/60 px-2 py-0.5 text-xs font-medium text-ink">
           Field Tablet
         </span>
-        <span
-          className="ml-auto min-w-0 truncate rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-warn"
+
+        {/* Position status chip */}
+        <div
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-edge/60 bg-surface/50 px-2.5 py-1 text-xs text-ink-muted"
           data-testid="position-status"
-          title={mission.position ? 'Simulated position — manually set by tapping the map' : 'No simulated position set yet'}
+          title={mission.position ? 'Simulated position (manually set)' : 'No simulated position set yet'}
         >
-          {/* Short label on narrow headers so "SIMULATED" never truncates. */}
+          <span
+            className={cn('size-2 rounded-full', mission.position ? 'bg-warn' : 'bg-ink-subtle')}
+            aria-hidden="true"
+          />
           <span className="sm:hidden">{mission.position ? 'SIMULATED' : 'No position'}</span>
           <span className="hidden sm:inline">
-            {mission.position ? 'Position: SIMULATED (manually set)' : 'Position: not set — tap the map'}
+            {mission.position ? 'Position: SIMULATED' : 'No position (tap map)'}
           </span>
-        </span>
-        <Button variant="outline" size="sm" className="ml-1.5 min-h-9 shrink-0" onClick={onExit}>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 rounded-sm text-xs shrink-0"
+          onClick={onExit}
+        >
           Habitat
         </Button>
       </header>
 
-      {/* Map — dominant area */}
-      <main className="relative min-h-0 flex-1">
+      {/* Map — dominant instrument workspace */}
+      <main className="relative min-h-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
         <Suspense fallback={<MapWorkspaceFallback />}>
           <MarsMap
             baseLayers={baseLayers}
@@ -203,12 +208,12 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       {/* Bottom sheet — collapsible, touch-first */}
       <div
         className={cn(
-          'shrink-0 overflow-y-auto rounded-t-xl border-t border-edge bg-panel transition-[max-height] duration-[220ms] ease-out',
-          sheetOpen ? 'max-h-[52vh]' : 'max-h-14',
+          'shrink-0 overflow-y-auto rounded-t-2xl border-t border-x border-edge bg-panel transition-[max-height] duration-[220ms] ease-out',
+          sheetOpen ? 'max-h-[52vh]' : 'max-h-13',
         )}
         data-testid="tablet-sheet"
       >
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 rounded-t-xl border-b border-edge bg-panel px-4">
+        <header className="sticky top-0 z-10 flex h-13 items-center justify-between border-b border-edge/60 bg-panel px-4 rounded-t-2xl">
           <button
             type="button"
             className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-left"
@@ -217,49 +222,54 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           >
             <span className="shrink-0 text-sm font-semibold text-ink">Mission</span>
             {route && (
-              <span className="min-w-0 truncate rounded-sm border border-accent/40 bg-accent-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent-strong">
+              <span className="min-w-0 truncate rounded-sm border border-edge bg-elevated px-2 py-0.5 font-mono text-xs text-ink">
                 {formatDistance(route.totalGroundDistanceM)} candidate
               </span>
             )}
           </button>
           <button
             type="button"
-            className="flex size-11 shrink-0 items-center justify-center text-ink-muted transition-colors hover:text-ink"
+            className="flex size-9 shrink-0 items-center justify-center rounded-sm text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
             onClick={toggleSheet}
             aria-label={sheetOpen ? 'Collapse mission sheet' : 'Expand mission sheet'}
           >
             <ChevronDown
               aria-hidden="true"
-              className={cn('size-5 transition-transform duration-150', !sheetOpen && 'rotate-180')}
+              className={cn('size-4 transition-transform duration-150', !sheetOpen && 'rotate-180')}
             />
           </button>
         </header>
 
         {sheetOpen && (
-          <div className="px-4 pb-5">
-            {/* Position + next waypoint */}
-            <Section title="Your position" hint="simulated — tap the map to set" className="px-0">
+          <div className="flex flex-col gap-3 p-4">
+            {/* Position card */}
+            <div className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                  Your Position (Simulated)
+                </span>
+                {mission.position && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs rounded-sm"
+                    onClick={() => setPosition(null)}
+                    aria-label="Clear position"
+                  >
+                    <RotateCcw className="size-3 mr-1" aria-hidden="true" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+
               {mission.position ? (
-                <div className="rounded-lg border border-edge bg-panel-raised/60 px-3 py-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 font-mono text-[14px] leading-snug text-ink">
-                      <div>{formatLon(mission.position.lon)}</div>
-                      <div>{formatLat(mission.position.lat)}</div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="-mt-1 shrink-0"
-                      onClick={() => setPosition(null)}
-                      aria-label="Clear position"
-                    >
-                      <RotateCcw aria-hidden="true" />
-                      Clear
-                    </Button>
+                <div className="space-y-1.5">
+                  <div className="font-mono text-sm font-medium text-ink">
+                    {formatLat(mission.position.lat)}, {formatLon(mission.position.lon)}
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <Badge tone="warn">SIMULATED</Badge>
-                    <span className="min-w-0 text-[10.5px] leading-snug text-ink-subtle">
+                  <div className="flex items-center gap-1.5">
+                    <Badge tone="warn" className="text-[10px]">SIMULATED</Badge>
+                    <span className="text-xs text-ink-subtle">
                       manually set by tapping the map
                     </span>
                   </div>
@@ -271,11 +281,21 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               )}
 
               {mission.position && !route && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="min-h-11" onClick={() => mission.position && setStart(mission.position)}>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs rounded-sm"
+                    onClick={() => mission.position && setStart(mission.position)}
+                  >
                     Set start here
                   </Button>
-                  <Button variant="outline" className="min-h-11" onClick={() => mission.position && setTarget(mission.position)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs rounded-sm"
+                    onClick={() => mission.position && setTarget(mission.position)}
+                  >
                     Set target here
                   </Button>
                 </div>
@@ -283,28 +303,34 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
 
               {nextWaypoint && (
                 <div
-                  className="mt-2 rounded-lg border border-edge border-l-2 border-l-accent bg-panel-raised/60 px-3 py-2.5"
+                  className="mt-2.5 rounded-md border border-edge/60 bg-surface/50 p-2.5"
                   data-testid="next-waypoint"
                 >
-                  <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Nearest route point</div>
-                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="font-mono text-xl leading-none text-accent-strong">
+                  <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">
+                    Nearest route point
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-mono text-lg font-medium text-ink">
                       {formatDistance(nextWaypoint.distanceToWaypointM)}
                     </span>
-                    <span className="text-[11px] text-ink-muted">to this point</span>
+                    <span className="text-xs text-ink-subtle">to this point</span>
                   </div>
-                  <div className="mt-1.5 text-[11.5px] text-ink-muted">
-                    {formatDistance(nextWaypoint.remainingAlongRouteM)} remaining along the route ·
+                  <div className="mt-1 text-xs text-ink-muted">
+                    {formatDistance(nextWaypoint.remainingAlongRouteM)} remaining along route ·
                     elevation {Math.round(nextWaypoint.elevM)} m
                   </div>
                 </div>
               )}
-            </Section>
+            </div>
 
+            {/* Route summary & elevation profile */}
             {route && (
-              <Section title="Route progress" className="px-0">
+              <div className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                  Route Progress
+                </div>
                 <ElevationProfile route={route} height={80} />
-              </Section>
+              </div>
             )}
 
             <RouteSummary
@@ -313,104 +339,89 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               error={mission.routeError?.message ?? null}
             />
 
-            {route && route.warnings.length > 0 && (
-              <Section title="Known terrain concerns" hint="prototype model" className="px-0">
-                <ul className="flex flex-col gap-1.5">
-                  {route.warnings.map((warning, i) => (
-                    <li key={i} className="text-[12.5px] leading-snug text-warn">
-                      {warning}
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-
-            {/* Actions — primary row + grouped secondary grid (no misaligned
-                free-wrap). */}
-            <Section title="Actions" className="px-0">
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant="accent"
-                    className="min-h-11 flex-1"
-                    disabled={!canCompute}
-                    onClick={() => computeRoute()}
-                  >
-                    <Play aria-hidden="true" />
-                    {mission.routeStatus === 'computing' ? 'Computing…' : 'Compute route'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => clearRoute()}
-                    disabled={!route && mission.routeStatus === 'idle'}
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    Clear route
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={handleExport}
-                    disabled={!route && !mission.start && !mission.target}
-                  >
-                    <Download aria-hidden="true" />
-                    Export plan
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={!route && !mission.start && !mission.target}
-                  >
-                    <Upload aria-hidden="true" />
-                    Import plan
-                  </Button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json,application/json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleImportFile(file);
-                    e.target.value = '';
-                  }}
-                />
-                {importError && (
-                  <p className="text-[11.5px] leading-snug text-danger">Import failed: {importError}</p>
-                )}
-                {mission.importedAt && (
-                  <p className="text-[10.5px] leading-snug text-ink-subtle">
-                    Plan imported {mission.importedAt.slice(0, 10)} — loaded from file, not
-                    re-verified.
-                  </p>
-                )}
+            {/* Actions Grid */}
+            <div className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                Mission Actions
               </div>
-            </Section>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="accent"
+                  className="h-9 text-xs font-semibold rounded-md"
+                  disabled={!canCompute}
+                  onClick={() => computeRoute()}
+                >
+                  <Play className="size-3.5 fill-current" aria-hidden="true" />
+                  {mission.routeStatus === 'computing' ? 'Computing…' : 'Compute Route'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 text-xs rounded-md"
+                  onClick={() => clearRoute()}
+                  disabled={!route && mission.routeStatus === 'idle'}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  Clear Route
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 text-xs rounded-md"
+                  onClick={handleExport}
+                  disabled={!route && !mission.start && !mission.target}
+                >
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Export Plan
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 text-xs rounded-md"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="size-3.5" aria-hidden="true" />
+                  Import Plan
+                </Button>
+              </div>
 
-            {/* Layers — touch-sized toggle rows with white active markers */}
-            <Section title="Map layers" className="px-0">
-              <div className="flex flex-col gap-0.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportFile(file);
+                  e.target.value = '';
+                }}
+              />
+
+              {importError && (
+                <p className="mt-2 text-xs leading-snug text-danger">Import failed: {importError}</p>
+              )}
+            </div>
+
+            {/* Layers */}
+            <div className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                Map Layers
+              </div>
+              <div className="flex flex-col gap-1.5">
                 {[...BASE_LAYER_IDS, ...OVERLAY_IDS].map((id) => {
                   const dataset = DATASETS.find((d) => d.id === id);
                   if (!dataset) return null;
                   const state = layerStates[id] ?? { visible: false, opacity: 1 };
+                  const shortTitle = DATASET_SHORT_NAMES[id] ?? dataset.title;
                   return (
                     <div
                       key={id}
                       className={cn(
-                        'flex min-h-11 items-center justify-between gap-3 rounded-md border-l-2 pl-2 pr-1 transition-colors duration-150',
+                        'flex min-h-11 items-center justify-between gap-3 rounded-md border p-2.5 transition-colors duration-150',
                         state.visible
-                          ? 'border-l-accent bg-accent-subtle/40'
-                          : 'border-l-transparent hover:bg-subtle/60',
+                          ? 'border-edge bg-surface/70'
+                          : 'border-transparent hover:border-edge/50 hover:bg-subtle/40',
                       )}
                     >
-                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink" title={dataset.title}>
-                        {dataset.title}
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink" title={dataset.title}>
+                        {shortTitle}
                       </span>
                       <Switch
                         checked={state.visible}
@@ -421,7 +432,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                   );
                 })}
               </div>
-            </Section>
+            </div>
           </div>
         )}
       </div>

@@ -717,9 +717,9 @@ export default function MarsMap({
         className="h-full w-full [&_.ol-viewport]:cursor-crosshair"
         data-testid="mars-map-container"
       />
-      {/* Custom zoom controls (stock ol Zoom control removed) — see
+      {/* Custom zoom and view controls (stock ol Zoom control removed) — see
           .solara-map-zoom positioning in index.css. */}
-      <div className="solara-map-zoom" role="group" aria-label="Map zoom">
+      <div className="solara-map-zoom" role="group" aria-label="Map controls">
         <button
           type="button"
           className="solara-map-zoom-button"
@@ -735,6 +735,19 @@ export default function MarsMap({
           onClick={() => zoomView(-1)}
         >
           −
+        </button>
+        <span className="h-px w-full bg-edge my-0.5" aria-hidden="true" />
+        <button
+          type="button"
+          className="solara-map-zoom-button"
+          aria-label="Fit view to region"
+          title="Fit view to region"
+          onClick={() => fitToRegion()}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5" aria-hidden="true">
+            <circle cx="8" cy="8" r="5" />
+            <path d="M8 1v3M8 12v3M1 8h3M12 8h3" />
+          </svg>
         </button>
       </div>
       {baseLayers.every((l) => !l.visible) && (

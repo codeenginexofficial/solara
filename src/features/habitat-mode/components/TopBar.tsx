@@ -6,7 +6,7 @@
  * over the map): mode selection is an explicit, always-visible decision.
  */
 
-import { PanelLeft, PanelRight, Maximize2 } from 'lucide-react';
+import { PanelLeft, PanelRight, Maximize2, MapPin } from 'lucide-react';
 import type { SourceStatus, CapabilitiesStatus } from '../../../map/mapTypes';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -20,9 +20,9 @@ import { formatUtcTime } from '../../../lib/format';
  */
 const STATUS_TEXT: Record<CapabilitiesStatus, { label: string; tone: 'neutral' | 'ok' | 'warn' | 'danger' }> = {
   checking: { label: 'Verifying live source', tone: 'neutral' },
-  live: { label: 'Live source verified', tone: 'ok' },
-  'schema-changed': { label: 'Live config changed — snapshot in use', tone: 'warn' },
-  unavailable: { label: 'Live check failed — snapshot in use', tone: 'warn' },
+  live: { label: 'Live', tone: 'ok' },
+  'schema-changed': { label: 'Snapshot active', tone: 'warn' },
+  unavailable: { label: 'Snapshot active', tone: 'warn' },
 };
 
 export interface TopBarProps {
@@ -46,11 +46,11 @@ export function TopBar({
   const status = STATUS_TEXT[sourceStatus.capabilities];
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-edge bg-panel px-3">
+    <header className="flex h-12 shrink-0 items-center gap-3 rounded-xl border border-edge bg-panel px-3.5">
       {/* Wordmark */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <img src="/solara.svg" alt="" aria-hidden="true" className="size-5" />
-        <span className="text-sm font-semibold tracking-[0.18em] text-ink">SOLARA</span>
+        <span className="text-sm font-medium tracking-[0.2em] text-ink">SOLARA</span>
       </div>
 
       <span className="hidden h-4 w-px bg-edge md:block" aria-hidden="true" />
@@ -59,13 +59,13 @@ export function TopBar({
           active; Field Tablet renders its own header variant). */}
       {onSwitchToTablet && (
         <div
-          className="flex items-center gap-0.5 rounded-md border border-edge bg-surface/60 p-0.5"
+          className="flex items-center gap-1 rounded-md border border-edge/60 bg-surface/50 p-1"
           aria-label="Operating mode"
           data-testid="mode-switch"
         >
           <span
             aria-current="true"
-            className="whitespace-nowrap rounded-sm bg-accent px-2.5 py-1 text-[11px] font-semibold text-surface"
+            className="whitespace-nowrap rounded-sm bg-elevated px-2.5 py-1 text-xs font-medium text-ink shadow-none"
           >
             Habitat
           </span>
@@ -73,25 +73,26 @@ export function TopBar({
             type="button"
             onClick={onSwitchToTablet}
             aria-label="Switch to Field Tablet mode"
-            className="whitespace-nowrap rounded-sm px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink"
+            className="whitespace-nowrap rounded-sm px-2.5 py-1 text-xs font-medium text-ink-muted transition-colors duration-[160ms] ease-out hover:bg-subtle/70 hover:text-ink"
           >
-            Field tablet
+            Field Tablet
           </button>
         </div>
       )}
 
-      {/* Region context */}
-      <span
-        className="hidden min-w-0 truncate text-xs text-ink-muted md:block"
+      {/* Region context with MapPin icon */}
+      <div
+        className="hidden min-w-0 items-center gap-1.5 truncate text-xs text-ink-muted md:flex"
         title={regionLabel}
       >
-        Mars — {regionLabel}
-      </span>
+        <MapPin className="size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
+        <span className="truncate">Jezero Crater, Mars</span>
+      </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-2">
         {/* Source connection status */}
         <div
-          className="hidden min-w-0 items-center gap-2 sm:flex"
+          className="hidden min-w-0 items-center gap-1.5 sm:flex"
           title={sourceStatus.message}
         >
           <span
@@ -104,13 +105,15 @@ export function TopBar({
               status.tone === 'neutral' && 'bg-ink-subtle',
             )}
           />
-          <span className="whitespace-nowrap text-[11px] text-ink-muted">{status.label}</span>
+          <span className="whitespace-nowrap text-xs text-ink-muted">{status.label}</span>
           {sourceStatus.lastCheckedAt && (
-            <span className="hidden font-mono text-[10.5px] text-ink-subtle lg:inline">
-              {formatUtcTime(sourceStatus.lastCheckedAt)}
+            <span className="font-mono text-[11px] text-ink-subtle">
+              • {formatUtcTime(sourceStatus.lastCheckedAt)}
             </span>
           )}
         </div>
+
+        <span className="hidden h-4 w-px bg-edge sm:block" aria-hidden="true" />
 
         <Button
           variant="ghost"

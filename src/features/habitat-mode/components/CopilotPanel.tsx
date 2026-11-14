@@ -162,7 +162,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="copilot-panel">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-edge px-3">
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-edge/60 px-3">
         <Badge tone={chip.tone} data-testid="copilot-status">
           {chip.label}
         </Badge>
@@ -186,7 +186,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
           aria-label={confirmingClear ? 'Confirm clear conversation' : 'Clear conversation'}
           title={confirmingClear ? 'Confirm clear conversation' : 'Clear conversation'}
           onClick={handleClearClick}
-          className={cn(confirmingClear && 'text-danger hover:text-danger')}
+          className={cn('rounded-sm', confirmingClear && 'text-danger hover:text-danger')}
         >
           <Eraser />
         </Button>
@@ -268,7 +268,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
         </div>
       )}
 
-      <div className="shrink-0 border-t border-edge p-3">
+      <div className="shrink-0 border-t border-edge/60 p-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -284,20 +284,22 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
             placeholder="Ask about the site, the data, or the plan…"
             aria-label="Copilot message"
             data-testid="copilot-composer"
-            className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-elevated px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle"
+            className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-elevated px-3 py-2 text-xs text-ink placeholder:text-ink-subtle focus:outline-none focus:border-ink-muted"
           />
           <Button
             variant="accent"
+            size="sm"
             onClick={() => void send()}
             disabled={!draft.trim() || pending}
             aria-label="Send message"
+            className="h-9 px-3.5 gap-1.5 font-medium rounded-md"
           >
-            <Send aria-hidden="true" />
-            Send
+            <Send className="size-3.5" aria-hidden="true" />
+            <span>Send</span>
           </Button>
         </div>
         <p className="mt-1.5 text-[10.5px] leading-snug text-ink-subtle">
-          In-memory — lost on reload. Enter sends.
+          In-memory conversation — lost on reload. Enter sends.
         </p>
       </div>
     </div>

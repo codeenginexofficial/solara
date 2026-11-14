@@ -32,7 +32,7 @@ import {
 } from './components/ContextWorkspace';
 import { InspectorPanel } from './components/InspectorPanel';
 import type { ElevationState } from './components/LocationPanel';
-import { useMissionState } from '../mission/store';
+import { buildPlanFile, computeRoute, importPlanFile, useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
 import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
@@ -85,6 +85,7 @@ function MapWorkspaceFallback() {
 
 export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: () => void }) {
   const mapApi = useRef<MarsMapHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mission = useMissionState();
 
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
@@ -209,8 +210,31 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
     };
   }, [selectedLocation, locationElevation, layerStates, overlayStatus, mission]);
 
+  const handleExportPlan = useCallback(() => {
+    const plan = buildPlanFile();
+    const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `solara-plan-${plan.createdAt.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleImportFile = useCallback((file: File) => {
+    void file
+      .text()
+      .then((text) => {
+        const parsed: unknown = JSON.parse(text);
+        importPlanFile(parsed);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-screen w-screen min-h-0 flex-col gap-3 p-3 bg-surface overflow-hidden">
       <TopBar
         regionLabel={REGION.name}
         sourceStatus={sourceStatus}
@@ -220,11 +244,11 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         onSwitchToTablet={onSwitchToTablet}
       />
 
-      <div className="relative flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden">
         {/* Left panel — mission operations */}
         <aside
           className={cn(
-            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto border-r border-edge bg-panel lg:static lg:z-auto lg:flex',
+            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
             leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
           aria-label="Mission operations"
@@ -242,8 +266,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
           />
         </aside>
 
-        {/* Main map workspace */}
-        <main className="relative min-w-0 flex-1">
+        {/* Main map workspace — rounded instrument card */}
+        <main className="relative min-w-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
           <Suspense fallback={<MapWorkspaceFallback />}>
             <MarsMap
               ref={mapApi}
@@ -265,9 +289,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         </main>
 
         {/* Right workspace — tabbed Inspector | Copilot, resizable and
-            collapsible (overlay drawer below lg). Both tab contents stay
-            mounted so background elevation queries keep updating the
-            Copilot context. */}
+            collapsible (overlay drawer below lg). */}
         <ContextWorkspace
           open={workspaceOpen}
           onClose={() => setWorkspaceOpen(false)}
@@ -289,9 +311,28 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
 
       <StatusBar
         pointerLocation={pointerLocation}
+        selectedLocation={selectedLocation}
+        elevationState={locationElevation}
         viewInfo={viewInfo}
         dataset={selectedDataset}
         sourceStatus={sourceStatus}
+        canComputeRoute={mission.start !== null && mission.target !== null}
+        computingRoute={mission.routeStatus === 'computing'}
+        onComputeRoute={() => computeRoute()}
+        onExportPlan={handleExportPlan}
+        onImportPlan={() => fileInputRef.current?.click()}
+      />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleImportFile(file);
+          e.target.value = '';
+        }}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * MissionPanel — mission planning controls (Habitat Mode, left panel).
+ * MissionPanel — mission planning tools (Habitat Mode, left panel).
  *
  * Start/target selection from the map-selected point, prototype cost
  * parameters, compute action, and plan export/import. Route RESULTS
@@ -8,14 +8,12 @@
  *
  * Honesty (Context.md §7): the route is always labelled a PROPOSED
  * TERRAIN-COST CANDIDATE; the cost model is slope-only and parameters are
- * prototype thresholds, not operational limits. Imported plans are marked
- * as imported and are not re-verified.
+ * prototype thresholds, not operational limits.
  */
 
 import { useRef, useState } from 'react';
-import { ChevronDown, Download, MapPin, Play, RotateCcw, Upload } from 'lucide-react';
+import { ChevronDown, Download, Flag, MapPin, Play, RotateCcw, Target, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
-import { Section } from '../../../components/ui/section';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon } from '../../../lib/format';
 import type { MapLocation } from '../../../map/mapTypes';
@@ -49,38 +47,40 @@ function PointRow({
   onClear: () => void;
   selectedDisabled: boolean;
 }) {
+  const Icon = label === 'Start' ? Flag : Target;
+
   return (
-    <div className="rounded-lg border border-edge bg-panel-raised/60 px-2.5 py-2">
+    <div className="rounded-md border border-edge/60 bg-surface/50 p-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
-          <MapPin
-            className={cn('size-3.5', label === 'Start' ? 'text-accent' : 'text-warn')}
-            aria-hidden="true"
-          />
-          {label}
+        <span className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+          <Icon className="size-3.5 text-ink-subtle" aria-hidden="true" />
+          <span>{label} Point</span>
         </span>
         {point && (
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] text-ink-subtle transition-colors hover:text-danger"
+            className="text-[11px] text-ink-subtle transition-colors hover:text-ink"
             aria-label={`Clear ${label.toLowerCase()} point`}
           >
-            clear
+            Clear
           </button>
         )}
       </div>
-      <div className="mt-1 font-mono text-[12.5px] leading-snug text-ink" data-testid={`mission-${label.toLowerCase()}`}>
-        {point ? `${formatLon(point.lon)}  ${formatLat(point.lat)}` : <span className="text-ink-subtle">not set</span>}
+      <div
+        className="mt-1 font-mono text-xs text-ink"
+        data-testid={`mission-${label.toLowerCase()}`}
+      >
+        {point ? `${formatLat(point.lat)}, ${formatLon(point.lon)}` : <span className="text-ink-subtle">Not set</span>}
       </div>
       <Button
         variant="outline"
         size="sm"
-        className="mt-2 w-full"
+        className="mt-2 w-full h-7 text-xs rounded-sm"
         disabled={selectedDisabled}
         onClick={onUseSelected}
       >
-        Use selected point{selectedLabel ? '' : ' (none)'}
+        Set {label} {selectedLabel ? 'from selection' : '(select on map)'}
       </Button>
     </div>
   );
@@ -132,8 +132,12 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
   const hasRoute = route !== null;
 
   return (
-    <div data-testid="mission-panel">
-      <Section title="Mission planning (prototype)">
+    <div data-testid="mission-panel" className="flex flex-col gap-2">
+      <section className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+          Mission Tools
+        </h3>
+
         <div className="flex flex-col gap-2">
           <PointRow
             label="Start"
@@ -152,17 +156,17 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
             selectedDisabled={!selectedLocation}
           />
 
-          {/* Prototype cost parameters — collapsed by default. */}
-          <div className="rounded-lg border border-edge bg-surface/40">
+          {/* Prototype cost parameters — collapsed by default */}
+          <div className="rounded-md border border-edge/60 bg-surface/50">
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-subtle/50"
+              className="flex w-full items-center justify-between gap-2 p-2 text-left transition-colors duration-150 hover:bg-subtle/50"
               aria-expanded={advancedOpen}
               aria-controls="mission-advanced-params"
               onClick={() => setAdvancedOpen((v) => !v)}
             >
-              <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-muted">
-                Advanced (prototype parameters)
+              <span className="text-[11px] font-medium text-ink-muted">
+                Cost Parameters (Prototype)
               </span>
               <ChevronDown
                 aria-hidden="true"
@@ -170,9 +174,9 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
               />
             </button>
             {advancedOpen && (
-              <div id="mission-advanced-params" className="border-t border-edge px-2.5 py-2">
+              <div id="mission-advanced-params" className="border-t border-edge/60 p-2.5 space-y-2">
                 <label className="flex items-center gap-2">
-                  <span className="w-28 shrink-0 text-[11px] text-ink-muted">Slope cost / degree</span>
+                  <span className="w-24 shrink-0 text-[11px] text-ink-muted">Slope cost</span>
                   <input
                     type="range"
                     min={0}
@@ -187,8 +191,8 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
                     {mission.params.slopeCostPerDeg.toFixed(3)}
                   </span>
                 </label>
-                <label className="mt-1.5 flex items-center gap-2">
-                  <span className="w-28 shrink-0 text-[11px] text-ink-muted">Max slope (block)</span>
+                <label className="flex items-center gap-2">
+                  <span className="w-24 shrink-0 text-[11px] text-ink-muted">Max slope</span>
                   <input
                     type="range"
                     min={10}
@@ -203,60 +207,86 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
                     {mission.params.maxSlopeDeg}°
                   </span>
                 </label>
-                <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
-                  Prototype thresholds — not operational safety limits.
+                <p className="text-[10px] text-ink-subtle">
+                  Prototype model — not operational safety limits.
                 </p>
               </div>
             )}
           </div>
 
           <div className="flex gap-2">
-            <Button variant="accent" className="flex-1" disabled={!canCompute} onClick={() => computeRoute()}>
-              <Play aria-hidden="true" />
-              {mission.routeStatus === 'computing' ? 'Computing…' : 'Compute route'}
+            <Button
+              variant="accent"
+              className="flex-1 h-8 text-xs font-semibold rounded-md"
+              disabled={!canCompute}
+              onClick={() => computeRoute()}
+            >
+              <Play className="size-3.5 fill-current" aria-hidden="true" />
+              {mission.routeStatus === 'computing' ? 'Computing…' : 'Compute Route'}
             </Button>
-            <Button variant="ghost" onClick={() => clearRoute()} disabled={!hasRoute && mission.routeStatus === 'idle'} aria-label="Clear route">
-              <RotateCcw aria-hidden="true" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 size-8 rounded-md"
+              onClick={() => clearRoute()}
+              disabled={!hasRoute && mission.routeStatus === 'idle'}
+              aria-label="Clear route"
+              title="Clear route"
+            >
+              <RotateCcw className="size-3.5" aria-hidden="true" />
             </Button>
           </div>
         </div>
-      </Section>
+      </section>
 
-      <Section title="Mission plan">
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={handleExport} disabled={!hasRoute && !mission.start && !mission.target}>
-              <Download aria-hidden="true" />
-              Export plan
-            </Button>
-            <Button className="flex-1" onClick={() => fileInputRef.current?.click()}>
-              <Upload aria-hidden="true" />
-              Import plan
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImportFile(file);
-                e.target.value = '';
-              }}
-            />
-          </div>
-          {importError && (
-            <p className="text-[11px] leading-snug text-danger" data-testid="plan-import-error">
-              Import failed: {importError}
-            </p>
-          )}
-          {mission.importedAt && (
-            <p className="text-[10.5px] leading-snug text-ink-subtle" data-testid="plan-imported-note">
-              Plan imported {mission.importedAt.slice(0, 10)} — loaded from file, not re-verified.
-            </p>
-          )}
+      {/* Plan export/import card */}
+      <section className="rounded-lg border border-edge bg-panel-raised/50 p-3">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+          Plan Files
+        </h3>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs rounded-sm gap-1"
+            onClick={handleExport}
+            disabled={!hasRoute && !mission.start && !mission.target}
+          >
+            <Download className="size-3.5" aria-hidden="true" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs rounded-sm gap-1"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-3.5" aria-hidden="true" />
+            Import
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
         </div>
-      </Section>
+        {importError && (
+          <p className="mt-1.5 text-[11px] leading-snug text-danger" data-testid="plan-import-error">
+            Import failed: {importError}
+          </p>
+        )}
+        {mission.importedAt && (
+          <p className="mt-1.5 text-[10.5px] text-ink-subtle" data-testid="plan-imported-note">
+            Plan imported {mission.importedAt.slice(0, 10)} — loaded from file.
+          </p>
+        )}
+      </section>
     </div>
   );
 }
