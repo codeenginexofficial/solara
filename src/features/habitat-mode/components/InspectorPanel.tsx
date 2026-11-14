@@ -5,12 +5,13 @@
  */
 
 import { Database, Flag, Route } from 'lucide-react';
-import type { MapLocation } from '../../../map/mapTypes';
+import type { MapFeatureSelection, MapLocation } from '../../../map/mapTypes';
 import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../data/catalog/types';
 import { Badge } from '../../../components/ui/badge';
 import { Disclosure } from '../../../components/ui/disclosure';
 import { CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbnails';
 import { DatasetDetails } from './DatasetPanel';
+import { EnvironmentPanel } from './EnvironmentPanel';
 import { DATASET_SHORT_NAMES } from './MissionOperationsPanel';
 import { LocationPanel, type ElevationState } from './LocationPanel';
 import { EnvironmentalPanel } from './EnvironmentalPanel';
@@ -27,6 +28,8 @@ const VERIFICATION_BADGE: Record<VerificationStatus, { label: string; tone: 'neu
 
 export interface InspectorPanelProps {
   location: MapLocation | null;
+  /** Named waypoint the click landed on, when any. */
+  feature?: MapFeatureSelection | null;
   region: RegionRecord;
   dataset: DatasetRecord | undefined;
   onElevationStateChange: (state: ElevationState | null) => void;
@@ -34,6 +37,7 @@ export interface InspectorPanelProps {
 
 export function InspectorPanel({
   location,
+  feature,
   region,
   dataset,
   onElevationStateChange,
@@ -47,14 +51,20 @@ export function InspectorPanel({
       {/* 1. Location Details Card */}
       <LocationPanel
         location={location}
+        feature={feature}
         region={region}
         onElevationStateChange={onElevationStateChange}
       />
 
-      {/* 2. NASA MEDA Environmental Conditions Card */}
+      {/* 2. Modelled Mars clock + stale weather snapshot */}
+      <EnvironmentPanel
+        lonEast={location?.lon ?? (region.boundingBox.westLon + region.boundingBox.eastLon) / 2}
+      />
+
+      {/* 3. NASA MEDA/PDS in-situ environmental observations */}
       <EnvironmentalPanel />
 
-      {/* 3. Selected Dataset Info Card */}
+      {/* 4. Selected Dataset Info Card */}
       {dataset && (
         <section className="rounded-lg border border-edge bg-panel-raised/50 p-3">
           <div className="flex items-center justify-between gap-2">
@@ -95,7 +105,7 @@ export function InspectorPanel({
         </section>
       )}
 
-      {/* 3. Route Info Card */}
+      {/* 5. Route Info Card */}
       <section className="rounded-lg border border-edge bg-panel-raised/50 p-3">
         <div className="flex items-center gap-2 mb-2">
           <Route className="size-4 text-ink-muted" aria-hidden="true" />

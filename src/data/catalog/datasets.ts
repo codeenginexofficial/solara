@@ -46,6 +46,10 @@ export const TREK_MOLA_200M_CAPABILITIES_URL =
 
 export const TREK_ARCGIS_SERVICES = 'https://trek.nasa.gov/mars/trekarcgis/rest/services';
 
+/** Dataset id shared with the map's feature hit-testing. */
+export const SCIENCE_STOPS_DATASET_ID = 'mars2020-science-stops';
+export const IAU_NOMENCLATURE_DATASET_ID = 'jezero-iau-nomenclature';
+
 /* ------------------------------------------------------------------ */
 /* Shared CRS descriptions                                             */
 /* ------------------------------------------------------------------ */
@@ -443,6 +447,177 @@ export const PERSEVERANCE_LANDING_ELLIPSE_DATASET: DatasetRecord = {
 };
 
 /* ------------------------------------------------------------------ */
+/* 6b. IAU nomenclature — Jezero identification label (prepared GeoJSON) */
+/* ------------------------------------------------------------------ */
+
+export const JEZERO_IAU_NOMENCLATURE_DATASET: DatasetRecord = {
+  id: 'jezero-iau-nomenclature',
+  title: 'IAU Nomenclature — Jezero (USGS/IAU Gazetteer)',
+  provider: 'USGS Astrogeology / IAU Working Group for Planetary System Nomenclature, via NASA Trek',
+  mission: 'Gazetteer of Planetary Nomenclature',
+  instrument: 'IAU-approved feature nomenclature',
+  productId: 'outreach_nomenclature',
+  kind: 'science',
+  description:
+    'The IAU-adopted name for the landing region. Only one IAU feature ' +
+    'falls inside this area — Jezero (a 47.52 km crater in the Syrtis Major ' +
+    'quadrangle) — so this overlay identifies the region rather than ' +
+    'labelling a gazetteer of features.',
+  sourceUrl: `${TREK_ARCGIS_SERVICES}/outreach_nomenclature/MapServer?f=pjson`,
+  accessMethod: 'geojson',
+  preparedAssetUrl: '/data/mars/jezero/science/iau-nomenclature.geojson',
+  spatialReference: {
+    body: 'Mars',
+    authority: GEOGRAPHIC_AUTHORITY,
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Geographic lon/lat degrees (map service declares ESRI:104905)',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'ESRI:104905 "Mars 2000" (GCS_Mars_2000) — as declared by the Trek map service.',
+  },
+  coverageDescription:
+    'Prepared from the 76°E–79°E, 17°N–20°N query; the only in-area feature is ' +
+    'Jezero at 77.687°E, 18.408°N. Hargraves crater (20.74°N) is outside the ' +
+    'exploration region and is not shipped.',
+  boundingBox: {
+    westLon: 76,
+    eastLon: 79,
+    southLat: 17,
+    northLat: 20,
+  },
+  resolutionUnit:
+    'Point position from the IAU gazetteer. Published diameter 47.52 km is recorded as metadata; the crater rim is not drawn.',
+  attribution:
+    'Nomenclature: IAU Working Group for Planetary System Nomenclature / USGS Gazetteer of Planetary Nomenclature.',
+  limitations: [
+    'Identification label only: the published position is the feature centre; no boundary, rim, or hazard information is implied.',
+    'A single feature (Jezero) exists in this area — this is not a regional place-name index.',
+    'Approval status and origin are reproduced verbatim from the gazetteer; SOLARA does not re-verify IAU records.',
+    'The gazetteer link is served over HTTP by USGS and may be unavailable; the label itself is prepared locally.',
+  ],
+  verification: 'tested',
+  lastVerifiedAt: '2026-11-14',
+};
+
+/* ------------------------------------------------------------------ */
+/* 7. Hydrous-mineral detections (prepared raster, verified)           */
+/* ------------------------------------------------------------------ */
+
+export const JEZERO_HYDROUS_MINERALS_DATASET: DatasetRecord = {
+  id: 'jezero-hydrous-minerals-omega-crism',
+  title: 'Hydrous Mineral Detections — OMEGA/CRISM (NASA Trek)',
+  provider: 'NASA Trek (trek.nasa.gov)',
+  mission: 'Mars Express (OMEGA) + Mars Reconnaissance Orbiter (CRISM) compilations',
+  instrument: 'OMEGA and CRISM near-infrared spectrometers (published detections)',
+  productId: 'Hydrous_Mineral_Detections_OMEGA_CRISM_clon0',
+  kind: 'spectral',
+  description:
+    'Detections of hydrous minerals near Jezero, exported from the NASA Trek ' +
+    'mineral-detection map service as a georeferenced transparency. Detections ' +
+    'are sparse class pixels, not a continuous abundance map; useful for ' +
+    'anchoring science destinations, never as a resource or trafficability ' +
+    'assessment.',
+  sourceUrl:
+    `${TREK_ARCGIS_SERVICES}/Hydrous_Mineral_Detections_OMEGA_CRISM_clon0/MapServer?f=pjson`,
+  accessMethod: 'raster',
+  preparedAssetUrl: '/data/mars/jezero/rasters/hydrous-minerals-omega-crism.png',
+  spatialReference: {
+    body: 'Mars',
+    authority: GEOGRAPHIC_AUTHORITY,
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Geographic lon/lat degrees (map service declares ESRI:104905)',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'ESRI:104905 "Mars 2000" (GCS_Mars_2000) — as declared by the Trek map service.',
+  },
+  coverageDescription:
+    'Prepared export: lon 77.00°E – 77.86°E, lat 18.05°N – 18.88°N (exploration ' +
+    'region + ~0.16° margin), 1400 × 1400 px. Underlying service is global.',
+  boundingBox: {
+    westLon: 77.0,
+    eastLon: 77.86,
+    southLat: 18.05,
+    northLat: 18.88,
+  },
+  resolutionUnit:
+    'Prepared at ~36 m/px (0.16°–0.17° per 1400 px). Detection pixels indicate presence, not concentration or confidence.',
+  attribution:
+    'Hydrous-mineral detections: OMEGA (ESA Mars Express) and CRISM (NASA MRO) compilations served by NASA Trek (trek.nasa.gov).',
+  limitations: [
+    'Sparse detection class pixels — presence only. Do not read them as mineral abundance, grade, or economic potential.',
+    'The Trek service publishes no per-class legend or confidence values; class colours are shown as published and are not independently identified by SOLARA.',
+    'Chloride-salt detections (THEMIS service) were checked 2026-11-14 and returned no opaque pixels over this footprint — SOLARA ships no chloride layer rather than implying coverage.',
+    'Detection compilations aggregate orbital observations across years; they are not current surface conditions.',
+    'Prepared 2026-11-14 from a live Trek export; upstream map edits will not propagate automatically.',
+  ],
+  verification: 'tested',
+  lastVerifiedAt: '2026-11-14',
+};
+
+/* ------------------------------------------------------------------ */
+/* 8. Science waypoints — Mars 2020 mission bookmarks (prepared GeoJSON) */
+/* ------------------------------------------------------------------ */
+
+export const MARS2020_SCIENCE_STOPS_DATASET: DatasetRecord = {
+  id: 'mars2020-science-stops',
+  title: 'Mars 2020 Science Waypoints (NASA Trek)',
+  provider: 'NASA Trek (trek.nasa.gov), Mars 2020 mission',
+  mission: 'Mars 2020 (Perseverance rover)',
+  instrument: 'Mission waypoint bookmark compilation (Trek)',
+  productId: 'mars2020_waypoints',
+  kind: 'science',
+  description:
+    'Named waypoint bookmarks compiled by NASA Trek for the Mars 2020 ' +
+    'mission area: the Jezero landing site, delta deposits, breach and ' +
+    'inflow/outflow channels. Prepared as a static GeoJSON overlay so a ' +
+    'planned walk can be anchored to named destinations of scientific ' +
+    'interest. Points of interest only — not a hazard or trafficability ' +
+    'assessment.',
+  sourceUrl:
+    `${TREK_ARCGIS_SERVICES}/mars2020_waypoints/MapServer/0/query` +
+    '?where=1%3D1&outFields=*&returnGeometry=true&f=geojson',
+  accessMethod: 'geojson',
+  preparedAssetUrl: '/data/mars/jezero/science/mars2020-waypoints.geojson',
+  spatialReference: {
+    body: 'Mars',
+    authority: GEOGRAPHIC_AUTHORITY,
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Geographic lon/lat degrees (map service declares ESRI:104905)',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'ESRI:104905 "Mars 2000" (GCS_Mars_2000) — as declared by the Trek map service.',
+  },
+  coverageDescription:
+    'Eight waypoint bookmarks, lon 77.203°E – 78.713°E, lat 18.408°N – 18.870°N. ' +
+    'Six lie inside the CTX mosaic footprint; Northern Inflow Channel and ' +
+    'Outflow Channel lie beyond the mosaic edge (global imagery only there).',
+  boundingBox: {
+    westLon: 77.203,
+    eastLon: 78.713,
+    southLat: 18.4082,
+    northLat: 18.87,
+  },
+  resolutionUnit:
+    'Point bookmarks — no spatial resolution. Positions are published to ~1e-5° in the service response.',
+  attribution:
+    'Waypoints: NASA/JPL-Caltech, Mars 2020 Perseverance mission, compiled by NASA Trek (trek.nasa.gov).',
+  limitations: [
+    'Compiled bookmark points — locations of mission/geological interest, NOT a hazard, trafficability, landing, or safety assessment.',
+    'The service publishes elevation = 0 for every waypoint; SOLARA records that value verbatim and never displays it as a measured elevation.',
+    'Northern Inflow Channel (18.870°N) and Outflow Channel (78.713°E) lie outside the CTX mosaic footprint — only global-context imagery is available there.',
+    'The bookmark compilation date is not published by the service; SOLARA prepared this snapshot 2026-11-14 and does not assume it is current.',
+  ],
+  verification: 'integrated',
+  lastVerifiedAt: '2026-11-14',
+};
+
+/* ------------------------------------------------------------------ */
 /* Region                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -467,6 +642,9 @@ export const JEZERO_REGION: RegionRecord = {
     USGS_SIM3292_GEOLOGY_DATASET.id,
     PERSEVERANCE_TRAVERSE_DATASET.id,
     PERSEVERANCE_LANDING_ELLIPSE_DATASET.id,
+    MARS2020_SCIENCE_STOPS_DATASET.id,
+    JEZERO_IAU_NOMENCLATURE_DATASET.id,
+    JEZERO_HYDROUS_MINERALS_DATASET.id,
     MOLA_HRSC_BLEND_DEM_DATASET.id,
   ],
 };
@@ -478,6 +656,9 @@ const DATASETS: readonly DatasetRecord[] = [
   USGS_SIM3292_GEOLOGY_DATASET,
   PERSEVERANCE_TRAVERSE_DATASET,
   PERSEVERANCE_LANDING_ELLIPSE_DATASET,
+  MARS2020_SCIENCE_STOPS_DATASET,
+  JEZERO_HYDROUS_MINERALS_DATASET,
+  JEZERO_IAU_NOMENCLATURE_DATASET,
 ];
 
 const REGIONS: readonly RegionRecord[] = [JEZERO_REGION];

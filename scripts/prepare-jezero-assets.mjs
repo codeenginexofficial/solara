@@ -233,6 +233,170 @@ async function buildRover() {
   console.log(`landing ellipse: ${ellipseFc.features.length} feature(s)`);
 }
 
+/** CTX mosaic footprint (verified WMTS BoundingBox, 2026-11-12). */
+const MOSAIC_BBOX = { xmin: 77.1604655, ymin: 18.2110274, xmax: 77.6991776, ymax: 18.7211945 };
+
+async function buildScienceStops() {
+  // Direct GeoJSON keeps the service attributes verbatim (name, template,
+  // elevation) — no esri→GeoJSON attribute renaming in the middle.
+  const url =
+    `${ARCGIS}/mars2020_waypoints/MapServer/0/query` +
+    '?where=1%3D1&outFields=*&returnGeometry=true&f=geojson';
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} for ${url}`);
+  const raw = await res.json();
+  if (raw.type !== 'FeatureCollection' || !Array.isArray(raw.features)) {
+    throw new Error(`mars2020_waypoints did not return a FeatureCollection: ${JSON.stringify(raw).slice(0, 200)}`);
+  }
+  const features = raw.features.map((f, i) => {
+    const c = f.geometry?.coordinates;
+    if (!Array.isArray(c) || c.length < 2) throw new Error(`Waypoint ${i} has no usable geometry`);
+    const lon = Number(c[0]);
+    const lat = Number(c[1]);
+    return {
+      type: 'Feature',
+      id: f.id ?? f.properties?.FID ?? i,
+      properties: {
+        name: String(f.properties?.name ?? '').trim(),
+        template: String(f.properties?.template ?? '').trim(),
+        // The service publishes 0 for every waypoint; preserved verbatim and
+        // never presented as a measured elevation.
+        elevationDeclared: f.properties?.elevation ?? null,
+      },
+      geometry: { type: 'Point', coordinates: [lon, lat] },
+    };
+  });
+  const fc = { type: 'FeatureCollection', solaraCrs: CRS_NOTE, features };
+  const outside = features
+    .filter((f) => {
+      const [lon, lat] = f.geometry.coordinates;
+      return lon < MOSAIC_BBOX.xmin || lon > MOSAIC_BBOX.xmax || lat < MOSAIC_BBOX.ymin || lat > MOSAIC_BBOX.ymax;
+    })
+    .map((f) => f.properties.name);
+  const meta = {
+    datasetId: 'mars2020-science-stops',
+    source:
+      'NASA Trek ArcGIS MapServer "mars2020_waypoints" (Mars 2020 mission waypoint bookmarks, Perseverance/Jezero)',
+    queryService: url,
+    preparedAt: PREPARED_AT,
+    featureCount: features.length,
+    mosaicBboxDeg: MOSAIC_BBOX,
+    outsideMosaic: outside,
+  };
+  writeJson('science/mars2020-waypoints.geojson', fc, meta);
+  console.log(
+    `science stops: ${features.length} waypoints (${features.length - outside.length} inside the mosaic; outside: ${outside.join(', ') || 'none'})`,
+  );
+}
+
+/**
+ * IAU-approved nomenclature (USGS/IAU gazetteer published via the Trek
+ * outreach_nomenclature service). Only one feature falls in this area —
+ * Jezero crater itself — so this is an identification label overlay, not a
+ * regional gazetteer. A wider 75°–80°E, 16°–21°N query adds Hargraves
+ * (outside the exploration region), which is excluded on purpose.
+ */
+const NOMENCLATURE_BBOX = { xmin: 76, ymin: 17, xmax: 79, ymax: 20 };
+
+async function buildNomenclature() {
+  const j = await queryLayer('outreach_nomenclature', { ...NOMENCLATURE_BBOX });
+  const features = (j.features ?? []).map((f, i) => {
+    const a = f.attributes ?? {};
+    return {
+      type: 'Feature',
+      id: a.FID ?? i,
+      properties: {
+        name: String(a.clean_name ?? a.LABEL ?? '').trim(),
+        featureType: String(a.type ?? '').trim(),
+        diameterKm: typeof a.diameter === 'number' ? a.diameter : null,
+        approval: String(a.approval ?? '').trim(),
+        quadName: String(a.quad_name ?? '').trim(),
+        origin: String(a.origin ?? '').trim(),
+        gazetteerUrl: String(a.link ?? '').trim(),
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [Number(a.center_lon ?? a.x), Number(a.center_lat ?? a.y)],
+      },
+    };
+  });
+  const fc = { type: 'FeatureCollection', solaraCrs: CRS_NOTE, features };
+  writeJson('science/iau-nomenclature.geojson', fc, {
+    datasetId: 'jezero-iau-nomenclature',
+    source:
+      'USGS/IAU Gazetteer of Planetary Nomenclature, via NASA Trek "outreach_nomenclature" MapServer',
+    queryService: `${ARCGIS}/outreach_nomenclature/MapServer/0/query`,
+    queryBboxDeg: NOMENCLATURE_BBOX,
+    preparedAt: PREPARED_AT,
+    featureCount: features.length,
+    note: 'Hargraves crater (75.74°E, 20.74°N) is outside the exploration region and intentionally not shipped.',
+  });
+  console.log(
+    `nomenclature: ${features.length} IAU feature(s) — ${features.map((f) => f.properties.name).join(', ')}`,
+  );
+}
+
+/**
+ * Hydrous-mineral detections (OMEGA/CRISM), as published by the Trek
+ * MapServer. The service is an ArcGIS dynamic map (export endpoint), not a
+ * tile pyramid, so we prepare one georeferenced PNG for the verified region
+ * plus a margin. Verified 2026-11-14: the export contains real detections at
+ * Jezero (~97 opaque pixels in a 700² crop of the mosaic footprint).
+ *
+ * The chloride-salt THEMIS service was checked the same day and returned
+ * ZERO opaque pixels over the same bbox — it is intentionally not shipped as
+ * a layer (no data here; the catalog record records the check).
+ */
+const MINERAL_RASTER = {
+  service: 'Hydrous_Mineral_Detections_OMEGA_CRISM_clon0',
+  relPath: 'rasters/hydrous-minerals-omega-crism.png',
+  metaPath: 'rasters/hydrous-minerals-omega-crism.json',
+  // Region bbox + ~0.16° margin on each side.
+  bbox: { xmin: 77.0, ymin: 18.05, xmax: 77.86, ymax: 18.88 },
+  pixels: 1400,
+};
+
+async function buildMineralRaster() {
+  const { xmin, ymin, xmax, ymax } = MINERAL_RASTER.bbox;
+  const size = MINERAL_RASTER.pixels;
+  const url =
+    `${ARCGIS}/${MINERAL_RASTER.service}/MapServer/export` +
+    `?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=104905&imageSR=104905` +
+    `&size=${size},${size}&format=png32&transparent=true&f=image`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} for ${url}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error(`Mineral export did not return a PNG (${buf.subarray(0, 40).toString('utf8')})`);
+  }
+  const pngPath = join(outRoot, MINERAL_RASTER.relPath);
+  mkdirSync(dirname(pngPath), { recursive: true });
+  writeFileSync(pngPath, buf);
+  console.log(`wrote ${pngPath} (${buf.length} bytes)`);
+
+  const meta = {
+    datasetId: 'jezero-hydrous-minerals-omega-crism',
+    source:
+      'NASA Trek ArcGIS MapServer "Hydrous_Mineral_Detections_OMEGA_CRISM_clon0" (OMEGA/Mars Express + CRISM/MRO hydrous-mineral detections)',
+    exportRequest: url,
+    preparedAt: PREPARED_AT,
+    bboxDeg: MINERAL_RASTER.bbox,
+    imagePixels: [size, size],
+    pngBytes: buf.length,
+    approxResolutionMPerPx: ((xmax - xmin) * 59_273) / size,
+    checkedWithoutDetections: [
+      {
+        service: 'Chloride_Salt_bearing_Material_THEMIS_clon0',
+        bboxDeg: MINERAL_RASTER.bbox,
+        opaquePixels: 0,
+        checkedAt: '2026-11-14',
+      },
+    ],
+  };
+  writeJson(MINERAL_RASTER.metaPath, meta);
+}
+
 async function buildDemGrid() {
   const imageServer = `${ARCGIS}/Mars_MOLA_blend200ppx_HRSC_DEM_clon0dd_200mpp_lzw/ImageServer`;
   // Native pixel size from the ImageServer metadata (verified 2026-11-13):
@@ -346,7 +510,21 @@ function writeJson(relPath, data, meta) {
   console.log(`wrote ${path}`);
 }
 
-await buildGeology();
-await buildRover();
-await buildDemGrid();
+const BUILDERS = {
+  geology: buildGeology,
+  rover: buildRover,
+  science: buildScienceStops,
+  nomenclature: buildNomenclature,
+  minerals: buildMineralRaster,
+  dem: buildDemGrid,
+};
+
+const only = process.argv[2];
+if (only && !(only in BUILDERS)) {
+  console.error(`Unknown builder "${only}". Expected one of: ${Object.keys(BUILDERS).join(', ')}`);
+  process.exit(1);
+}
+for (const [name, build] of Object.entries(BUILDERS)) {
+  if (!only || only === name) await build();
+}
 console.log('DONE');

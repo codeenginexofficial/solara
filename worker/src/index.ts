@@ -36,6 +36,7 @@ const CONTEXT_KEYS = [
   'visibleLayers',
   'missionPlan',
   'environmentalObservations',
+  'environment',
   'dataNotAvailable',
 ] as const;
 
@@ -64,20 +65,26 @@ You must never invent values for: temperature, pressure, wind, dust opacity, rad
 Specific rules:
 - Imagery: you cannot see the map imagery. If asked what something looks like, state that the mosaic is rendered as raster tiles in the user's browser and you have no access to its pixels; offer provenance and coverage facts instead.
 - Routes: SOLARA routes are "proposed terrain-cost candidates" computed by a prototype slope-only model on a ~200 m/px prepared grid. Never call a route safe, validated, or drivable.
+- Mars seasonal/diurnal values (Ls, LMST/LTST) are MODELLED with a validated Mars24 port (Allison & McEwen 2000). Always label them modelled; they are not observations and do not describe conditions.
+- The weather context is a stale snapshot: the public MSL/REMS feed ends at sol 4995 (2026-08-25, Gale Crater). Never describe it as current, live, or Jezero weather. Jezero MEDA data in that feed covers only 7 sols (2024-04-21…27) with missing temperatures. Radiation is not integrated.
 - Mission thresholds are prototype thresholds — not operational safety limits.
 - Elevation values come from the static MOLA+HRSC blend (2018, areoid-referenced, ~200 m/px). Never present them as current conditions or site surveys.
 - The rover traverse is historical (sols 14-1176); there is no live rover feed.
 - Keep unknown visibly unknown. Prefer short, factual answers; cite dataset ids and the labels carried by the context when quoting data.`;
 
-const VERIFIED_DATASET_FACTS = `VERIFIED DATASET FACTS (verification date 2026-11-13):
+const VERIFIED_DATASET_FACTS = `VERIFIED DATASET FACTS (verification date 2026-11-14):
 - jezero-ctx-mosaic-soc-008: NASA Trek WMTS serving the USGS "Mars 2020 Terrain Relative Navigation Context Camera Orthorectified Image Mosaic" (USGS Astrogeology, published 2020-07-24, DOI 10.5066/P9GV1ND3). ~6 m/px nominal; finest served level 13 ~5.087 m/px; footprint 77.1604655-77.6991776 E, 18.2110274-18.7211945 N (~30.3 x 30.2 km). Built from three CTX stereo pairs; imagery content 2006-2019. Historical imagery.
 - mola-hrsc-blend-200m-colorshade: NASA Trek WMTS; colorized shaded relief of the "Mars MGS MOLA-MEX HRSC Blended DEM Global 200m v2" (Fergason, Hare and Laura, 2018, USGS). Global; finest served level 8 ~162.8 m/px (product nominal 200 m/px).
 - mola-hrsc-blend-200m-dem: the same blend DEM v2, queried via NASA Trek ArcGIS ImageServer (point elevation identify, global). Areoid-referenced; total elevation uncertainty at least plus/minus 3 m; MOLA base points 1999-2001; HRSC covers ~44% of Mars; blending artifacts exist ("care should be taken" - USGS).
 - usgs-sim3292-jezero-geology: USGS Geologic Map of Mars (SIM 3292, Tanaka et al., 2014, scale 1:20,000,000). Two units intersect the exploration area: mNhm (Middle Noachian highland massif unit) and HNt (Hesperian and Noachian transition unit). Global compilation - coarser than site-scale geology.
 - mars2020-perseverance-traverse: historical Perseverance traverse compiled by NASA Trek: 332 sol-tagged segments, sols 14-1176, total ~27.2 km. Not a live position feed.
 - mars2020-landing-ellipse: Mars 2020 landing-ellipse polygon (NASA Trek). The service publishes no ellipse dimensions or target name.
+- mars2020-science-stops: NASA Trek "mars2020_waypoints" bookmarks: 8 named waypoints (Jezero Crater, Perseverance Landing Ellipse, Western/Northern Delta Deposit, Western Breach, Western/Northern Inflow Channel, Outflow Channel). 6 lie inside the CTX mosaic; Northern Inflow Channel (18.870 N) and Outflow Channel (78.713 E) lie outside it. The service publishes elevation = 0 for every waypoint — that value is NOT a measured elevation and must never be quoted as one. Destinations of interest, not a hazard map.
+- jezero-iau-nomenclature: USGS/IAU Gazetteer of Planetary Nomenclature via NASA Trek. Only one IAU feature is in this area: Jezero, a 47.52 km crater in the Syrtis Major quadrangle, status "Adopted by IAU". A label identifies the feature centre; no boundary or rim is published or drawn.
+- jezero-hydrous-minerals-omega-crism: OMEGA (Mars Express) + CRISM (MRO) hydrous-mineral detections served by NASA Trek as an ArcGIS export; prepared as a 1400x1400 (~36 m/px) transparency over 77.00-77.86 E, 18.05-18.88 N. Detections are sparse class pixels: presence only, no abundance, confidence, or class legend published. The chloride-salt THEMIS service was checked on 2026-11-14 and had zero detections here, so no chloride layer is offered.
+- Environment context: Mars Ls and LMST are modelled (Mars24, Allison & McEwen 2000) and validated against 4,745 MSL/REMS sols: median |dLs| 0.51 deg, p95 1.05 deg, max 1.29 deg (feed Ls is integer-truncated). Public MSL weather snapshot: sol 4995, 2026-08-25, Ls 341, temp -71..-5 C, pressure 777 Pa, opacity Sunny, Gale Crater — stale, not current, not Jezero. Jezero MEDA in the same feed: 7 sols (2024-04-21..27), temperatures missing. Radiation: not integrated (unknown).
 
-Canonical Jezero context: Jezero Crater is ~45 km wide, on the western edge of Isidis Planitia (NASA, 2018). It hosted an ancient lake and a fan-shaped river delta. Perseverance touched down on 2021-02-18 at "Octavia E. Butler Landing" (an informal mission-team name), ~2 km from the western delta front (Sun et al., 2023).`;
+Canonical Jezero context: Jezero Crater is ~45 km wide (IAU gazetteer diameter 47.52 km), on the western edge of Isidis Planitia (NASA, 2018). It hosted an ancient lake and a fan-shaped river delta. Perseverance touched down on 2021-02-18 at "Octavia E. Butler Landing" (an informal mission-team name), ~2 km from the western delta front (Sun et al., 2023).`;
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), {

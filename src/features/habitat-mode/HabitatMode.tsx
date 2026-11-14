@@ -20,7 +20,7 @@
 
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
 import type { MarsMapHandle } from '../../map/MarsMap';
-import type { MapLocation, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
+import type { MapFeatureSelection, MapLocation, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
 import type { LayerUiState } from './components/MissionOperationsPanel';
 import { MissionOperationsPanel } from './components/MissionOperationsPanel';
@@ -36,6 +36,8 @@ import { buildPlanFile, computeRoute, importPlanFile, useMissionState } from '..
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
 import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
+import { computeMarsClock, formatMarsClock, seasonForLs } from '../../science/environment/marsTime';
+import { MSL_WEATHER_SNAPSHOT, daysBetween } from '../../science/environment/weatherContext';
 import { isInsideBoundingBox } from '../../lib/bbox';
 import { cn } from '../../lib/utils';
 
@@ -52,6 +54,9 @@ const OVERLAY_IDS = [
   'usgs-sim3292-jezero-geology',
   'mars2020-landing-ellipse',
   'mars2020-perseverance-traverse',
+  'mars2020-science-stops',
+  'jezero-iau-nomenclature',
+  'jezero-hydrous-minerals-omega-crism',
 ] as const;
 
 const INITIAL_DATASET_ID = REGION.datasetIds[0] ?? '';
@@ -60,10 +65,12 @@ const OVERLAY_ID_SET: ReadonlySet<string> = new Set(OVERLAY_IDS);
 
 /** Fixed honesty statement attached to every Copilot request. */
 const DATA_NOT_AVAILABLE_CONTEXT =
-  'Not available in SOLARA data: real-time live weather forecasting, dust opacity, radiation ' +
+  'Not available in SOLARA data: current real-time/live weather at Jezero, dust opacity, and radiation ' +
   'observations; real-time rover position (historical track through sol 1176 only); site-scale ' +
   'slope, hazards, or rock abundance; route safety validation; image content (Solara AI cannot ' +
-  'see map imagery). Unknown values must remain unknown.';
+  'see map imagery). Mars Ls/LMST are modelled (Mars24), not observations. The MSL weather snapshot ' +
+  '(sol 4995, 2026-08-25, Gale Crater) is stale and not local; MEDA in-situ observations shown in the ' +
+  'inspector are historical archive values, not live weather. Unknown values must remain unknown.'
 
 /** Copilot context sections stay compact (each ≤ ~600 chars). */
 const clamp600 = (value: string): string => (value.length <= 600 ? value : value.slice(0, 600));
@@ -100,6 +107,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>(INITIAL_DATASET_ID);
   const [pointerLocation, setPointerLocation] = useState<MapLocation | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
   const [viewInfo, setViewInfo] = useState<ViewInfo | null>(null);
   const [sourceStatus, setSourceStatus] = useState<SourceStatus>({
     capabilities: 'checking',
@@ -159,6 +167,11 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
           ? 'Inside the exploration region.'
           : 'Outside the exploration region — global imagery and elevation products only; route planning unavailable here.',
       ];
+      if (selectedFeature) {
+        parts.push(
+          `Selected overlay feature: ${selectedFeature.name} (dataset ${selectedFeature.datasetId}).`,
+        );
+      }
       const elev = locationElevation;
       if (!elev || elev.kind === 'idle' || elev.kind === 'loading') {
         parts.push('Elevation: query pending.');
@@ -177,6 +190,20 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
       }
       selectedLocationContext = clamp600(parts.join(' '));
     }
+
+    const lonForClock =
+      selectedLocation?.lon ?? (REGION.boundingBox.westLon + REGION.boundingBox.eastLon) / 2;
+    const clock = computeMarsClock(new Date(), lonForClock);
+    const staleDays = daysBetween(
+      MSL_WEATHER_SNAPSHOT.newestTerrestrialDate,
+      new Date().toISOString().slice(0, 10),
+    );
+    const environment = clamp600(
+      `Mars time (MODELLED, Mars24 port validated to ±1.3° Ls against 4,745 MSL sols): ` +
+        `Ls ${clock.lsDeg.toFixed(1)}° (${seasonForLs(clock.lsDeg)}), LMST ${formatMarsClock(clock.lmstHours)} at ${formatLon(lonForClock)}. ` +
+        `In-situ weather snapshot: ${MSL_WEATHER_SNAPSHOT.site} sol ${MSL_WEATHER_SNAPSHOT.newestSol}, ${MSL_WEATHER_SNAPSHOT.newestTerrestrialDate} — ${staleDays} days old, NOT current and not Jezero. ` +
+        'Jezero MEDA public feed: 7 sols (2024-04-21…27) with no temperatures. Radiation: unknown.',
+    );
 
     const visibleLayers = clamp600(
       [...BASE_LAYER_IDS, ...OVERLAY_IDS]
@@ -213,12 +240,13 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
     return {
       explorationRegion,
       selectedLocation: selectedLocationContext,
+      environment,
       visibleLayers,
       missionPlan,
       environmentalObservations,
       dataNotAvailable: DATA_NOT_AVAILABLE_CONTEXT,
     };
-  }, [selectedLocation, locationElevation, layerStates, overlayStatus, mission]);
+  }, [selectedLocation, selectedFeature, locationElevation, layerStates, overlayStatus, mission]);
 
   const handleExportPlan = useCallback(() => {
     const plan = buildPlanFile();
@@ -290,7 +318,11 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
               route={mission.route}
               selectedMarker={selectedLocation}
               onPointerLocationChange={setPointerLocation}
-              onLocationSelect={setSelectedLocation}
+              onLocationSelect={(loc) => {
+                setSelectedFeature(null);
+                setSelectedLocation(loc);
+              }}
+              onFeatureSelect={setSelectedFeature}
               onViewChange={setViewInfo}
               onSourceStatusChange={setSourceStatus}
               onOverlayStatusChange={setOverlayStatus}
@@ -310,6 +342,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
           inspector={
             <InspectorPanel
               location={selectedLocation}
+              feature={selectedFeature}
               region={REGION}
               dataset={selectedDataset}
               onElevationStateChange={setLocationElevation}

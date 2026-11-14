@@ -1,0 +1,40 @@
+{
+ "solara": {
+  "datasetId": "jezero-iau-nomenclature",
+  "source": "USGS/IAU Gazetteer of Planetary Nomenclature, via NASA Trek \"outreach_nomenclature\" MapServer",
+  "queryService": "https://trek.nasa.gov/mars/trekarcgis/rest/services/outreach_nomenclature/MapServer/0/query",
+  "queryBboxDeg": {
+   "xmin": 76,
+   "ymin": 17,
+   "xmax": 79,
+   "ymax": 20
+  },
+  "preparedAt": "2026-11-14T10:28:27.357Z",
+  "featureCount": 1,
+  "note": "Hargraves crater (75.74°E, 20.74°N) is outside the exploration region and intentionally not shipped."
+ },
+ "type": "FeatureCollection",
+ "solaraCrs": "SOLARA:MARS_2000_SPHERE_LONLAT — planetocentric east-positive lon/lat degrees on the Mars 2000 sphere (numerically equivalent to IAU:2015:49900). Source services declare ESRI:104905 (GCS_Mars_2000).",
+ "features": [
+  {
+   "type": "Feature",
+   "id": 186,
+   "properties": {
+    "name": "Jezero",
+    "featureType": "Crater, craters",
+    "diameterKm": 47.5212,
+    "approval": "Adopted by IAU",
+    "quadName": "Syrtis Major",
+    "origin": "Town in Bosnia-Herzegovina.",
+    "gazetteerUrl": "http://planetarynames.wr.usgs.gov/Feature/14300"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     77.68734927,
+     18.4082
+    ]
+   }
+  }
+ ]
+}

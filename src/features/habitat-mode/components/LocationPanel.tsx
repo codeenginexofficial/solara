@@ -8,8 +8,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Crosshair, Mountain } from 'lucide-react';
-import type { MapLocation } from '../../../map/mapTypes';
+import { Crosshair, ExternalLink, Mountain } from 'lucide-react';
+import type { MapFeatureSelection, MapLocation } from '../../../map/mapTypes';
 import type { RegionRecord } from '../../../data/catalog/types';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -21,6 +21,8 @@ import { getDatasetById } from '../../../data/catalog/datasets';
 
 export interface LocationPanelProps {
   location: MapLocation | null;
+  /** Named waypoint the click landed on, when any. */
+  feature?: MapFeatureSelection | null;
   /** Exploration region for the membership row (honest in/out compare). */
   region?: RegionRecord;
   /** Reports the current elevation state up (Copilot context building). */
@@ -70,7 +72,7 @@ function UnknownRow({ label, reason }: { label: string; reason: string }) {
   );
 }
 
-export function LocationPanel({ location, region, onElevationStateChange }: LocationPanelProps) {
+export function LocationPanel({ location, feature, region, onElevationStateChange }: LocationPanelProps) {
   const [elevationState, setElevationState] = useState<ElevationState>({ kind: 'idle' });
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'failed'>('idle');
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -258,6 +260,37 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
           </span>
         </div>
       </div>
+
+      {/* Selected science waypoint (named destination) */}
+      {feature && (
+        <div
+          className="mt-3 rounded-md border border-edge/70 bg-surface/60 p-2.5"
+          data-testid="science-stop-card"
+        >
+          <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">
+            {feature.datasetId === 'jezero-iau-nomenclature' ? 'IAU feature' : 'Science stop'}
+          </div>
+          <div className="mt-0.5 text-[13px] font-semibold leading-snug text-ink">
+            {feature.name}
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
+            {feature.datasetId === 'jezero-iau-nomenclature'
+              ? 'IAU-adopted feature name (USGS/IAU Gazetteer). Identification only — no boundary, hazard, or trafficability information is implied.'
+              : 'Compiled NASA Trek waypoint. A destination of scientific interest — not a hazard, trafficability, or landing assessment.'}
+          </p>
+          {feature.detailUrl && (
+            <a
+              href={feature.detailUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-info hover:underline"
+            >
+              <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+              {feature.datasetId === 'jezero-iau-nomenclature' ? 'IAU gazetteer' : 'Trek bookmark'}
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Scientific unknowns / reasons */}
       <div className="mt-3 border-t border-edge/60 pt-2.5 space-y-1">
