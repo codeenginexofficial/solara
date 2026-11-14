@@ -24,7 +24,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        'relative inline-flex h-4 w-8 shrink-0 items-center rounded-full border transition-colors duration-150',
+        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-150',
         checked ? 'border-accent bg-accent-soft' : 'border-edge bg-edge/50',
         disabled && 'cursor-not-allowed opacity-50',
         className,
@@ -34,8 +34,8 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none inline-block size-3 rounded-full shadow transition-transform duration-150',
-          checked ? 'translate-x-4 bg-accent' : 'translate-x-0.5 bg-ink-muted',
+          'pointer-events-none inline-block size-3.5 rounded-full shadow transition-transform duration-150',
+          checked ? 'translate-x-5 bg-accent' : 'translate-x-0.5 bg-ink-muted',
         )}
       />
     </button>

@@ -1,6 +1,6 @@
 /**
  * LocationPanel — the map location selected by clicking, shown in the
- * mission-operations panel.
+ * workspace Inspector tab.
  *
  * Elevation is queried LIVE from the verified Trek ImageServer (the static
  * MOLA+HRSC blend DEM, 2018 v2 — a fixed product, not current conditions).
@@ -71,10 +71,10 @@ function getPreparedGrid(): Promise<ElevationGrid | null> {
 function UnknownRow({ label, reason }: { label: string; reason: string }) {
   return (
     <div className="flex flex-col gap-0.5 py-1">
-      <span className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
-      <span className="flex items-baseline gap-2">
-        <span className="text-xs font-medium text-warn">Unknown</span>
-        <span className="text-[10px] leading-snug text-ink-subtle">{reason}</span>
+      <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
+      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-[13px] font-medium text-warn">Unknown</span>
+        <span className="text-[11px] leading-snug text-ink-subtle">{reason}</span>
       </span>
     </div>
   );
@@ -107,15 +107,15 @@ function ElevationRow({ state }: { state: ElevationState }) {
   }
   return (
     <div className="flex flex-col gap-0.5 py-1">
-      <span className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">Elevation</span>
-      <span className="flex items-baseline gap-2">
-        <span className={tone === 'warn' ? 'text-xs font-medium text-warn' : 'text-xs font-medium text-ink'}>
+      <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Elevation</span>
+      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className={tone === 'warn' ? 'text-[13px] font-medium text-warn' : 'text-[13px] font-medium text-ink'}>
           {main}
         </span>
-        <span className="text-[10px] leading-snug text-ink-subtle">{detail}</span>
+        <span className="text-[10.5px] leading-snug text-ink-subtle">{detail}</span>
       </span>
       {state.kind === 'error' && state.fallbackValue !== null && (
-        <span className="text-[10px] leading-snug text-ink-muted">
+        <span className="text-[10.5px] leading-snug text-ink-muted">
           Prepared-grid fallback: {Math.round(state.fallbackValue).toLocaleString('en-US')} m —{' '}
           {state.fallbackLabel}
         </span>
@@ -208,7 +208,7 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
     return (
       <div data-testid="location-panel">
         <Section title="Selected location">
-          <div className="flex items-start gap-2 py-1 text-[11px] leading-relaxed text-ink-muted">
+          <div className="flex items-start gap-2 py-1 text-xs leading-relaxed text-ink-muted">
             <Crosshair className="mt-0.5 size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
             <p>
               Click anywhere on the map to inspect a coordinate. Pointer coordinates are shown
@@ -252,7 +252,7 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
         {bbox && (
           <div
             className={cn(
-              'mt-2 rounded border px-2 py-1.5 text-[10.5px] leading-snug',
+              'mt-2 rounded border px-2 py-1.5 text-[11.5px] leading-snug',
               inside ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn',
             )}
             data-testid="region-membership"
@@ -281,7 +281,7 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
             reason="No rock/regolith/roughness dataset is integrated; imagery is historical."
           />
         </div>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-ink-subtle">
+        <p className="mt-1.5 text-[10.5px] leading-relaxed text-ink-subtle">
           Elevation is relative to the Mars areoid (MOLA-registered MOLA+HRSC blend, ~200 m/px) —
           a coarse regional value, not a site survey.
         </p>

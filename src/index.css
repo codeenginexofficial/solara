@@ -1,31 +1,42 @@
 @import "tailwindcss";
 
 /*
- * SOLARA design tokens — from Design.md §3.
- * Dark, neutral, instrument-like interface with a restrained amber accent.
+ * SOLARA design tokens — Mission Control Dark with a warm "Martian Earth"
+ * neutral base and a cool teal interaction accent (UI milestone 2026-11-14).
+ *
+ * Color roles:
+ *  - Warm Martian surfaces (#211B19 family) establish the workspace; the strong
+ *    color on screen should come from the scientific imagery itself.
+ *  - Cool teal (#65C5BD) is the single primary accent: active controls,
+ *    selected states, focus rings, and the proposed-route overlay.
+ *  - Status colors stay semantic and restrained (ok / warn / danger).
  */
 @theme {
-  --color-surface: #0d1114;
-  --color-panel: #141a1e;
-  --color-panel-raised: #1a2227;
-  --color-edge: #2a343a;
+  --color-surface: #211b19;
+  --color-panel: #292320;
+  --color-panel-raised: #342a25;
+  --color-edge: #493b33;
 
-  --color-ink: #edf1f2;
-  --color-ink-muted: #a2adb3;
-  --color-ink-subtle: #748188;
+  --color-ink: #e8dcce;
+  --color-ink-muted: #b9aaa0;
+  --color-ink-subtle: #8e8178;
 
-  --color-accent: #d49a58;
-  --color-accent-soft: #8f673c;
+  --color-accent: #65c5bd;
+  --color-accent-strong: #78d7ce;
+  /* Deep teal used for "filled" accent states (e.g. switch track). */
+  --color-accent-soft: #2f6b64;
+  /* Translucent teal wash for selected/active backgrounds. */
+  --color-accent-subtle: rgba(101, 197, 189, 0.12);
 
-  --color-info: #82aeb5;
-  --color-ok: #83a98c;
-  --color-warn: #d1a15c;
-  --color-danger: #cc7770;
+  --color-info: #9db4c0;
+  --color-ok: #8cb894;
+  --color-warn: #d2a96e;
+  --color-danger: #c97b72;
 
-  /* Map overlay palette */
-  --color-route: #e0a85f;
-  --color-track: #7eb2bd;
-  --color-waypoint: #f0e7d8;
+  /* Map overlay palette (route = proposed candidate; track = historical). */
+  --color-route: #65c5bd;
+  --color-track: #94a8b8;
+  --color-waypoint: #e8dcce;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -56,10 +67,29 @@ body {
   background-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-/* Focus visibility for keyboard users (Design.md §12) */
+/* Focus visibility for keyboard users. */
 :focus-visible {
   outline: 1px solid var(--color-accent);
   outline-offset: 1px;
+}
+
+/* Thin, quiet scrollbars for panel content. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-edge) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-edge);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /*
@@ -91,6 +121,13 @@ body {
   outline: none;
 }
 
+/* Rotation is not an SOLARA interaction (view rotation is never changed);
+ * hide the stock Rotate control, which is only visible because ol.css is
+ * not imported to style its autoHide behaviour. */
+.ol-rotate {
+  display: none;
+}
+
 /*
  * Custom zoom controls (React-rendered; the stock ol Zoom control is not
  * used). Positioning declared here because ol.css is not imported.
@@ -106,8 +143,8 @@ body {
 }
 
 .solara-map-zoom-button {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--color-edge);
   border-radius: 4px;
   background-color: color-mix(in srgb, var(--color-panel-raised) 88%, transparent);
@@ -152,6 +189,13 @@ body {
   text-decoration: underline;
 }
 
+/* The attribution collapse toggle renders unstyled (ol.css is not
+ * imported); provenance belongs visible, so hide the toggle and keep the
+ * attribution text always on. */
+.ol-attribution button {
+  display: none;
+}
+
 /* Scale line */
 .ol-scale-line {
   position: absolute;
@@ -166,12 +210,13 @@ body {
 .ol-scale-line-inner {
   color: var(--color-ink-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   border-color: var(--color-ink-subtle);
 }
 
 /*
- * Native range input (layer opacity) styled for the dark instrument look.
+ * Native range input (layer opacity, cost parameters) styled for the dark
+ * instrument look with a teal active thumb.
  */
 .solara-range {
   -webkit-appearance: none;
@@ -201,7 +246,7 @@ body {
 
 .solara-range:hover::-webkit-slider-thumb,
 .solara-range:focus-visible::-webkit-slider-thumb {
-  background: var(--color-ink);
+  background: var(--color-accent);
 }
 
 .solara-range::-moz-range-track {
@@ -220,10 +265,10 @@ body {
 
 .solara-range:hover::-moz-range-thumb,
 .solara-range:focus-visible::-moz-range-thumb {
-  background: var(--color-ink);
+  background: var(--color-accent);
 }
 
-/* Respect reduced motion (Design.md §11) */
+/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

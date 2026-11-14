@@ -18,8 +18,8 @@ export interface RouteSummaryProps {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
-      <span className="font-mono text-xs text-ink">{value}</span>
+      <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
+      <span className="font-mono text-[12.5px] text-ink">{value}</span>
     </div>
   );
 }
@@ -60,7 +60,7 @@ export function RouteSummary({ route, computing, error }: RouteSummaryProps) {
         />
         <Stat label="Profile points" value={String(route.points.length)} />
       </div>
-      <p className="mt-1.5 text-[10px] leading-relaxed text-ink-subtle">
+      <p className="mt-1.5 text-[10.5px] leading-relaxed text-ink-subtle">
         Derived from the prepared {route.provenance.gridResolutionNote} grid
         (prepared {route.provenance.gridPreparedAt.slice(0, 10)}); elevation relative to the Mars
         areoid (MOLA-registered). This is a PROPOSED TERRAIN-COST CANDIDATE — not a validated or

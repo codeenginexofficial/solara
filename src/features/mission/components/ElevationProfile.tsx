@@ -19,7 +19,7 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
   if (!route || route.points.length < 2) {
     return (
       <div
-        className="flex items-center justify-center rounded border border-edge bg-surface-raised/40 px-3 py-4 text-[11px] text-ink-subtle"
+        className="flex items-center justify-center rounded border border-edge bg-panel-raised/40 px-3 py-4 text-[11px] text-ink-subtle"
         style={{ height }}
         data-testid="elevation-profile-empty"
       >
@@ -51,28 +51,28 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         style={{ height }}
-        className="w-full rounded border border-edge bg-surface-raised/40"
+        className="w-full rounded border border-edge bg-panel-raised/40"
         role="img"
         aria-label={`Elevation profile along the route: ${Math.round(min)} to ${Math.round(max)} metres over ${formatDistance(total)}`}
       >
         <polyline
           points={coords.join(' ')}
           fill="none"
-          stroke="rgba(103, 232, 249, 0.9)"
+          stroke="rgba(101, 197, 189, 0.9)"
           strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
       </svg>
-      <div className="flex items-center justify-between font-mono text-[10px] text-ink-subtle">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[10.5px] text-ink-subtle">
         <span>
           start {Math.round(points[0]!.elevM)} m · min {Math.round(min)} m · max {Math.round(max)} m ·
           end {Math.round(points[points.length - 1]!.elevM)} m
         </span>
-        <span>{formatDistance(total)} ground distance</span>
+        <span className="ml-auto">{formatDistance(total)} ground distance</span>
       </div>
-      <p className="text-[10px] leading-snug text-ink-subtle">
+      <p className="text-[10.5px] leading-snug text-ink-subtle">
         Areoid-referenced elevation from the prepared ~200 m/px grid — derived, coarse.
       </p>
     </div>

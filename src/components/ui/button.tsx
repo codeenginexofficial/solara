@@ -1,6 +1,7 @@
 /**
  * Button — shadcn/ui-style primitive (cva variants), SOLARA styling.
- * Dark instrument look: neutral raised surfaces, restrained hover states.
+ * Dark instrument look: neutral raised surfaces, teal reserved for the
+ * primary accent variant (the single interaction accent).
  */
 
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
@@ -13,16 +14,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'border border-edge bg-panel-raised text-ink hover:border-ink-subtle/60 hover:bg-edge/60',
+          'border border-edge bg-panel-raised text-ink hover:border-ink-subtle/50 hover:bg-edge/60',
         accent:
-          'border border-accent bg-accent text-surface hover:bg-accent/90',
+          'border border-accent bg-accent text-surface hover:border-accent-strong hover:bg-accent-strong',
         ghost: 'text-ink-muted hover:bg-edge/40 hover:text-ink',
-        outline: 'border border-edge bg-transparent text-ink hover:bg-edge/30',
+        outline:
+          'border border-edge bg-transparent text-ink hover:border-ink-subtle/50 hover:bg-edge/30',
       },
       size: {
-        default: 'h-7 px-2.5',
-        sm: 'h-6 px-2 text-[11px]',
-        icon: 'size-7 p-0',
+        default: 'h-8 px-3',
+        sm: 'h-7 px-2.5 text-[11.5px]',
+        icon: 'size-8 p-0',
       },
     },
     defaultVariants: {

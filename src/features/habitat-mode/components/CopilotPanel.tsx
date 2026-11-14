@@ -1,5 +1,5 @@
 /**
- * CopilotPanel — right-panel "SOLARA Mission Copilot".
+ * CopilotPanel — the workspace "Copilot" tab: SOLARA Mission Copilot.
  *
  * Talks to the Copilot proxy (POST /api/copilot/chat, dev-proxied to the
  * Cloudflare Worker). The proxy injects the honesty guardrails server-side;
@@ -7,10 +7,13 @@
  * is in-memory (lost on reload — same philosophy as the mission store).
  * Assistant replies are plain text with preserved line breaks; nothing is
  * ever rendered as HTML.
+ *
+ * Panel sizing/collapse is owned by ContextWorkspace; this component fills
+ * the tab panel and manages only conversation state.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Eraser, Maximize2, Minimize2, Send } from 'lucide-react';
+import { Eraser, Send } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -32,8 +35,6 @@ export interface CopilotContextPayload {
 export interface CopilotPanelProps {
   /** Context sections attached to every send (built by HabitatMode). */
   context: CopilotContextPayload;
-  expanded: boolean;
-  onToggleExpanded: () => void;
 }
 
 type CopilotStatus = 'idle' | 'ready' | 'unconfigured' | 'offline';
@@ -74,7 +75,7 @@ function errorMessage(err: CopilotClientError): string {
   }
 }
 
-export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPanelProps) {
+export function CopilotPanel({ context }: CopilotPanelProps) {
   const [messages, setMessages] = useState<CopilotChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -161,23 +162,21 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="copilot-panel">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-edge px-3">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
-          SOLARA Mission Copilot
-        </h2>
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-edge px-3">
         <Badge tone={chip.tone} data-testid="copilot-status">
           {chip.label}
         </Badge>
         {status === 'ready' && modelId && (
           <span
-            className="hidden shrink-0 font-mono text-[9.5px] text-ink-subtle xl:inline"
+            className="hidden shrink-0 truncate font-mono text-[10px] text-ink-subtle xl:inline"
             title="Model id reported by the Copilot proxy"
           >
             {modelId}
           </span>
         )}
+        <span className="min-w-0 flex-1" aria-hidden="true" />
         {confirmingClear && (
-          <span className="shrink-0 text-[10px] text-danger" aria-hidden="true">
+          <span className="shrink-0 text-[10.5px] text-danger" aria-hidden="true">
             Confirm clear
           </span>
         )}
@@ -191,23 +190,14 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
         >
           <Eraser />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={expanded ? 'Collapse copilot panel' : 'Expand copilot panel'}
-          title={expanded ? 'Collapse copilot panel' : 'Expand copilot panel'}
-          onClick={onToggleExpanded}
-        >
-          {expanded ? <Minimize2 /> : <Maximize2 />}
-        </Button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {messages.length === 0 ? (
-          <div className="text-[11px] leading-relaxed text-ink-muted" data-testid="copilot-welcome">
+          <div className="text-xs leading-relaxed text-ink-muted" data-testid="copilot-welcome">
             <p>{WELCOME_FACTS}</p>
-            <p className="mt-1.5 text-[10px] text-ink-subtle">Sources: NASA (2018, 2021); Sun et al. (2023)</p>
-            <div className="mt-3 text-[10px] uppercase tracking-[0.06em] text-ink-subtle">Start with</div>
+            <p className="mt-1.5 text-[10.5px] text-ink-subtle">Sources: NASA (2018, 2021); Sun et al. (2023)</p>
+            <div className="mt-3 text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Start with</div>
             <div className="mt-1.5 flex flex-col gap-1.5">
               {STARTER_QUESTIONS.map((question) => (
                 <Button
@@ -225,7 +215,7 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
           </div>
         ) : (
           <ol
-            className="flex flex-col gap-2.5"
+            className="flex flex-col gap-3"
             aria-label="Copilot conversation"
             aria-live="polite"
             data-testid="copilot-conversation"
@@ -234,17 +224,17 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
               <li
                 key={index}
                 className={cn(
-                  'rounded border px-2.5 py-1.5',
+                  'rounded border px-3 py-2',
                   message.role === 'user' ? 'border-accent/30 bg-accent/5' : 'border-edge bg-panel-raised/60',
                 )}
               >
-                <span className="mb-0.5 block text-[9.5px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">
                   {message.role === 'user' ? 'You' : 'Copilot'}
                 </span>
                 {/* Plain text only — never dangerouslySetInnerHTML. */}
                 <div
                   className={cn(
-                    'whitespace-pre-wrap text-[11.5px] leading-relaxed',
+                    'whitespace-pre-wrap text-[12.5px] leading-relaxed',
                     message.role === 'user' ? 'text-ink-muted' : 'text-ink',
                   )}
                 >
@@ -255,7 +245,7 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
           </ol>
         )}
         {pending && (
-          <div className="mt-2.5 flex items-center gap-2 text-[11px] text-ink-muted" data-testid="copilot-waiting">
+          <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted" data-testid="copilot-waiting">
             <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
             Waiting for the Copilot service…
           </div>
@@ -264,7 +254,7 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
 
       {lastError && (
         <div
-          className="mx-3 mb-2 shrink-0 rounded border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-[11px] leading-snug text-danger"
+          className="mx-3 mb-2 shrink-0 rounded border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-xs leading-snug text-danger"
           role="alert"
           data-testid="copilot-error"
         >
@@ -288,7 +278,7 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
             placeholder="Ask about the site, the data, or the plan…"
             aria-label="Copilot message"
             data-testid="copilot-composer"
-            className="max-h-32 min-h-[2.25rem] w-full resize-none rounded-md border border-edge bg-panel-raised px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-subtle"
+            className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-panel-raised px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle"
           />
           <Button
             variant="accent"
@@ -300,7 +290,7 @@ export function CopilotPanel({ context, expanded, onToggleExpanded }: CopilotPan
             Send
           </Button>
         </div>
-        <p className="mt-1.5 text-[10px] leading-snug text-ink-subtle">
+        <p className="mt-1.5 text-[10.5px] leading-snug text-ink-subtle">
           In-memory conversation — lost on reload. Enter sends; Shift+Enter adds a newline.
         </p>
       </div>

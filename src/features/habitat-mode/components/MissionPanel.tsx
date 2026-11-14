@@ -1,9 +1,10 @@
 /**
- * MissionPanel — right-panel mission planning (Habitat Mode).
+ * MissionPanel — mission planning controls (Habitat Mode, left panel).
  *
  * Start/target selection from the map-selected point, prototype cost
- * parameters, compute action, route summary, elevation profile, warnings,
- * provenance, and plan export/import.
+ * parameters, compute action, and plan export/import. Route RESULTS
+ * (summary, elevation profile, warnings, provenance) render in the
+ * workspace Inspector tab (InspectorPanel), which reads the same store.
  *
  * Honesty (Context.md §7): the route is always labelled a PROPOSED
  * TERRAIN-COST CANDIDATE; the cost model is slope-only and parameters are
@@ -12,14 +13,12 @@
  */
 
 import { useRef, useState } from 'react';
-import { ChevronDown, Download, Flag, Play, RotateCcw, Upload, MapPin } from 'lucide-react';
+import { ChevronDown, Download, MapPin, Play, RotateCcw, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Section } from '../../../components/ui/section';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon } from '../../../lib/format';
 import type { MapLocation } from '../../../map/mapTypes';
-import { ElevationProfile } from '../../mission/components/ElevationProfile';
-import { RouteSummary } from '../../mission/components/RouteSummary';
 import {
   buildPlanFile,
   clearRoute,
@@ -53,7 +52,7 @@ function PointRow({
   return (
     <div className="rounded-md border border-edge px-2.5 py-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-ink">
           <MapPin className="size-3.5 text-info" aria-hidden="true" />
           {label}
         </span>
@@ -61,14 +60,14 @@ function PointRow({
           <button
             type="button"
             onClick={onClear}
-            className="text-[10px] text-ink-subtle hover:text-danger"
+            className="text-[11px] text-ink-subtle hover:text-danger"
             aria-label={`Clear ${label.toLowerCase()} point`}
           >
             clear
           </button>
         )}
       </div>
-      <div className="mt-1 font-mono text-[11px] text-ink-muted" data-testid={`mission-${label.toLowerCase()}`}>
+      <div className="mt-1 font-mono text-xs text-ink-muted" data-testid={`mission-${label.toLowerCase()}`}>
         {point ? `${formatLon(point.lon)}  ${formatLat(point.lat)}` : 'not set'}
       </div>
       <Button
@@ -159,7 +158,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
               aria-controls="mission-advanced-params"
               onClick={() => setAdvancedOpen((v) => !v)}
             >
-              <span className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">
+              <span className="text-[11px] uppercase tracking-[0.06em] text-ink-subtle">
                 Advanced (prototype parameters)
               </span>
               <ChevronDown
@@ -170,7 +169,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
             {advancedOpen && (
               <div id="mission-advanced-params" className="border-t border-edge px-2.5 py-2">
                 <label className="flex items-center gap-2">
-                  <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Slope cost / degree</span>
+                  <span className="w-28 shrink-0 text-[11px] text-ink-muted">Slope cost / degree</span>
                   <input
                     type="range"
                     min={0}
@@ -181,12 +180,12 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
                     className="solara-range min-w-0 flex-1"
                     aria-label="Slope cost per degree"
                   />
-                  <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
+                  <span className="w-10 shrink-0 text-right font-mono text-[11px] text-ink">
                     {mission.params.slopeCostPerDeg.toFixed(3)}
                   </span>
                 </label>
                 <label className="mt-1.5 flex items-center gap-2">
-                  <span className="w-28 shrink-0 text-[10.5px] text-ink-muted">Max slope (block)</span>
+                  <span className="w-28 shrink-0 text-[11px] text-ink-muted">Max slope (block)</span>
                   <input
                     type="range"
                     min={10}
@@ -197,11 +196,11 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
                     className="solara-range min-w-0 flex-1"
                     aria-label="Maximum slope in degrees before blocking"
                   />
-                  <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ink">
+                  <span className="w-10 shrink-0 text-right font-mono text-[11px] text-ink">
                     {mission.params.maxSlopeDeg}°
                   </span>
                 </label>
-                <p className="mt-1 text-[10px] leading-snug text-ink-subtle">
+                <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
                   Prototype thresholds — not operational safety limits.
                 </p>
               </div>
@@ -219,53 +218,6 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
           </div>
         </div>
       </Section>
-
-      {(hasRoute || mission.routeStatus === 'computing' || mission.routeError) && (
-        <RouteSummary
-          route={route}
-          computing={mission.routeStatus === 'computing'}
-          error={mission.routeError?.message ?? null}
-        />
-      )}
-
-      {route && (
-        <Section title="Elevation profile">
-          <ElevationProfile route={route} />
-        </Section>
-      )}
-
-      {route && route.warnings.length > 0 && (
-        <Section title="Terrain-derived concerns" hint="prototype model">
-          <ul className="flex flex-col gap-1.5" data-testid="route-warnings">
-            {route.warnings.map((warning, i) => (
-              <li key={i} className="flex gap-1.5 text-[11px] leading-snug text-warn">
-                <Flag className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
-                <span>{warning}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {mission.gridMeta && (
-        <Section title="Route data provenance">
-          <div className="flex flex-col gap-1 text-[10.5px] leading-snug text-ink-muted">
-            <span>
-              Grid prepared <span className="font-mono">{mission.gridMeta.preparedAt.slice(0, 10)}</span> from{' '}
-              <span className="break-all">{mission.gridMeta.sourceService}</span>
-            </span>
-            <span>{mission.gridMeta.sourceMethod}</span>
-            {mission.gridMeta.centreValidation && (
-              <span>
-                Centre cross-check: live identify {mission.gridMeta.centreValidation.identifyValueM} m vs grid{' '}
-                {mission.gridMeta.centreValidation.gridBilinearM} m (diff{' '}
-                {mission.gridMeta.centreValidation.diffM} m)
-              </span>
-            )}
-            <span className="text-ink-subtle">{mission.gridMeta.verticalReference}</span>
-          </div>
-        </Section>
-      )}
 
       <Section title="Mission plan">
         <div className="flex flex-col gap-2">
@@ -296,7 +248,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
             </p>
           )}
           {mission.importedAt && (
-            <p className="text-[10px] leading-snug text-ink-subtle" data-testid="plan-imported-note">
+            <p className="text-[10.5px] leading-snug text-ink-subtle" data-testid="plan-imported-note">
               Plan imported {mission.importedAt.slice(0, 10)} — displayed as loaded from the plan file;
               not re-verified against current terrain data.
             </p>

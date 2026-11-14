@@ -8,11 +8,13 @@
  * Large touch targets (>= 44 px), no hover-dependent interactions.
  *
  * FieldTabletMode shares the exact mission store, catalog, and MarsMap
- * engine with Habitat Mode — one application, two interfaces.
+ * engine with Habitat Mode — one application, two interfaces. The header
+ * carries its own mode navigation (this mode is active; Habitat is one tap
+ * away), so no floating control overlaps the map or sheet.
  */
 
 import { Suspense, lazy, useCallback, useRef, useState } from 'react';
-import { Download, MapPin, Play, RotateCcw, Upload, X } from 'lucide-react';
+import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions } from '../../data/catalog/datasets';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
@@ -145,20 +147,30 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
 
   const canCompute = mission.start !== null && mission.target !== null && mission.routeStatus !== 'computing';
 
+  const toggleSheet = () => setSheetOpen((v) => !v);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Compact top bar */}
+      {/* Compact header with this mode's navigation */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-edge bg-panel px-3">
-        <span className="text-sm font-semibold tracking-wide text-ink">SOLARA</span>
-        <span className="hidden text-[11px] text-ink-subtle sm:inline">Field Tablet</span>
-        <span
-          className="ml-2 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-warn"
-          data-testid="position-status"
-        >
-          {mission.position ? 'Position: SIMULATED (manually set)' : 'Position: not set — tap the map'}
+        <img src="/solara.svg" alt="" aria-hidden="true" className="size-5 shrink-0" />
+        <span className="shrink-0 text-sm font-semibold tracking-[0.14em] text-ink">SOLARA</span>
+        <span className="shrink-0 rounded border border-accent/40 bg-accent-subtle px-1.5 py-0.5 text-[10.5px] font-medium text-accent">
+          Field Tablet
         </span>
-        <Button className="ml-auto min-h-11" onClick={onExit}>
-          Habitat mode
+        <span
+          className="ml-auto min-w-0 truncate rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-warn"
+          data-testid="position-status"
+          title={mission.position ? 'Simulated position — manually set by tapping the map' : 'No simulated position set yet'}
+        >
+          {/* Short label on narrow headers so "SIMULATED" never truncates. */}
+          <span className="sm:hidden">{mission.position ? 'SIMULATED (manual)' : 'No position'}</span>
+          <span className="hidden sm:inline">
+            {mission.position ? 'Position: SIMULATED (manually set)' : 'Position: not set — tap the map'}
+          </span>
+        </span>
+        <Button variant="outline" size="sm" className="ml-1.5 min-h-9 shrink-0" onClick={onExit}>
+          Habitat
         </Button>
       </header>
 
@@ -186,41 +198,44 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       <div
         className={cn(
           'shrink-0 overflow-y-auto border-t border-edge bg-panel transition-[max-height] duration-200',
-          sheetOpen ? 'max-h-[46vh]' : 'max-h-12',
+          sheetOpen ? 'max-h-[52vh]' : 'max-h-14',
         )}
         data-testid="tablet-sheet"
       >
-        <div className="flex h-12 items-center justify-between px-3">
+        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-edge bg-panel px-4">
           <button
             type="button"
-            className="flex min-h-11 flex-1 items-center gap-2 text-left text-sm font-medium text-ink"
-            onClick={() => setSheetOpen((v) => !v)}
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
+            onClick={toggleSheet}
             aria-expanded={sheetOpen}
           >
-            Mission sheet
+            <span className="shrink-0 text-sm font-medium text-ink">Mission</span>
             {route && (
-              <span className="font-mono text-[11px] text-ink-muted">
-                {formatDistance(route.totalGroundDistanceM)} route candidate
+              <span className="min-w-0 truncate font-mono text-xs text-accent">
+                {formatDistance(route.totalGroundDistanceM)} candidate
               </span>
             )}
           </button>
           <button
             type="button"
-            className="flex size-11 items-center justify-center text-ink-muted hover:text-ink"
-            onClick={() => setSheetOpen((v) => !v)}
+            className="flex size-11 shrink-0 items-center justify-center text-ink-muted transition-colors hover:text-ink"
+            onClick={toggleSheet}
             aria-label={sheetOpen ? 'Collapse mission sheet' : 'Expand mission sheet'}
           >
-            {sheetOpen ? <X aria-hidden="true" /> : <MapPin aria-hidden="true" />}
+            <ChevronDown
+              aria-hidden="true"
+              className={cn('size-5 transition-transform duration-150', !sheetOpen && 'rotate-180')}
+            />
           </button>
-        </div>
+        </header>
 
         {sheetOpen && (
-          <div className="px-3 pb-4">
+          <div className="px-4 pb-5">
             {/* Position + next waypoint */}
-            <Section title="Your position" hint="simulated — tap the map to set">
+            <Section title="Your position" hint="simulated — tap the map to set" className="px-0">
               {mission.position ? (
                 <div className="flex flex-col gap-2">
-                  <div className="font-mono text-[11.5px] text-ink">
+                  <div className="font-mono text-[13px] text-ink">
                     {formatLon(mission.position.lon)} {formatLat(mission.position.lat)}
                   </div>
                   <Button
@@ -233,33 +248,33 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                   </Button>
                 </div>
               ) : (
-                <p className="text-[11px] leading-relaxed text-ink-muted">
+                <p className="text-xs leading-relaxed text-ink-muted">
                   Tap the map to set a simulated position. There is no Mars GPS — the marker is
                   labelled SIMULATED everywhere.
                 </p>
               )}
 
               {mission.position && !route && (
-                <div className="mt-2 flex gap-2">
-                  <Button variant="outline" className="min-h-11 flex-1" onClick={() => mission.position && setStart(mission.position)}>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="min-h-11" onClick={() => mission.position && setStart(mission.position)}>
                     Set start here
                   </Button>
-                  <Button variant="outline" className="min-h-11 flex-1" onClick={() => mission.position && setTarget(mission.position)}>
+                  <Button variant="outline" className="min-h-11" onClick={() => mission.position && setTarget(mission.position)}>
                     Set target here
                   </Button>
                 </div>
               )}
 
               {nextWaypoint && (
-                <div className="mt-2 rounded-md border border-accent/40 bg-panel-raised px-3 py-2" data-testid="next-waypoint">
-                  <div className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">Nearest route point</div>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="font-mono text-lg text-accent">
+                <div className="mt-2 rounded-md border border-edge bg-panel-raised px-3 py-2.5" data-testid="next-waypoint">
+                  <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Nearest route point</div>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="font-mono text-xl text-accent">
                       {formatDistance(nextWaypoint.distanceToWaypointM)}
                     </span>
                     <span className="text-[11px] text-ink-muted">to this point</span>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-ink-muted">
+                  <div className="mt-1 text-[11.5px] text-ink-muted">
                     {formatDistance(nextWaypoint.remainingAlongRouteM)} remaining along the route ·
                     elevation {Math.round(nextWaypoint.elevM)} m
                   </div>
@@ -268,7 +283,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             </Section>
 
             {route && (
-              <Section title="Route progress">
+              <Section title="Route progress" className="px-0">
                 <ElevationProfile route={route} height={80} />
               </Section>
             )}
@@ -280,10 +295,10 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             />
 
             {route && route.warnings.length > 0 && (
-              <Section title="Known terrain concerns" hint="prototype model">
+              <Section title="Known terrain concerns" hint="prototype model" className="px-0">
                 <ul className="flex flex-col gap-1.5">
                   {route.warnings.map((warning, i) => (
-                    <li key={i} className="text-[11.5px] leading-snug text-warn">
+                    <li key={i} className="text-[12.5px] leading-snug text-warn">
                       {warning}
                     </li>
                   ))}
@@ -291,25 +306,50 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               </Section>
             )}
 
-            {/* Quick actions */}
-            <Section title="Actions">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="accent" className="min-h-11 flex-1" disabled={!canCompute} onClick={() => computeRoute()}>
-                  <Play aria-hidden="true" />
-                  Compute route
-                </Button>
-                <Button variant="outline" className="min-h-11" onClick={() => clearRoute()} disabled={!route && mission.routeStatus === 'idle'}>
-                  <RotateCcw aria-hidden="true" />
-                  Clear route
-                </Button>
-                <Button variant="outline" className="min-h-11" onClick={handleExport} disabled={!route && !mission.start && !mission.target}>
-                  <Download aria-hidden="true" />
-                  Export plan
-                </Button>
-                <Button variant="outline" className="min-h-11" onClick={() => fileInputRef.current?.click()} disabled={!route && !mission.start && !mission.target}>
-                  <Upload aria-hidden="true" />
-                  Import plan
-                </Button>
+            {/* Actions — primary row + grouped secondary grid (no misaligned
+                free-wrap). */}
+            <Section title="Actions" className="px-0">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="accent"
+                    className="min-h-11 flex-1"
+                    disabled={!canCompute}
+                    onClick={() => computeRoute()}
+                  >
+                    <Play aria-hidden="true" />
+                    {mission.routeStatus === 'computing' ? 'Computing…' : 'Compute route'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => clearRoute()}
+                    disabled={!route && mission.routeStatus === 'idle'}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    Clear route
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={handleExport}
+                    disabled={!route && !mission.start && !mission.target}
+                  >
+                    <Download aria-hidden="true" />
+                    Export plan
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!route && !mission.start && !mission.target}
+                  >
+                    <Upload aria-hidden="true" />
+                    Import plan
+                  </Button>
+                </div>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -321,28 +361,31 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                     e.target.value = '';
                   }}
                 />
+                {importError && (
+                  <p className="text-[11.5px] leading-snug text-danger">Import failed: {importError}</p>
+                )}
+                {mission.importedAt && (
+                  <p className="text-[10.5px] leading-snug text-ink-subtle">
+                    Plan imported {mission.importedAt.slice(0, 10)} — displayed as loaded from the plan
+                    file; not re-verified against current terrain data.
+                  </p>
+                )}
               </div>
-              {importError && (
-                <p className="mt-1.5 text-[11px] leading-snug text-danger">Import failed: {importError}</p>
-              )}
-              {mission.importedAt && (
-                <p className="mt-1.5 text-[10px] leading-snug text-ink-subtle">
-                  Plan imported {mission.importedAt.slice(0, 10)} — displayed as loaded from the plan
-                  file; not re-verified against current terrain data.
-                </p>
-              )}
             </Section>
 
-            {/* Layers — minimal toggles */}
-            <Section title="Map layers">
-              <div className="flex flex-col gap-2.5">
+            {/* Layers — touch-sized toggle rows */}
+            <Section title="Map layers" className="px-0">
+              <div className="flex flex-col gap-0.5">
                 {[...BASE_LAYER_IDS, ...OVERLAY_IDS].map((id) => {
                   const dataset = DATASETS.find((d) => d.id === id);
                   if (!dataset) return null;
                   const state = layerStates[id] ?? { visible: false, opacity: 1 };
                   return (
-                    <div key={id} className="flex items-center justify-between gap-3">
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink" title={dataset.title}>
+                    <div
+                      key={id}
+                      className="flex min-h-11 items-center justify-between gap-3 rounded-md px-1 transition-colors duration-150 hover:bg-panel-raised/50"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink" title={dataset.title}>
                         {dataset.title}
                       </span>
                       <Switch

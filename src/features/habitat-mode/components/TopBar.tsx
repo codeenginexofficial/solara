@@ -1,11 +1,13 @@
 /**
- * TopBar — application header: wordmark, region context, operating mode,
- * source connection status, and compact controls (Design.md §5).
+ * TopBar — application header: wordmark, operating-mode navigation, region
+ * context, source connection status, and compact controls (Design.md §5).
+ *
+ * The mode switch is deliberately part of the header (not a floating control
+ * over the map): mode selection is an explicit, always-visible decision.
  */
 
 import { PanelLeft, PanelRight, Maximize2 } from 'lucide-react';
 import type { SourceStatus, CapabilitiesStatus } from '../../../map/mapTypes';
-import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 import { formatUtcTime } from '../../../lib/format';
@@ -29,6 +31,8 @@ export interface TopBarProps {
   onFitRegion: () => void;
   onToggleLeftPanel: () => void;
   onToggleRightPanel: () => void;
+  /** Provided when the app can switch to Field Tablet Mode from here. */
+  onSwitchToTablet?: () => void;
 }
 
 export function TopBar({
@@ -37,29 +41,54 @@ export function TopBar({
   onFitRegion,
   onToggleLeftPanel,
   onToggleRightPanel,
+  onSwitchToTablet,
 }: TopBarProps) {
   const status = STATUS_TEXT[sourceStatus.capabilities];
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-edge bg-panel px-3">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-edge bg-panel px-3">
       {/* Wordmark */}
       <div className="flex items-center gap-2">
         <img src="/solara.svg" alt="" aria-hidden="true" className="size-5" />
         <span className="text-sm font-semibold tracking-[0.18em] text-ink">SOLARA</span>
-        <Badge tone="neutral" className="hidden font-mono sm:inline">M0</Badge>
       </div>
 
       <span className="hidden h-4 w-px bg-edge md:block" aria-hidden="true" />
 
-      {/* Region + mode context */}
-      <div className="hidden min-w-0 items-center gap-2 md:flex">
-        <span className="truncate text-xs text-ink-muted" title={regionLabel}>
-          Mars — {regionLabel}
-        </span>
-        <Badge tone="accent">Habitat Mode</Badge>
-      </div>
+      {/* Operating-mode navigation (this header only ever shows Habitat as
+          active; Field Tablet renders its own header variant). */}
+      {onSwitchToTablet && (
+        <div
+          className="flex items-center gap-0.5 rounded-md border border-edge bg-panel-raised/60 p-0.5"
+          aria-label="Operating mode"
+          data-testid="mode-switch"
+        >
+          <span
+            aria-current="true"
+            className="whitespace-nowrap rounded-sm bg-accent-subtle px-2.5 py-1 text-[11px] font-medium text-accent"
+          >
+            Habitat
+          </span>
+          <button
+            type="button"
+            onClick={onSwitchToTablet}
+            aria-label="Switch to Field Tablet mode"
+            className="whitespace-nowrap rounded-sm px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink"
+          >
+            Field tablet
+          </button>
+        </div>
+      )}
 
-      <div className="ml-auto flex items-center gap-2">
+      {/* Region context */}
+      <span
+        className="hidden min-w-0 truncate text-xs text-ink-muted md:block"
+        title={regionLabel}
+      >
+        Mars — {regionLabel}
+      </span>
+
+      <div className="ml-auto flex items-center gap-1.5">
         {/* Source connection status */}
         <div
           className="hidden min-w-0 items-center gap-2 sm:flex"
@@ -77,7 +106,7 @@ export function TopBar({
           />
           <span className="whitespace-nowrap text-[11px] text-ink-muted">{status.label}</span>
           {sourceStatus.lastCheckedAt && (
-            <span className="hidden font-mono text-[10px] text-ink-subtle lg:inline">
+            <span className="hidden font-mono text-[10.5px] text-ink-subtle lg:inline">
               {formatUtcTime(sourceStatus.lastCheckedAt)}
             </span>
           )}
@@ -104,8 +133,7 @@ export function TopBar({
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
-          aria-label="Toggle mission copilot"
+          aria-label="Toggle workspace panel"
           onClick={onToggleRightPanel}
         >
           <PanelRight />

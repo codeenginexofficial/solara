@@ -174,7 +174,7 @@ const ROUTE_LINE_STYLE = new Style({
 });
 
 const ROUTE_LINE_INNER_STYLE = new Style({
-  stroke: new Stroke({ color: 'rgba(103, 232, 249, 0.95)', width: 2.5 }),
+  stroke: new Stroke({ color: 'rgba(101, 197, 189, 0.95)', width: 2.5 }),
 });
 
 function markerStyle(color: string, label: string): Style {
@@ -195,20 +195,20 @@ function markerStyle(color: string, label: string): Style {
   });
 }
 
-const START_MARKER_STYLE = markerStyle('rgba(103, 232, 249, 1)', 'START');
-const TARGET_MARKER_STYLE = markerStyle('rgba(251, 146, 60, 1)', 'TARGET');
-/** Waypoint token tone: light ring, semi-transparent fill. */
+const START_MARKER_STYLE = markerStyle('rgba(101, 197, 189, 1)', 'START');
+const TARGET_MARKER_STYLE = markerStyle('rgba(209, 161, 92, 1)', 'TARGET');
+/** Waypoint token tone: light ring, semi-transparent fill (off-white ink). */
 const SELECTED_MARKER_STYLE = new Style({
   image: new CircleStyle({
     radius: 7,
-    fill: new Fill({ color: 'rgba(240, 231, 216, 0.25)' }),
-    stroke: new Stroke({ color: 'rgba(240, 231, 216, 1)', width: 2 }),
+    fill: new Fill({ color: 'rgba(232, 220, 206, 0.25)' }),
+    stroke: new Stroke({ color: 'rgba(232, 220, 206, 1)', width: 2 }),
   }),
   text: new Text({
     text: 'SELECTED',
     offsetY: -16,
     font: '600 10px ui-monospace, monospace',
-    fill: new Fill({ color: 'rgba(240, 231, 216, 1)' }),
+    fill: new Fill({ color: 'rgba(232, 220, 206, 1)' }),
     stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.85)', width: 3 }),
     overflow: true,
   }),
@@ -782,7 +782,7 @@ export default function MarsMap({
         .map(([datasetId, entry]) => (
           <div
             key={datasetId}
-            className="pointer-events-none absolute bottom-3 left-3 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
+            className="pointer-events-none absolute left-3 top-20 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
             data-testid={`overlay-errors-${datasetId}`}
           >
             {`Overlay "${datasetId}" could not be loaded: ${entry.message ?? 'cause not determined'}`}

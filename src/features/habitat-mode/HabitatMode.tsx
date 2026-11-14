@@ -1,11 +1,15 @@
 /**
  * HabitatMode — desktop mission-operations workstation (Context.md §4.1).
  *
- * Layout (Design.md §5): top bar / [Mission Operations | map | Mission
- * Copilot] / status bar. The map is the primary workspace. All map state
- * flows through plain serializable values; OpenLayers objects stay inside
- * MarsMap. The Copilot conversation is in-memory component state — lost on
- * reload, consistent with the mission store philosophy.
+ * Layout (Design.md §5): top bar / [Mission Operations | map | Inspector +
+ * Copilot workspace] / status bar. The map is the primary workspace. All map
+ * state flows through plain serializable values; OpenLayers objects stay
+ * inside MarsMap. The Copilot conversation is in-memory component state —
+ * lost on reload, consistent with the mission store philosophy.
+ *
+ * The right workspace (ContextWorkspace) is tabbed, resizable and
+ * collapsible; its `open` state is shared between the overlay drawer (< lg)
+ * and the docked desktop panel, and initializes open on desktop widths.
  *
  * MarsMap (which pulls in OpenLayers, the largest dependency) is loaded
  * lazily via React.lazy so the initial application shell stays lightweight
@@ -21,6 +25,12 @@ import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalo
 import type { LayerUiState } from './components/MissionOperationsPanel';
 import { MissionOperationsPanel } from './components/MissionOperationsPanel';
 import { CopilotPanel, type CopilotContextPayload } from './components/CopilotPanel';
+import {
+  ContextWorkspace,
+  WORKSPACE_DEFAULT_WIDTH,
+  type ContextWorkspaceTab,
+} from './components/ContextWorkspace';
+import { InspectorPanel } from './components/InspectorPanel';
 import type { ElevationState } from './components/LocationPanel';
 import { useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
@@ -73,7 +83,7 @@ function MapWorkspaceFallback() {
   );
 }
 
-export default function HabitatMode() {
+export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: () => void }) {
   const mapApi = useRef<MarsMapHandle | null>(null);
   const mission = useMissionState();
 
@@ -96,8 +106,11 @@ export default function HabitatMode() {
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
   const [locationElevation, setLocationElevation] = useState<ElevationState | null>(null);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [copilotExpanded, setCopilotExpanded] = useState(false);
+  /* One boolean drives both the desktop docked panel and the <lg overlay
+   * drawer; initialize open on desktop widths. */
+  const [workspaceOpen, setWorkspaceOpen] = useState(() => window.innerWidth >= 1024);
+  const [workspaceTab, setWorkspaceTab] = useState<ContextWorkspaceTab>('inspector');
+  const [workspaceWidth, setWorkspaceWidth] = useState(WORKSPACE_DEFAULT_WIDTH);
 
   const selectedDataset = getDatasetById(selectedDatasetId);
 
@@ -201,7 +214,8 @@ export default function HabitatMode() {
         sourceStatus={sourceStatus}
         onFitRegion={handleFitRegion}
         onToggleLeftPanel={() => setLeftPanelOpen((v) => !v)}
-        onToggleRightPanel={() => setRightPanelOpen((v) => !v)}
+        onToggleRightPanel={() => setWorkspaceOpen((v) => !v)}
+        onSwitchToTablet={onSwitchToTablet}
       />
 
       <div className="relative flex min-h-0 flex-1">
@@ -223,7 +237,6 @@ export default function HabitatMode() {
             onToggleVisibility={handleToggleVisibility}
             onOpacityChange={handleOpacityChange}
             onFitRegion={handleFitRegion}
-            onElevationStateChange={setLocationElevation}
           />
         </aside>
 
@@ -249,22 +262,27 @@ export default function HabitatMode() {
           </Suspense>
         </main>
 
-        {/* Right panel — SOLARA Mission Copilot (width-only expand toggle;
-            the component stays mounted so history and draft are kept). */}
-        <aside
-          className={cn(
-            'absolute inset-y-0 right-0 z-20 w-[22rem] max-w-[calc(100vw-2rem)] flex-col border-l border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
-            rightPanelOpen ? 'flex' : 'hidden lg:flex',
-            copilotExpanded && 'lg:w-[38rem]',
-          )}
-          aria-label="SOLARA Mission Copilot"
-        >
-          <CopilotPanel
-            context={copilotContext}
-            expanded={copilotExpanded}
-            onToggleExpanded={() => setCopilotExpanded((v) => !v)}
-          />
-        </aside>
+        {/* Right workspace — tabbed Inspector | Copilot, resizable and
+            collapsible (overlay drawer below lg). Both tab contents stay
+            mounted so background elevation queries keep updating the
+            Copilot context. */}
+        <ContextWorkspace
+          open={workspaceOpen}
+          onClose={() => setWorkspaceOpen(false)}
+          tab={workspaceTab}
+          onTabChange={setWorkspaceTab}
+          width={workspaceWidth}
+          onWidthChange={setWorkspaceWidth}
+          inspector={
+            <InspectorPanel
+              location={selectedLocation}
+              region={REGION}
+              dataset={selectedDataset}
+              onElevationStateChange={setLocationElevation}
+            />
+          }
+          copilot={<CopilotPanel context={copilotContext} />}
+        />
       </div>
 
       <StatusBar

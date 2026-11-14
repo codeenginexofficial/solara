@@ -1,7 +1,7 @@
 /**
  * MissionOperationsPanel — left panel: mission area, map layers with honest
- * runtime states, query-only data, selected location, and mission planning
- * (Context.md §4.1, Design.md §5).
+ * runtime states, query-only data, and mission planning (Context.md §4.1,
+ * Design.md §5).
  *
  * Runtime chips are derived from real wiring only: WMTS bases report
  * OFF/ACTIVE (tile failures surface via the map's tile banner, not fake
@@ -11,6 +11,9 @@
  *
  * Grouping is presentational: rendering order in MarsMap stays array order
  * (bottom-first, topography under imagery).
+ *
+ * The selected location (LocationPanel) lives in the workspace Inspector
+ * tab since the 2026-11-14 UI milestone.
  */
 
 import { useState } from 'react';
@@ -22,7 +25,6 @@ import { Button } from '../../../components/ui/button';
 import { Section } from '../../../components/ui/section';
 import { Switch } from '../../../components/ui/switch';
 import { DatasetDetails } from './DatasetPanel';
-import { LocationPanel, type ElevationState } from './LocationPanel';
 import { MissionPanel } from './MissionPanel';
 import { cn } from '../../../lib/utils';
 import { MARS_METRES_PER_DEGREE } from '../../../lib/marsCrs';
@@ -43,7 +45,6 @@ export interface MissionOperationsPanelProps {
   onToggleVisibility: (id: string, visible: boolean) => void;
   onOpacityChange: (id: string, opacity: number) => void;
   onFitRegion: () => void;
-  onElevationStateChange: (state: ElevationState | null) => void;
 }
 
 /** Presentational grouping only — see the header note on rendering order. */
@@ -99,7 +100,6 @@ export function MissionOperationsPanel({
   onToggleVisibility,
   onOpacityChange,
   onFitRegion,
-  onElevationStateChange,
 }: MissionOperationsPanelProps) {
   const [openInfoId, setOpenInfoId] = useState<string | null>(null);
 
@@ -129,15 +129,15 @@ export function MissionOperationsPanel({
         }
       >
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-ink">{region.name}</span>
-          <p className="text-[11px] leading-relaxed text-ink-muted">{region.description}</p>
-          <div className="mt-1 grid grid-cols-2 gap-x-3 font-mono text-[10.5px] text-ink-muted">
+          <span className="text-[13px] font-medium text-ink">{region.name}</span>
+          <p className="text-xs leading-relaxed text-ink-muted">{region.description}</p>
+          <div className="mt-1 grid grid-cols-2 gap-x-3 font-mono text-[11px] text-ink-muted">
             <span>{formatLon(bbox.westLon)}</span>
             <span>{formatLat(bbox.northLat)}</span>
             <span>{formatLon(bbox.eastLon)}</span>
             <span>{formatLat(bbox.southLat)}</span>
           </div>
-          <span className="mt-1 text-[10px] text-ink-subtle">
+          <span className="mt-1 text-[11px] text-ink-subtle">
             ≈ {formatDistance(widthM)} × {formatDistance(heightM)} (ground estimate)
           </span>
         </div>
@@ -145,11 +145,11 @@ export function MissionOperationsPanel({
 
       {/* (b) Map layers — grouped presentation, unchanged rendering order */}
       <Section title="Map layers">
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           {LAYER_GROUPS.map((group) => (
             <div key={group.title}>
-              <div className="mb-1 text-[10px] uppercase tracking-[0.06em] text-ink-subtle">{group.title}</div>
-              <ul className="flex flex-col gap-1.5">
+              <div className="mb-1 text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{group.title}</div>
+              <ul className="flex flex-col gap-0.5">
                 {group.ids.map((id) => {
                   const dataset = datasetById.get(id);
                   if (!dataset) return null;
@@ -157,13 +157,19 @@ export function MissionOperationsPanel({
                   const chip = runtimeChip(dataset, state, overlayStatus);
                   const infoOpen = openInfoId === id;
                   return (
-                    <li key={id} className="rounded-md border border-edge px-2.5 py-2">
+                    <li
+                      key={id}
+                      className={cn(
+                        'rounded-md px-2 py-2 transition-colors duration-150',
+                        infoOpen ? 'bg-panel-raised/60' : 'hover:bg-panel-raised/50',
+                      )}
+                    >
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-medium text-ink" title={dataset.title}>
+                          <div className="truncate text-[13px] font-medium text-ink" title={dataset.title}>
                             {dataset.title}
                           </div>
-                          <div className="text-[10px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
+                          <div className="text-[11px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
                         </div>
                         <Switch
                           checked={state.visible}
@@ -187,7 +193,7 @@ export function MissionOperationsPanel({
                         <div className="flex min-w-0 items-center gap-1.5">
                           <Badge tone={chip.tone}>{chip.label}</Badge>
                           <span
-                            className="truncate text-[10px] text-ink-subtle"
+                            className="truncate text-[10.5px] text-ink-subtle"
                             title="Verification-workflow status — renders with verified alignment, CRS and metadata; not a live health signal"
                           >
                             {VERIFICATION_LABEL[dataset.verification]}
@@ -195,7 +201,7 @@ export function MissionOperationsPanel({
                         </div>
                         {state.visible && (
                           <label className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className="shrink-0 text-[10px] text-ink-subtle">Opacity</span>
+                            <span className="shrink-0 text-[10.5px] text-ink-subtle">Opacity</span>
                             <input
                               type="range"
                               min={0}
@@ -205,7 +211,7 @@ export function MissionOperationsPanel({
                               className="solara-range min-w-0 flex-1"
                               aria-label={`${dataset.title} opacity`}
                             />
-                            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-ink-muted">
+                            <span className="w-8 shrink-0 text-right font-mono text-[10.5px] text-ink-muted">
                               {Math.round(state.opacity * 100)}%
                             </span>
                           </label>
@@ -224,20 +230,26 @@ export function MissionOperationsPanel({
       {/* (c) Query-only data — no switch: the DEM is never drawn on the map */}
       {queryDatasets.length > 0 && (
         <Section title="Query-only data">
-          <p className="mb-2 text-[10px] leading-snug text-ink-subtle">
+          <p className="mb-2 text-[11px] leading-snug text-ink-subtle">
             Used for elevation queries and mission-planning terrain costs; not drawn on the map.
           </p>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-0.5">
             {queryDatasets.map((dataset) => {
               const infoOpen = openInfoId === dataset.id;
               return (
-                <li key={dataset.id} className="rounded-md border border-edge px-2.5 py-2">
+                <li
+                  key={dataset.id}
+                  className={cn(
+                    'rounded-md px-2 py-2 transition-colors duration-150',
+                    infoOpen ? 'bg-panel-raised/60' : 'hover:bg-panel-raised/50',
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium text-ink" title={dataset.title}>
+                      <div className="truncate text-[13px] font-medium text-ink" title={dataset.title}>
                         {dataset.title}
                       </div>
-                      <div className="text-[10px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
+                      <div className="text-[11px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
                     </div>
                     <button
                       type="button"
@@ -260,12 +272,7 @@ export function MissionOperationsPanel({
         </Section>
       )}
 
-      {/* (d) Selected location + (e) Mission planning */}
-      <LocationPanel
-        location={selectedLocation}
-        region={region}
-        onElevationStateChange={onElevationStateChange}
-      />
+      {/* (e) Mission planning */}
       <MissionPanel selectedLocation={selectedLocation} />
     </div>
   );
