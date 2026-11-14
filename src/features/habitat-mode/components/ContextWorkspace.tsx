@@ -89,7 +89,7 @@ export function ContextWorkspace({
   return (
     <aside
       data-testid="context-workspace"
-      aria-label="Inspector and Copilot workspace"
+      aria-label="Inspector and Solara AI workspace"
       style={{ '--work-w': `${width}px` } as CSSProperties}
       className={cn(
         'absolute inset-y-0 right-0 z-20 flex-col rounded-l-2xl border-l border-edge bg-panel shadow-2xl',
@@ -153,7 +153,7 @@ export function ContextWorkspace({
                 : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
             )}
           >
-            Copilot
+            Solara AI
           </button>
         </div>
         <Button

@@ -62,7 +62,7 @@ const OVERLAY_ID_SET: ReadonlySet<string> = new Set(OVERLAY_IDS);
 const DATA_NOT_AVAILABLE_CONTEXT =
   'Not available in SOLARA data: weather, temperature, pressure, wind, dust, and radiation ' +
   'observations; real-time rover position (historical track through sol 1176 only); site-scale ' +
-  'slope, hazards, or rock abundance; route safety validation; image content (the Copilot cannot ' +
+  'slope, hazards, or rock abundance; route safety validation; image content (Solara AI cannot ' +
   'see map imagery). Environmental values are unknown unless a dataset is integrated.';
 
 /** Copilot context sections stay compact (each ≤ ~600 chars). */

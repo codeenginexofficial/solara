@@ -1,6 +1,6 @@
 # SOLARA — Documentation
 
-**SOLARA** is a Martian surface-intelligence and mission-planning application built for the **NASA International Space Apps Challenge 2026** (challenge: *Interplanetary Survival Guide: Martian Map*). It integrates verified NASA/USGS planetary datasets — CTX optical imagery, MOLA+HRSC topography, USGS geology, and historical Mars 2020 Perseverance rover data — into one map-centred workspace for Jezero Crater, with a prototype terrain-cost route planner and a ground-ruled Mission Copilot.
+**SOLARA** is a Martian surface-intelligence and mission-planning application built for the **NASA International Space Apps Challenge 2026** (challenge: *Interplanetary Survival Guide: Martian Map*). It integrates verified NASA/USGS planetary datasets — CTX optical imagery, MOLA+HRSC topography, USGS geology, and historical Mars 2020 Perseverance rover data — into one map-centred workspace for Jezero Crater, with a prototype terrain-cost route planner and a ground-ruled **Solara AI** copilot.
 
 **Status:** working, demonstrable MVP. Everything documented here describes the **as-built** code in this repository. Where the design-intent documents (`Context.md`, `Architecture.md`, `Design.md`) differ from the code, this document and the code are authoritative; `Architecture.md §16` and `AGENTS.md` are the as-built implementation records.
 
@@ -16,7 +16,7 @@
 4. [Data sources & dataset catalog](#4-data-sources--dataset-catalog)
 5. [Mapping system (OpenLayers & CRS)](#5-mapping-system-openlayers--crs)
 6. [Mission planning & route engine](#6-mission-planning--route-engine)
-7. [Mission Copilot (AI integration)](#7-mission-copilot-ai-integration)
+7. [Solara AI (AI integration)](#7-solara-ai-ai-integration)
 8. [UI & design system](#8-ui--design-system)
 9. [Data pipeline & prepared assets](#9-data-pipeline--prepared-assets)
 10. [Environment variables](#10-environment-variables)
@@ -43,7 +43,7 @@ Two interfaces over the **same** mission model, data catalog, and map engine (`C
 
 | Mode | Purpose | Layout |
 |---|---|---|
-| **Habitat Mode** (`src/features/habitat-mode/`) | Desktop mission planning before a Marswalk: layers, dataset inspection, start/target selection, route generation, plan export | Top bar / left Mission Operations panel / centre map / right tabbed Inspector + Copilot workspace / status bar |
+| **Habitat Mode** (`src/features/habitat-mode/`) | Desktop mission planning before a Marswalk: layers, dataset inspection, start/target selection, route generation, plan export | Top bar / left Mission Operations panel / centre map / right tabbed Inspector + Solara AI workspace / status bar |
 | **Field Tablet Mode** (`src/features/field-tablet/`) | Touch-first execution during the excursion: route on the map, simulated position, nearest-route-point card, plan import | Map-dominant with a collapsible bottom sheet (`data-testid="tablet-sheet"`) |
 
 ### Core capabilities (all implemented)
@@ -53,7 +53,7 @@ Two interfaces over the **same** mission model, data catalog, and map engine (`C
 - Terrain elevation: live Trek ImageServer point queries **plus** a prepared, centre-validated grid.
 - **Prototype terrain-cost routing**: A* over the prepared DEM grid in a Web Worker, with distance, elevation profile, slope stats, and warnings.
 - Mission plan export/import (`solara-plan/1` JSON files) shared between modes.
-- Mission Copilot chat backed by a Cloudflare Worker proxy with server-side honesty guardrails.
+- Solara AI chat backed by a Cloudflare Worker proxy with server-side honesty guardrails.
 
 ### Geographic scope
 
@@ -260,7 +260,7 @@ Every elevation display states which path produced it; out-of-extent samples are
 
 ---
 
-## 7. Mission Copilot (AI integration)
+## 7. Solara AI (AI integration)
 
 Architecture: **browser client → Cloudflare Worker proxy → OpenRouter**. The API key never reaches the client; there is no `VITE_*` credential by design.
 
@@ -282,7 +282,7 @@ sequenceDiagram
 - **Endpoint:** `POST /api/copilot/chat` (Vite dev-proxies `/api/copilot` → `http://127.0.0.1:8787`).
 - **Client (`src/features/copilot/copilotClient.ts`):** never sends a `system` role, never carries credentials; trims history to `MAX_CONVERSATION_MESSAGES = 24` before sending (shared contract with the Worker's `MAX_MESSAGES` — change both sides together or sends brick on `invalid-request`); context sections (`explorationRegion`, `selectedLocation`, `visibleLayers`, `missionPlan`, `dataNotAvailable`) are each clamped to ~600 chars client-side.
 - **Server-side guardrails (`worker/src/index.ts`):** a system prompt grounds answers ONLY in (1) verified dataset facts (fixed, source-verified text with verification date), (2) current app context honouring its observed/derived/modelled/historical/unavailable labels, (3) the user's conversation. It forbids inventing temperature/pressure/wind/dust/radiation/illumination, live rover position, site-scale hazards, route safety, or image content; unknown must be answered as unknown. Context values are clamped (4,000 chars/section) and lines beginning with `#` are stripped (prompt-injection surface). Payload limits: ≤ 24 messages, ≤ 8,000 chars/message, ≤ 256 kB body.
-- **Error codes** (client and Worker vocabularies are kept in sync): `invalid-request`, `payload-too-large`, `rate-limited`, `upstream-auth`, `upstream-error`, `upstream-unreachable`, `copilot-unconfigured`, `not-found`, `method-not-allowed`, plus client-side mappings `network-error` and `invalid-response`. The UI renders each as an honest error state — the app never pretends the Copilot is alive when it is not.
+- **Error codes** (client and Worker vocabularies are kept in sync): `invalid-request`, `payload-too-large`, `rate-limited`, `upstream-auth`, `upstream-error`, `upstream-unreachable`, `copilot-unconfigured`, `not-found`, `method-not-allowed`, plus client-side mappings `network-error` and `invalid-response`. The UI renders each as an honest error state — the app never pretends Solara AI is alive when it is not.
 - **Model selection:** `OPENROUTER_MODEL` var (default `openrouter/free`, the OpenRouter Free Models Router); the reply echoes the model id actually used.
 - **Conversation state** is in-memory component state — lost on reload (documented in the UI composer note).
 
@@ -366,7 +366,7 @@ Missing `OPENROUTER_API_KEY` is an honest runtime state: the Worker answers `cop
 
 ### Internal HTTP API
 
-The MVP has no public HTTP API. The single internal endpoint is the Copilot proxy:
+The MVP has no public HTTP API. The single internal endpoint is the Solara AI proxy:
 
 | Method | Path | Body | Success | Errors |
 |---|---|---|---|---|
@@ -460,8 +460,8 @@ There is no automated test framework. Validation is a documented, repeatable pro
 
 | Symptom | Cause | Resolution / status |
 |---|---|---|
-| Copilot sends fail with `copilot-unconfigured` / `offline` | Worker not running, or no `OPENROUTER_API_KEY` secret | Start `npm run dev:copilot`; set the secret. Correct honest behaviour, not a bug |
-| Copilot chip may stay "Idle" after `invalid-response` | Known minor UI-state issue | Accepted; error message is still shown honestly |
+| Solara AI sends fail with `copilot-unconfigured` / `offline` | Worker not running, or no `OPENROUTER_API_KEY` secret | Start `npm run dev:copilot`; set the secret. Correct honest behaviour, not a bug |
+| Solara AI status chip may stay "Idle" after `invalid-response` | Known minor UI-state issue | Accepted; error message is still shown honestly |
 | Route compute can hang at "Computing…" forever | Route worker has no timeout; a dead worker leaves the pending promise unresolved | Known issue; reload recovers (in-memory state) |
 | Selected location card resets when switching Habitat ⇄ Tablet | `selectedLocation` is component state, deliberately not shared | Accepted for MVP (mission plan is the shared artifact) |
 | Full-page reload wipes the current route | Mission state is intentionally in-memory only | Use plan export/import; documented in the UI |
@@ -493,7 +493,7 @@ Legend: ✅ Implemented · 🟡 Partially implemented · 🕐 Planned · ❌ Not
 | Habitat ⇄ Tablet sharing one mission model | ✅ | Shared store + plan files |
 | Rover traverse & landing ellipse (historical) | ✅ | Labelled historical, never a route reference |
 | Rover surface imagery at capture locations | ❌ | Not integrated (Context.md §6: only when verified/feasible) |
-| Environmental observations (MEDA) | ❌ | No verified dataset integrated; Copilot reports these as unknown |
+| Environmental observations (MEDA) | ❌ | No verified dataset integrated; Solara AI reports these as unknown |
 | Thermal / spectral / radiation / dust layers | ❌ | Not integrated |
 | Slope layer as a map layer | 🕐 | Slope is computed per route edge; no standalone slope raster layer |
 | Waypoints (multi-stop science targets) | 🕐 | Start + target only today; multi-waypoint is planned (Context.md §6) |
@@ -505,7 +505,7 @@ Legend: ✅ Implemented · 🟡 Partially implemented · 🕐 Planned · ❌ Not
 |---|---|---|
 | Plan export/import (`solara-plan/1`) | ✅ | Import marked "not re-verified" |
 | Simulated astronaut position (tablet) | ✅ | Always labelled SIMULATED; nearest-route-point card |
-| Mission Copilot | ✅ | Worker proxy + guardrails; in-memory conversation |
+| Solara AI (copilot) | ✅ | Worker proxy + guardrails; in-memory conversation |
 | Real Mars positioning / live rover feed | ❌ | Deliberate — none exists in SOLARA; track is historical |
 | Live weather / "storm warnings" | ❌ | Deliberate (honesty rules) |
 | Certified safety calculations | ❌ | Deliberate |

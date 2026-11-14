@@ -1,5 +1,6 @@
 /**
- * SOLARA Copilot proxy — the smallest compatible Cloudflare Worker.
+ * SOLARA Copilot proxy (serves the "Solara AI" workspace tab) — the smallest
+ * compatible Cloudflare Worker.
  *
  * Single endpoint: POST /api/copilot/chat
  *  - Validates and clamps the client payload (never reflected back verbatim).
@@ -46,7 +47,7 @@ const MAX_UPSTREAM_DETAIL_CHARS = 300;
 const DEFAULT_MODEL = 'openrouter/free';
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-const GUARDRAILS = `You are the SOLARA Mission Copilot, embedded in the SOLARA Mars mission-operations workstation for Jezero Crater (NASA Space Apps Challenge 2026 project). You help the operator with terrain, datasets, and mission planning.
+const GUARDRAILS = `You are Solara AI, embedded in the SOLARA Mars mission-operations workstation for Jezero Crater (NASA Space Apps Challenge 2026 project). You help the operator with terrain, datasets, and mission planning.
 
 GROUNDING — answer ONLY from:
 1. VERIFIED DATASET FACTS below (fixed, source-verified text).
@@ -154,7 +155,7 @@ async function callOpenRouter(
   } catch {
     return fail(
       'upstream-unreachable',
-      'Could not reach the OpenRouter API. The Copilot is unavailable right now.',
+      'Could not reach the OpenRouter API. Solara AI is unavailable right now.',
       502,
     );
   }
@@ -163,14 +164,14 @@ async function callOpenRouter(
     if (upstream.status === 429) {
       return fail(
         'rate-limited',
-        'The Copilot provider rate limit is active. Try again shortly.',
+        'The Solara AI provider rate limit is active. Try again shortly.',
         429,
       );
     }
     if (upstream.status === 401 || upstream.status === 403) {
       return fail(
         'upstream-auth',
-        'The Copilot proxy key was rejected by OpenRouter. Check OPENROUTER_API_KEY.',
+        'The Solara AI proxy key was rejected by OpenRouter. Check OPENROUTER_API_KEY.',
         502,
       );
     }
@@ -223,7 +224,7 @@ export default {
     if (typeof env.OPENROUTER_API_KEY !== 'string' || env.OPENROUTER_API_KEY.trim().length === 0) {
       return fail(
         'copilot-unconfigured',
-        'The Copilot proxy has no OPENROUTER_API_KEY configured. Ask the operator to set the Worker secret.',
+        'The Solara AI proxy has no OPENROUTER_API_KEY configured. Ask the operator to set the Worker secret.',
         503,
       );
     }

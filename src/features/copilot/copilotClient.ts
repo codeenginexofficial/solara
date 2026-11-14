@@ -82,7 +82,7 @@ export async function sendCopilotChat(
   } catch {
     throw new CopilotClientError(
       'network-error',
-      'The request to the Copilot proxy did not complete.',
+      'The request to the Solara AI proxy did not complete.',
     );
   }
 
@@ -109,14 +109,14 @@ export async function sendCopilotChat(
     }
     throw new CopilotClientError(
       'invalid-response',
-      `The Copilot proxy returned HTTP ${response.status} with an unusable body.`,
+      `The Solara AI proxy returned HTTP ${response.status} with an unusable body.`,
     );
   }
 
   const payload = body as { reply?: unknown; model?: unknown } | null;
   const reply = payload?.reply;
   if (typeof reply !== 'string' || reply.trim().length === 0) {
-    throw new CopilotClientError('invalid-response', 'The Copilot proxy returned no assistant content.');
+    throw new CopilotClientError('invalid-response', 'The Solara AI proxy returned no assistant content.');
   }
   const model = payload?.model;
   return {

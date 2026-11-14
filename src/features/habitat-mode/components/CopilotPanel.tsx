@@ -1,5 +1,5 @@
 /**
- * CopilotPanel — the workspace "Copilot" tab: SOLARA Mission Copilot.
+ * CopilotPanel — the workspace "Solara AI" tab.
  *
  * Talks to the Copilot proxy (POST /api/copilot/chat, dev-proxied to the
  * Cloudflare Worker). The proxy injects the honesty guardrails server-side;
@@ -61,15 +61,15 @@ const STARTER_QUESTIONS: readonly string[] = [
 function errorMessage(err: CopilotClientError): string {
   switch (err.code) {
     case 'copilot-unconfigured':
-      return 'The Copilot proxy has no OPENROUTER_API_KEY configured. Ask the operator to set the Worker secret (npm run dev:copilot).';
+      return 'Solara AI is unconfigured: the proxy has no OPENROUTER_API_KEY. Ask the operator to set the Worker secret (npm run dev:copilot).';
     case 'rate-limited':
-      return 'Copilot provider rate limit active — try again shortly.';
+      return 'Solara AI provider rate limit active — try again shortly.';
     case 'upstream-auth':
     case 'upstream-error':
     case 'upstream-unreachable':
-      return `Copilot provider unavailable — ${err.message}`;
+      return `Solara AI provider unavailable — ${err.message}`;
     case 'network-error':
-      return 'Copilot proxy not reachable — is `npm run dev:copilot` running?';
+      return 'Solara AI proxy not reachable — is `npm run dev:copilot` running?';
     default:
       return err.message;
   }
@@ -169,7 +169,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
         {status === 'ready' && modelId && (
           <span
             className="hidden shrink-0 truncate font-mono text-[10px] text-ink-subtle xl:inline"
-            title="Model id reported by the Copilot proxy"
+            title="Model id reported by the Solara AI proxy"
           >
             {modelId}
           </span>
@@ -216,7 +216,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
         ) : (
           <ol
             className="flex flex-col gap-3"
-            aria-label="Copilot conversation"
+            aria-label="Solara AI conversation"
             aria-live="polite"
             data-testid="copilot-conversation"
           >
@@ -236,7 +236,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
                     message.role === 'user' ? 'text-accent-strong' : 'text-ink-subtle',
                   )}
                 >
-                  {message.role === 'user' ? 'You' : 'Copilot'}
+                  {message.role === 'user' ? 'You' : 'Solara AI'}
                 </span>
                 {/* Plain text only — never dangerouslySetInnerHTML. */}
                 <div
@@ -253,7 +253,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
         {pending && (
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted" data-testid="copilot-waiting">
             <span className="inline-block size-2 rounded-full bg-accent opacity-40" aria-hidden="true" />
-            Waiting for the Copilot service…
+            Waiting for Solara AI…
           </div>
         )}
       </div>
@@ -282,7 +282,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
             }}
             rows={1}
             placeholder="Ask about the site, the data, or the plan…"
-            aria-label="Copilot message"
+            aria-label="Solara AI message"
             data-testid="copilot-composer"
             className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-elevated px-3 py-2 text-xs text-ink placeholder:text-ink-subtle focus:outline-none focus:border-ink-muted"
           />
