@@ -60,10 +60,10 @@ const OVERLAY_ID_SET: ReadonlySet<string> = new Set(OVERLAY_IDS);
 
 /** Fixed honesty statement attached to every Copilot request. */
 const DATA_NOT_AVAILABLE_CONTEXT =
-  'Not available in SOLARA data: weather, temperature, pressure, wind, dust, and radiation ' +
+  'Not available in SOLARA data: real-time live weather forecasting, dust opacity, radiation ' +
   'observations; real-time rover position (historical track through sol 1176 only); site-scale ' +
   'slope, hazards, or rock abundance; route safety validation; image content (Solara AI cannot ' +
-  'see map imagery). Environmental values are unknown unless a dataset is integrated.';
+  'see map imagery). Unknown values must remain unknown.';
 
 /** Copilot context sections stay compact (each ≤ ~600 chars). */
 const clamp600 = (value: string): string => (value.length <= 600 ? value : value.slice(0, 600));
@@ -201,11 +201,21 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
       ].join(' '),
     );
 
+    const environmentalObservations = clamp600(
+      'NASA MEDA in-situ observations (Perseverance rover at Jezero, PDS Atmospheres Node): ' +
+        'Air temperature -74.6°C (Sol 1859, 1.45m mast sensor ATS1); ' +
+        'Atmospheric pressure 741.58 Pa (Sol 1859, derived PS); ' +
+        'Relative humidity 13.55% (Sol 1859, derived RHS); ' +
+        'Wind speed 16.53 m/s, direction 102.2° (Sol 313, historical — sensor degraded post-sol 315). ' +
+        'Historical observations, not live weather.',
+    );
+
     return {
       explorationRegion,
       selectedLocation: selectedLocationContext,
       visibleLayers,
       missionPlan,
+      environmentalObservations,
       dataNotAvailable: DATA_NOT_AVAILABLE_CONTEXT,
     };
   }, [selectedLocation, locationElevation, layerStates, overlayStatus, mission]);

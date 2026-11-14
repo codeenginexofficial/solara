@@ -29,6 +29,7 @@ export interface CopilotContextPayload {
   selectedLocation?: string;
   visibleLayers?: string;
   missionPlan?: string;
+  environmentalObservations?: string;
   dataNotAvailable?: string;
 }
 

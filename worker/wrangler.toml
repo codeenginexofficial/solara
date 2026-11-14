@@ -10,5 +10,7 @@ OPENROUTER_MODEL = "openrouter/free"
 
 # Secrets are never stored in this file. Set with:
 #   npx wrangler secret put OPENROUTER_API_KEY
+#   npx wrangler secret put NASA_API_KEY
 # For local dev, create worker/.dev.vars (git-ignored):
 #   OPENROUTER_API_KEY=sk-or-...
+#   NASA_API_KEY=...

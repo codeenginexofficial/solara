@@ -13,6 +13,7 @@ import { CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbn
 import { DatasetDetails } from './DatasetPanel';
 import { DATASET_SHORT_NAMES } from './MissionOperationsPanel';
 import { LocationPanel, type ElevationState } from './LocationPanel';
+import { EnvironmentalPanel } from './EnvironmentalPanel';
 import { ElevationProfile } from '../../mission/components/ElevationProfile';
 import { RouteSummary } from '../../mission/components/RouteSummary';
 import { useMissionState } from '../../mission/store';
@@ -50,7 +51,10 @@ export function InspectorPanel({
         onElevationStateChange={onElevationStateChange}
       />
 
-      {/* 2. Selected Dataset Info Card */}
+      {/* 2. NASA MEDA Environmental Conditions Card */}
+      <EnvironmentalPanel />
+
+      {/* 3. Selected Dataset Info Card */}
       {dataset && (
         <section className="rounded-lg border border-edge bg-panel-raised/50 p-3">
           <div className="flex items-center justify-between gap-2">

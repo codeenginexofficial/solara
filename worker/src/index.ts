@@ -15,9 +15,13 @@
  * verified default "openrouter/free" (OpenRouter Free Models Router).
  */
 
+import { handleMedaEnvironmentLatest } from './meda';
+
 export interface Env {
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
+  /** Reserved for future NASA API integrations (e.g. DONKI). Not used for MEDA PDS. */
+  NASA_API_KEY?: string;
 }
 
 interface ChatMessage {
@@ -31,6 +35,7 @@ const CONTEXT_KEYS = [
   'selectedLocation',
   'visibleLayers',
   'missionPlan',
+  'environmentalObservations',
   'dataNotAvailable',
 ] as const;
 
@@ -213,6 +218,14 @@ async function callOpenRouter(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Route: NASA MEDA environmental observations (PDS Atmospheres)
+    if (url.pathname === '/api/meda/environment/latest') {
+      if (request.method !== 'GET') {
+        return fail('method-not-allowed', 'Use GET for this endpoint.', 405);
+      }
+      return handleMedaEnvironmentLatest(request, env);
+    }
 
     if (url.pathname !== '/api/copilot/chat') {
       return fail('not-found', 'Unknown endpoint.', 404);
