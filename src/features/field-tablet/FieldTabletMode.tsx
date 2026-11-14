@@ -10,9 +10,11 @@
 import { Suspense, lazy, useCallback, useRef, useState } from 'react';
 import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
-import { getAllDatasets, getAllRegions } from '../../data/catalog/datasets';
+import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
+import type { MapFeatureSelection, OverlayStatusMap } from '../../map/mapTypes';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
 import { DATASET_SHORT_NAMES } from '../habitat-mode/components/MissionOperationsPanel';
+import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
 import {
   buildPlanFile,
   clearRoute,
@@ -98,11 +100,18 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
     return initial;
   });
   const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetTab, setSheetTab] = useState<'mission' | 'rover'>('mission');
   const [importError, setImportError] = useState<string | null>(null);
+  const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
+  const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleToggleVisibility = useCallback((id: string, visible: boolean) => {
     setLayerStates((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { opacity: 1 }), visible } }));
+  }, []);
+
+  const handleOpacityChange = useCallback((id: string, opacity: number) => {
+    setLayerStates((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { visible: true }), opacity } }));
   }, []);
 
   const baseLayers = BASE_LAYER_IDS.map((datasetId) => ({
@@ -112,11 +121,15 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const overlays = OVERLAY_IDS.map((datasetId) => ({
     datasetId,
     visible: layerStates[datasetId]?.visible ?? false,
+    opacity: layerStates[datasetId]?.opacity ?? 1,
   }));
 
   const route = mission.route;
   const nextWaypoint =
     mission.position && route ? nextWaypointInfo(route, mission.position) : null;
+  const selectedFeatureDataset = selectedFeature
+    ? getDatasetById(selectedFeature.datasetId)
+    : undefined;
 
   const handleExport = () => {
     const plan = buildPlanFile();
@@ -197,9 +210,14 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             route={route}
             positionMarker={mission.position}
             onPointerLocationChange={() => {}}
-            onLocationSelect={(loc) => setPosition({ lon: loc.lon, lat: loc.lat })}
+            onLocationSelect={(loc) => {
+              setSelectedFeature(null);
+              setPosition({ lon: loc.lon, lat: loc.lat });
+            }}
+            onFeatureSelect={setSelectedFeature}
             onViewChange={() => {}}
             onSourceStatusChange={() => {}}
+            onOverlayStatusChange={setOverlayStatus}
           />
         </Suspense>
       </main>
@@ -219,8 +237,10 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             onClick={toggleSheet}
             aria-expanded={sheetOpen}
           >
-            <span className="shrink-0 text-sm font-semibold text-ink">Mission</span>
-            {route && (
+            <span className="shrink-0 text-sm font-semibold text-ink">
+              {sheetTab === 'mission' ? 'Mission' : 'Rover POV'}
+            </span>
+            {route && sheetTab === 'mission' && (
               <span className="min-w-0 truncate rounded-sm border border-edge bg-elevated px-2 py-0.5 font-mono text-xs text-ink">
                 {formatDistance(route.totalGroundDistanceM)} candidate
               </span>
@@ -240,7 +260,92 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
         </header>
 
         {sheetOpen && (
-          <div className="flex flex-col gap-3 p-4">
+          <>
+          <div role="tablist" aria-label="Field tablet sheet" className="flex shrink-0 gap-2 border-b border-edge/60 bg-panel px-3 py-2">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sheetTab === 'mission'}
+              aria-controls="tablet-tabpanel-mission"
+              onClick={() => setSheetTab('mission')}
+              className={cn(
+                'min-h-11 flex-1 rounded-sm px-3 text-xs font-medium transition-colors duration-150',
+                sheetTab === 'mission' ? 'bg-elevated text-ink' : 'text-ink-muted hover:bg-subtle',
+              )}
+            >
+              Mission
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sheetTab === 'rover'}
+              aria-controls="tablet-tabpanel-rover"
+              onClick={() => setSheetTab('rover')}
+              className={cn(
+                'min-h-11 flex-1 rounded-sm px-3 text-xs font-medium transition-colors duration-150',
+                sheetTab === 'rover' ? 'bg-elevated text-ink' : 'text-ink-muted hover:bg-subtle',
+              )}
+            >
+              Rover POV
+            </button>
+          </div>
+
+          {sheetTab === 'mission' ? (
+          <div id="tablet-tabpanel-mission" role="tabpanel" className="flex flex-col gap-3 p-4">
+            {selectedFeature && (
+              <section className="rounded-lg border border-edge bg-panel-raised/50 p-3" data-testid="tablet-selected-feature">
+                <div className="text-[10px] uppercase tracking-[0.06em] text-ink-subtle">
+                  {selectedFeature.datasetId === 'jezero-iau-nomenclature' ? 'IAU feature' : 'Science waypoint'}
+                </div>
+                <h3 className="mt-0.5 text-sm font-semibold text-ink">{selectedFeature.name}</h3>
+                <p className="mt-1 font-mono text-[11px] text-ink-muted">
+                  {formatLat(selectedFeature.lat)}, {formatLon(selectedFeature.lon)}
+                </p>
+                {selectedFeatureDataset && (
+                  <p className="mt-1 text-[10px] leading-snug text-ink-subtle">
+                    Source: {selectedFeatureDataset.title} · {selectedFeatureDataset.provider}
+                  </p>
+                )}
+                {Object.entries(selectedFeature.sourceProperties).some(
+                  ([key]) => key !== 'name' && key !== 'template' && key !== 'gazetteerUrl',
+                ) && (
+                  <details className="mt-2 border-t border-edge/50 pt-2 text-[11px]">
+                    <summary className="min-h-9 cursor-pointer py-2 text-ink-muted">Source properties</summary>
+                    <dl className="space-y-1.5">
+                      {Object.entries(selectedFeature.sourceProperties)
+                        .filter(([key]) => key !== 'name' && key !== 'template' && key !== 'gazetteerUrl')
+                        .map(([key, value]) => (
+                          <div key={key}>
+                            <dt className="text-[10px] uppercase tracking-[0.04em] text-ink-subtle">
+                              {key === 'elevationDeclared'
+                                ? 'Published elevation field'
+                                : key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase())}
+                            </dt>
+                            <dd className="break-words text-ink-muted">
+                              {key === 'elevationDeclared' && value === 0
+                                ? '0 — Trek publishes this field as 0; it is not a measured elevation.'
+                                : value === null ? 'Unknown (source field is null)' : String(value)}
+                            </dd>
+                          </div>
+                        ))}
+                    </dl>
+                  </details>
+                )}
+                <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                  {selectedFeatureDataset && (
+                    <a href={selectedFeatureDataset.sourceUrl} target="_blank" rel="noreferrer noopener" className="text-info hover:underline">
+                      Dataset source
+                    </a>
+                  )}
+                  {selectedFeature.detailUrl && (
+                    <a href={selectedFeature.detailUrl} target="_blank" rel="noreferrer noopener" className="text-info hover:underline">
+                      Feature record
+                    </a>
+                  )}
+                </div>
+              </section>
+            )}
+
             {/* Position card */}
             <div className="rounded-lg border border-edge bg-panel-raised/50 p-3">
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -409,30 +514,78 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                   if (!dataset) return null;
                   const state = layerStates[id] ?? { visible: false, opacity: 1 };
                   const shortTitle = DATASET_SHORT_NAMES[id] ?? dataset.title;
+                  const isOverlay = dataset.accessMethod === 'geojson' || dataset.accessMethod === 'raster';
+                  const loadState = overlayStatus[id];
+                  const statusLabel = !state.visible
+                    ? 'OFF'
+                    : !isOverlay
+                      ? 'ACTIVE'
+                      : loadState === 'failed'
+                        ? 'FAILED'
+                        : loadState === 'active'
+                          ? 'ACTIVE'
+                          : 'LOADING';
+                  const statusTone: 'neutral' | 'info' | 'ok' | 'danger' =
+                    statusLabel === 'FAILED' ? 'danger'
+                      : statusLabel === 'ACTIVE' ? 'ok'
+                        : statusLabel === 'LOADING' ? 'info' : 'neutral';
                   return (
                     <div
                       key={id}
-                      className={cn(
-                        'flex min-h-11 items-center justify-between gap-3 rounded-md border p-2.5 transition-colors duration-150',
-                        state.visible
-                          ? 'border-edge bg-surface/70'
-                          : 'border-transparent hover:border-edge/50 hover:bg-subtle/40',
-                      )}
+                      className={cn('rounded-md border transition-colors duration-150', state.visible ? 'border-edge bg-surface/70' : 'border-transparent hover:border-edge/50 hover:bg-subtle/40')}
                     >
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink" title={dataset.title}>
-                        {shortTitle}
-                      </span>
-                      <Switch
-                        checked={state.visible}
-                        onCheckedChange={(v) => handleToggleVisibility(id, v)}
-                        label={`Show ${dataset.title}`}
-                      />
+                      <div className="flex min-h-11 items-center justify-between gap-2 p-2.5">
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink" title={dataset.title}>
+                          {shortTitle}
+                        </span>
+                        <Badge tone={statusTone} className="shrink-0 px-1.5 py-0 text-[9px]">{statusLabel}</Badge>
+                        <Switch
+                          checked={state.visible}
+                          onCheckedChange={(v) => handleToggleVisibility(id, v)}
+                          label={`Show ${dataset.title}`}
+                        />
+                      </div>
+                      {state.visible && (
+                        <label className="flex items-center gap-2 border-t border-edge/50 px-2.5 py-2 text-[10px] uppercase tracking-[0.04em] text-ink-subtle">
+                          Opacity
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={Math.round(state.opacity * 100)}
+                            onChange={(event) => handleOpacityChange(id, Number(event.target.value) / 100)}
+                            className="solara-range min-w-0 flex-1"
+                            aria-label={`${dataset.title} opacity`}
+                          />
+                          <span className="w-9 text-right font-mono text-[10px] text-ink-muted">
+                            {Math.round(state.opacity * 100)}%
+                          </span>
+                        </label>
+                      )}
+                      <details className="border-t border-edge/50 px-2.5">
+                        <summary className="min-h-10 cursor-pointer py-2 text-[10px] text-ink-muted">Source & meaning</summary>
+                        <div className="space-y-1 pb-2 text-[10px] leading-snug text-ink-subtle">
+                          <p>{dataset.description}</p>
+                          <p>Provider: {dataset.provider}</p>
+                          <p>{dataset.coverageDescription}</p>
+                          {dataset.resolutionUnit && <p>Resolution: {dataset.resolutionUnit}</p>}
+                          <a href={dataset.sourceUrl} target="_blank" rel="noreferrer noopener" className="inline-block text-info hover:underline">
+                            Open dataset source
+                          </a>
+                        </div>
+                      </details>
                     </div>
                   );
                 })}
               </div>
             </div>
           </div>
+          ) : (
+            <div id="tablet-tabpanel-rover" role="tabpanel" className="h-[calc(52vh-7rem)] min-h-[220px] overflow-hidden">
+              <RoverPovPanel active={sheetOpen && sheetTab === 'rover'} />
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>

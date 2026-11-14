@@ -16,6 +16,10 @@
  */
 
 import { handleMedaEnvironmentLatest } from './meda';
+import {
+  handlePerseveranceImageDownload,
+  handlePerseveranceImages,
+} from './roverImages';
 
 export interface Env {
   OPENROUTER_API_KEY?: string;
@@ -232,6 +236,24 @@ export default {
         return fail('method-not-allowed', 'Use GET for this endpoint.', 405);
       }
       return handleMedaEnvironmentLatest(request, env);
+    }
+
+    // NASA raw-image list and fixed-ID file download routes. Both destinations
+    // are constructed from validated values in roverImages.ts.
+    if (url.pathname === '/api/rovers/perseverance/images') {
+      if (request.method !== 'GET') {
+        return fail('method-not-allowed', 'Use GET for this endpoint.', 405);
+      }
+      return handlePerseveranceImages(request);
+    }
+    if (
+      url.pathname.startsWith('/api/rovers/perseverance/images/') &&
+      url.pathname.endsWith('/download')
+    ) {
+      if (request.method !== 'GET') {
+        return fail('method-not-allowed', 'Use GET for this endpoint.', 405);
+      }
+      return handlePerseveranceImageDownload(request);
     }
 
     if (url.pathname !== '/api/copilot/chat') {

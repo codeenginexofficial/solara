@@ -23,7 +23,7 @@ import { PanelRightClose } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 
-export type ContextWorkspaceTab = 'inspector' | 'copilot';
+export type ContextWorkspaceTab = 'inspector' | 'rover' | 'copilot';
 
 export const WORKSPACE_MIN_WIDTH = 320;
 export const WORKSPACE_MAX_WIDTH = 640;
@@ -43,6 +43,7 @@ export interface ContextWorkspaceProps {
   width: number;
   onWidthChange: (width: number) => void;
   inspector: ReactNode;
+  roverPov: ReactNode;
   copilot: ReactNode;
 }
 
@@ -54,6 +55,7 @@ export function ContextWorkspace({
   width,
   onWidthChange,
   inspector,
+  roverPov,
   copilot,
 }: ContextWorkspaceProps) {
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -130,7 +132,7 @@ export function ContextWorkspace({
             data-testid="workspace-tab-inspector"
             onClick={() => onTabChange('inspector')}
             className={cn(
-              'h-7 min-w-[80px] rounded-sm px-3 text-xs font-medium transition-colors duration-[180ms] ease-out',
+              'h-7 min-w-[72px] rounded-sm px-2 text-xs font-medium transition-colors duration-[180ms] ease-out',
               tab === 'inspector'
                 ? 'bg-elevated text-ink shadow-none'
                 : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
@@ -141,13 +143,30 @@ export function ContextWorkspace({
           <button
             type="button"
             role="tab"
+            id="workspace-tab-rover"
+            aria-selected={tab === 'rover'}
+            aria-controls="workspace-tabpanel-rover"
+            data-testid="workspace-tab-rover"
+            onClick={() => onTabChange('rover')}
+            className={cn(
+              'h-7 min-w-[72px] rounded-sm px-2 text-xs font-medium transition-colors duration-[180ms] ease-out',
+              tab === 'rover'
+                ? 'bg-elevated text-ink shadow-none'
+                : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
+            )}
+          >
+            Rover POV
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="workspace-tab-copilot"
             aria-selected={tab === 'copilot'}
             aria-controls="workspace-tabpanel-copilot"
             data-testid="workspace-tab-copilot"
             onClick={() => onTabChange('copilot')}
             className={cn(
-              'h-7 min-w-[80px] rounded-sm px-3 text-xs font-medium transition-colors duration-[180ms] ease-out',
+              'h-7 min-w-[72px] rounded-sm px-2 text-xs font-medium transition-colors duration-[180ms] ease-out',
               tab === 'copilot'
                 ? 'bg-elevated text-ink shadow-none'
                 : 'text-ink-muted hover:bg-subtle/70 hover:text-ink',
@@ -167,8 +186,8 @@ export function ContextWorkspace({
         </Button>
       </header>
 
-      {/* Both panels stay mounted so background state (e.g. LocationPanel's
-          debounced elevation query) keeps updating the Copilot context. */}
+      {/* Panels stay mounted to preserve their state. RoverPovPanel receives
+          an active flag so hidden tabs do not poll the NASA feed. */}
       <div className="relative min-h-0 flex-1">
         <div
           id="workspace-tabpanel-inspector"
@@ -178,6 +197,15 @@ export function ContextWorkspace({
           className="absolute inset-0 overflow-y-auto"
         >
           {inspector}
+        </div>
+        <div
+          id="workspace-tabpanel-rover"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-rover"
+          hidden={tab !== 'rover'}
+          className="absolute inset-0 overflow-hidden"
+        >
+          {roverPov}
         </div>
         <div
           id="workspace-tabpanel-copilot"

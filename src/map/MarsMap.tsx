@@ -82,7 +82,7 @@ export interface MarsMapProps {
   /** WMTS base layers, bottom-first (rendering order = array order). */
   baseLayers: Array<{ datasetId: string } & MarsMapLayerState>;
   /** GeoJSON overlay datasets (rendered above the base layers). */
-  overlays: Array<{ datasetId: string; visible: boolean }>;
+  overlays: Array<{ datasetId: string; visible: boolean; opacity: number }>;
   regionBoundingBox: DatasetRecord['boundingBox'];
   routeVisible: boolean;
   start: GeoPoint | null;
@@ -548,7 +548,14 @@ export default function MarsMap({
       // the rover track keep the plain coordinate-selection behaviour.
       const pixel = evt.pixel;
       if (!pixel || !callbacksRef.current.onFeatureSelect) return;
-      const hits: Array<{ datasetId: string; name: string; detailUrl?: string }> = [];
+      const hits: Array<{
+        datasetId: string;
+        name: string;
+        lon: number;
+        lat: number;
+        detailUrl?: string;
+        sourceProperties: MapFeatureSelection['sourceProperties'];
+      }> = [];
       map.forEachFeatureAtPixel(
         pixel,
         (feature, layer) => {
@@ -559,11 +566,32 @@ export default function MarsMap({
           }
           const name = feature.get('name');
           if (typeof name !== 'string' || name.length === 0) return false;
+          const geometry = feature.getGeometry();
+          if (!(geometry instanceof Point)) return false;
+          const featureCoordinate = geometry.getCoordinates();
+          const [featureLon, featureLat] = marsMetresToLonLat(
+            featureCoordinate[0]!,
+            featureCoordinate[1]!,
+          );
           const link = feature.get('template') ?? feature.get('gazetteerUrl');
+          const sourceProperties: MapFeatureSelection['sourceProperties'] = {};
+          for (const [key, value] of Object.entries(feature.getProperties())) {
+            if (key === 'geometry' || key.startsWith('_')) continue;
+            if (value === null || typeof value === 'boolean') {
+              sourceProperties[key] = value;
+            } else if (typeof value === 'number' && Number.isFinite(value)) {
+              sourceProperties[key] = value;
+            } else if (typeof value === 'string' && value.length <= 500) {
+              sourceProperties[key] = value;
+            }
+          }
           hits.push({
             name,
             datasetId,
+            lon: featureLon,
+            lat: featureLat,
             detailUrl: typeof link === 'string' && link.length > 0 ? link : undefined,
+            sourceProperties,
           });
           return true;
         },
@@ -574,9 +602,10 @@ export default function MarsMap({
         callbacksRef.current.onFeatureSelect?.({
           datasetId: hit.datasetId,
           name: hit.name,
-          lon,
-          lat,
+          lon: hit.lon,
+          lat: hit.lat,
           detailUrl: hit.detailUrl,
+          sourceProperties: hit.sourceProperties,
         });
       }
     };
@@ -730,6 +759,7 @@ export default function MarsMap({
       const overlay = overlays.find((o) => o.datasetId === record.datasetId);
       if (!overlay) continue;
       record.layer.setVisible(overlay.visible);
+      record.layer.setOpacity(overlay.opacity);
     }
   }, [overlays, overlayLoad]);
 

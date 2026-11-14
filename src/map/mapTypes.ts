@@ -31,10 +31,13 @@ export interface ViewInfo {
 export interface MapFeatureSelection {
   datasetId: string;
   name: string;
+  /** Coordinates of the source feature geometry, not the map click point. */
   lon: number;
   lat: number;
   /** Link to the source bookmark page, when the service publishes one. */
   detailUrl?: string;
+  /** Primitive source attributes only; OpenLayers geometry objects never leave MarsMap. */
+  sourceProperties: Record<string, string | number | boolean | null>;
 }
 
 /**

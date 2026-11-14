@@ -35,6 +35,7 @@ import type { ElevationState } from './components/LocationPanel';
 import { buildPlanFile, computeRoute, importPlanFile, useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
+import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
 import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
 import { computeMarsClock, formatMarsClock, seasonForLs } from '../../science/environment/marsTime';
 import { MSL_WEATHER_SNAPSHOT, daysBetween } from '../../science/environment/weatherContext';
@@ -144,6 +145,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const overlays = OVERLAY_IDS.map((datasetId) => ({
     datasetId,
     visible: layerStates[datasetId]?.visible ?? false,
+    opacity: layerStates[datasetId]?.opacity ?? 1,
   }));
 
   /* --- Copilot context (per-send payload, built from real app state) --- */
@@ -349,6 +351,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
             />
           }
           copilot={<CopilotPanel context={copilotContext} />}
+          roverPov={<RoverPovPanel active={workspaceOpen && workspaceTab === 'rover'} />}
         />
       </div>
 

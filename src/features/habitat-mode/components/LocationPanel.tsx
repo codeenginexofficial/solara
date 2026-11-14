@@ -76,6 +76,7 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
   const [elevationState, setElevationState] = useState<ElevationState>({ kind: 'idle' });
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'failed'>('idle');
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const featureDataset = feature ? getDatasetById(feature.datasetId) : undefined;
 
   useEffect(() => {
     if (!location) {
@@ -278,6 +279,42 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
               ? 'IAU-adopted feature name (USGS/IAU Gazetteer). Identification only — no boundary, hazard, or trafficability information is implied.'
               : 'Compiled NASA Trek waypoint. A destination of scientific interest — not a hazard, trafficability, or landing assessment.'}
           </p>
+          <div className="mt-2 border-t border-edge/50 pt-2">
+            <div className="text-[10px] uppercase tracking-[0.05em] text-ink-subtle">Feature coordinates · Mars lon/lat</div>
+            <div className="mt-0.5 font-mono text-[11px] text-ink">
+              {formatLat(feature.lat)}, {formatLon(feature.lon)}
+            </div>
+          </div>
+          {featureDataset && (
+            <div className="mt-2 text-[10px] leading-snug text-ink-subtle">
+              <div>Source: {featureDataset.title} · {featureDataset.provider}</div>
+              <a
+                href={featureDataset.sourceUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-1 inline-flex items-center gap-1 text-info hover:underline"
+              >
+                Dataset source <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            </div>
+          )}
+          {Object.entries(feature.sourceProperties)
+            .filter(([key]) => key !== 'name' && key !== 'template' && key !== 'gazetteerUrl')
+            .map(([key, value]) => {
+              const humanizedKey = key.replace(/([a-z])([A-Z])/g, '$1 $2');
+              const label = key === 'elevationDeclared'
+                ? 'Published elevation field'
+                : `${humanizedKey.charAt(0).toUpperCase()}${humanizedKey.slice(1)}`;
+              const displayValue = key === 'elevationDeclared' && value === 0
+                ? '0 — Trek publishes this field as 0; it is not a measured elevation.'
+                : value === null ? 'Unknown (source field is null)' : String(value);
+              return (
+                <div key={key} className="mt-1.5 border-t border-edge/40 pt-1.5">
+                  <div className="text-[10px] uppercase tracking-[0.04em] text-ink-subtle">{label}</div>
+                  <div className="mt-0.5 break-words text-[11px] text-ink-muted">{displayValue}</div>
+                </div>
+              );
+            })}
           {feature.detailUrl && (
             <a
               href={feature.detailUrl}
