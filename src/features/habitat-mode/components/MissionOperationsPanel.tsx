@@ -53,6 +53,7 @@ export const DATASET_SHORT_NAMES: Record<string, string> = {
   'mars2020-perseverance-traverse': 'Rover Traverse',
   'mars2020-landing-ellipse': 'Landing Ellipse',
   'mola-hrsc-blend-200m-dem': 'MOLA DEM (query)',
+  'mars2020-meda-environmental': 'MEDA Environment',
 };
 
 const LAYER_ICONS: Record<string, typeof CircleDot> = {
@@ -62,6 +63,7 @@ const LAYER_ICONS: Record<string, typeof CircleDot> = {
   'mars2020-perseverance-traverse': Navigation,
   'mars2020-landing-ellipse': Crosshair,
   'mola-hrsc-blend-200m-dem': Database,
+  'mars2020-meda-environmental': Activity,
 };
 
 const ALL_LAYER_IDS = [

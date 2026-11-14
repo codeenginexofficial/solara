@@ -357,6 +357,7 @@ SOLARA intentionally has **no client-side environment variables** — no `VITE_*
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | Cloudflare Worker secret (`worker/src/index.ts`) | Secret | OpenRouter authorization; set via `npx wrangler secret put OPENROUTER_API_KEY` or the git-ignored `worker/.dev.vars` for local dev |
 | `OPENROUTER_MODEL` | Cloudflare Worker var (`worker/wrangler.toml` `[vars]`) | Public var | Model id forwarded to OpenRouter; default `openrouter/free` |
+| `NASA_API_KEY` | Cloudflare Worker secret (`worker/src/index.ts`) | Secret | NASA API authorization for future integrations (e.g. DONKI); set via `npx wrangler secret put NASA_API_KEY` or git-ignored `worker/.dev.vars`. (Note: MEDA PDS archive is public and does not require an API key). |
 
 Missing `OPENROUTER_API_KEY` is an honest runtime state: the Worker answers `copilot-unconfigured` (HTTP 503) and the UI shows an honest error. `.dev.vars`, `.env*`, and `.wrangler/` are git-ignored and must never be committed.
 
@@ -366,14 +367,16 @@ Missing `OPENROUTER_API_KEY` is an honest runtime state: the Worker answers `cop
 
 ### Internal HTTP API
 
-The MVP has no public HTTP API. The single internal endpoint is the Solara AI proxy:
+The internal endpoints are served by the Cloudflare Worker:
 
 | Method | Path | Body | Success | Errors |
 |---|---|---|---|---|
-| POST | `/api/copilot/chat` | `{ messages: [{role: "user"|"assistant", content}≤24], context?: {explorationRegion, selectedLocation, visibleLayers, missionPlan, dataNotAvailable} }` | 200 `{ reply: string, model: string }` | 400 `invalid-request`; 413 `payload-too-large`; 429 `rate-limited`; 502 `upstream-auth`/`upstream-error`/`upstream-unreachable`; 503 `copilot-unconfigured`; 404/405 otherwise |
+| POST | `/api/copilot/chat` | `{ messages: [{role: "user"|"assistant", content}≤24], context?: {explorationRegion, selectedLocation, visibleLayers, missionPlan, environmentalObservations, dataNotAvailable} }` | 200 `{ reply: string, model: string }` | 400 `invalid-request`; 413 `payload-too-large`; 429 `rate-limited`; 502 `upstream-auth`/`upstream-error`/`upstream-unreachable`; 503 `copilot-unconfigured`; 404/405 otherwise |
+| GET | `/api/meda/environment/latest` | None | 200 `MedaEnvironmentResponse` (ATS °C, PS Pa, RHS %, Wind m/s & °) | 405 `method-not-allowed`; 500 on unexpected failure (includes last-known-good fallback) |
 
 ### Internal TypeScript contracts (no HTTP)
 
+- `fetchMedaEnvironment(options?): Promise<MedaEnvironmentData>` — throws `MedaServiceError`; in-memory client cache with manual refresh.
 - `routeClient.computeRoute(start, target, params, assetUrl): Promise<RouteResult>` — rejects with `RouteClientError` (codes in §6).
 - `identifyElevation(lon, lat): Promise<DemIdentifyResult>` — throws `DemIdentifyError`; `elevationM: null + noData: true` for service-reported NoData.
 - `fetchElevationGrid(url): Promise<ElevationGrid>` + `sampleElevation(grid, lon, lat): GridSample` — throws `ElevationGridError`; out-of-extent → UNKNOWN.
@@ -493,7 +496,7 @@ Legend: ✅ Implemented · 🟡 Partially implemented · 🕐 Planned · ❌ Not
 | Habitat ⇄ Tablet sharing one mission model | ✅ | Shared store + plan files |
 | Rover traverse & landing ellipse (historical) | ✅ | Labelled historical, never a route reference |
 | Rover surface imagery at capture locations | ❌ | Not integrated (Context.md §6: only when verified/feasible) |
-| Environmental observations (MEDA) | ❌ | No verified dataset integrated; Solara AI reports these as unknown |
+| Environmental observations (MEDA) | ✅ | Integrated: calibrated ATS + derived PS/RHS (Sol 1859) & derived WIND (Sol 313) from NASA PDS Atmospheres Node |
 | Thermal / spectral / radiation / dust layers | ❌ | Not integrated |
 | Slope layer as a map layer | 🕐 | Slope is computed per route edge; no standalone slope raster layer |
 | Waypoints (multi-stop science targets) | 🕐 | Start + target only today; multi-waypoint is planned (Context.md §6) |
@@ -571,13 +574,13 @@ Legend: ✅ Implemented · 🟡 Partially implemented · 🕐 Planned · ❌ Not
 │   ├── main.tsx / App.tsx / index.css
 │   ├── map/                   ← MarsMap.tsx, layers/, projections/, trek/ (all ol code)
 │   ├── data/catalog/          ← datasets.ts + types.ts
-│   ├── data/adapters/         ← demService.ts, elevationGrid.ts
+│   ├── data/adapters/         ← demService.ts, elevationGrid.ts, medaService.ts
 │   ├── science/terrain/       ← geometry.ts, cost.ts
 │   ├── workers/               ← route.worker.ts, routeClient.ts
 │   ├── features/
 │   │   ├── habitat-mode/      ← HabitatMode.tsx + components/ (MissionOperationsPanel,
-│   │   │                        ContextWorkspace, InspectorPanel, CopilotPanel, LocationPanel,
-│   │   │                        MissionPanel, DatasetPanel, TopBar, StatusBar)
+│   │   │                        ContextWorkspace, InspectorPanel, EnvironmentalPanel, CopilotPanel,
+│   │   │                        LocationPanel, MissionPanel, DatasetPanel, TopBar, StatusBar)
 │   │   ├── field-tablet/      ← FieldTabletMode.tsx
 │   │   ├── mission/           ← store.ts + components/ (ElevationProfile, RouteSummary)
 │   │   └── copilot/           ← copilotClient.ts
@@ -586,5 +589,5 @@ Legend: ✅ Implemented · 🟡 Partially implemented · 🕐 Planned · ❌ Not
 └── worker/
     ├── wrangler.toml          ← copilot proxy config ([vars] OPENROUTER_MODEL)
     ├── tsconfig.json
-    └── src/index.ts           ← POST /api/copilot/chat
+    └── src/                   ← index.ts (POST /api/copilot/chat), meda.ts (GET /api/meda/environment/latest)
 ```

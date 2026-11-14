@@ -9,7 +9,7 @@ import type { MapLocation } from '../../../map/mapTypes';
 import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../data/catalog/types';
 import { Badge } from '../../../components/ui/badge';
 import { Disclosure } from '../../../components/ui/disclosure';
-import { CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbnails';
+import { AtmosphereThumbnail, CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbnails';
 import { DatasetDetails } from './DatasetPanel';
 import { DATASET_SHORT_NAMES } from './MissionOperationsPanel';
 import { LocationPanel, type ElevationState } from './LocationPanel';
@@ -74,6 +74,8 @@ export function InspectorPanel({
           <div className="mt-2.5 flex items-start gap-3 rounded-md border border-edge/60 bg-surface/50 p-2.5">
             {dataset.id.includes('ctx') ? (
               <CtxThumbnail className="size-12 shrink-0 rounded-sm border border-edge/60" />
+            ) : dataset.id.includes('meda') ? (
+              <AtmosphereThumbnail className="size-12 shrink-0 rounded-sm border border-edge/60" />
             ) : (
               <TopographyThumbnail className="size-12 shrink-0 rounded-sm border border-edge/60" />
             )}

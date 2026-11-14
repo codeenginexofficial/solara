@@ -443,6 +443,68 @@ export const PERSEVERANCE_LANDING_ELLIPSE_DATASET: DatasetRecord = {
 };
 
 /* ------------------------------------------------------------------ */
+/* 7. Environmental — Mars 2020 Perseverance MEDA (PDS Atmospheres)    */
+/* ------------------------------------------------------------------ */
+
+export const MARS2020_MEDA_DATASET: DatasetRecord = {
+  id: 'mars2020-meda-environmental',
+  title: 'Perseverance Rover MEDA Environmental Observations',
+  provider: 'NASA Planetary Data System (PDS) Atmospheres Node',
+  mission: 'Mars 2020 (Perseverance)',
+  instrument: 'MEDA — Mars Environmental Dynamics Analyzer',
+  productId: 'urn:nasa:pds:mars2020_meda',
+  kind: 'atmospheric',
+  description:
+    'In-situ surface atmospheric and meteorological observations from the MEDA instrument ' +
+    'suite aboard the Perseverance rover at Jezero Crater, archived at the NASA PDS Atmospheres Node. ' +
+    'Includes calibrated air temperature (ATS), derived pressure (PS), derived relative humidity (RHS), ' +
+    'and derived horizontal wind speed and direction (WS).',
+  sourceUrl:
+    'https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html',
+  accessMethod: 'api',
+  queryEndpoint: '/api/meda/environment/latest',
+  spatialReference: {
+    body: 'Mars',
+    authority: GEOGRAPHIC_AUTHORITY,
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Mars 2020 Perseverance rover localized positions inside Jezero Crater',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees (rover location); °C, Pa, %, m/s, ° (environmental measurements)',
+    sourceDefinition:
+      'Perseverance rover surface traverse inside Jezero Crater (~77.4°E, 18.4°N).',
+  },
+  coverageDescription:
+    'Jezero Crater floor and delta traverse path (Perseverance rover operational sites, sols 14–1859+).',
+  boundingBox: {
+    westLon: 77.1604655,
+    eastLon: 77.6991776,
+    southLat: 18.2110274,
+    northLat: 18.7211945,
+  },
+  attribution:
+    'Data: NASA / JPL-Caltech / INTA / CAB (CSIC-INTA). Archive: NASA PDS Atmospheres Node (NMSU).',
+  observationPeriod: '2021-02-18 – present (PDS releases through Sol 1859+)',
+  sourcePublication: {
+    title: 'The Mars Environmental Dynamics Analyzer (MEDA) on the Mars 2020 Mission',
+    authors: 'Rodriguez-Manfredi, J. A. et al.',
+    year: 2021,
+    doi: '10.1007/s11214-021-00816-9',
+    url: 'https://doi.org/10.1007/s11214-021-00816-9',
+  },
+  limitations: [
+    'Historical in-situ planetary observations from Mars surface instruments — never Earth-like live weather forecasts.',
+    'Perseverance wind sensor (WS) on Booms 1 & 2 suffered grit/pebble impact damage on Sol 315. In current PDS releases, subsequent wind records are missing or invalid; the latest valid derived wind observation from Sol 313 is preserved honestly without interpolation.',
+    'Air temperature (ATS) is measured at specific mast and deck locations (e.g. ATS1 at 1.45 m on mast) and is affected by local microclimate and rover thermal signature.',
+    'Pressure (PS) and humidity (RHS) sensors report local ambient conditions along the rover traverse inside Jezero Crater.',
+    'Missing values and sensor anomalies are preserved honestly and never interpolated.',
+  ],
+  verification: 'integrated',
+  lastVerifiedAt: '2026-11-14',
+};
+
+/* ------------------------------------------------------------------ */
 /* Region                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -468,6 +530,7 @@ export const JEZERO_REGION: RegionRecord = {
     PERSEVERANCE_TRAVERSE_DATASET.id,
     PERSEVERANCE_LANDING_ELLIPSE_DATASET.id,
     MOLA_HRSC_BLEND_DEM_DATASET.id,
+    MARS2020_MEDA_DATASET.id,
   ],
 };
 
@@ -478,6 +541,7 @@ const DATASETS: readonly DatasetRecord[] = [
   USGS_SIM3292_GEOLOGY_DATASET,
   PERSEVERANCE_TRAVERSE_DATASET,
   PERSEVERANCE_LANDING_ELLIPSE_DATASET,
+  MARS2020_MEDA_DATASET,
 ];
 
 const REGIONS: readonly RegionRecord[] = [JEZERO_REGION];

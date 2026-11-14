@@ -80,3 +80,23 @@ export function TopographyThumbnail({ className = 'size-11' }: { className?: str
     </svg>
   );
 }
+
+export function AtmosphereThumbnail({ className = 'size-11' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 44 44"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect width="44" height="44" rx="8" fill="#12161a" />
+      {/* Atmospheric streamlines & pressure curves */}
+      <path d="M4 16C14 12 24 20 40 14" stroke="#425566" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6 24C16 20 28 28 42 22" stroke="#5a738a" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M4 32C18 30 26 34 38 28" stroke="#364552" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="28" cy="18" r="2" fill="#8ca3c7" opacity="0.6" />
+      <circle cx="16" cy="26" r="1.5" fill="#8ca3c7" opacity="0.4" />
+    </svg>
+  );
+}
