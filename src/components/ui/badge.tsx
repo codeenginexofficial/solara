@@ -8,16 +8,16 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded border px-1.5 py-px text-[11px] font-medium tracking-wide whitespace-nowrap',
+  'inline-flex items-center rounded-sm border px-1.5 py-px text-[11px] font-medium tracking-wide whitespace-nowrap',
   {
     variants: {
       tone: {
-        neutral: 'border-edge bg-edge/20 text-ink-muted',
+        neutral: 'border-edge bg-subtle/60 text-ink-muted',
         info: 'border-info/35 bg-info/10 text-info',
         ok: 'border-ok/40 bg-ok/10 text-ok',
         warn: 'border-warn/40 bg-warn/10 text-warn',
         danger: 'border-danger/40 bg-danger/10 text-danger',
-        accent: 'border-accent/40 bg-accent/10 text-accent',
+        accent: 'border-accent/40 bg-accent-subtle text-accent-strong',
       },
     },
     defaultVariants: {

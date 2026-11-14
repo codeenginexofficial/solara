@@ -59,13 +59,13 @@ export function TopBar({
           active; Field Tablet renders its own header variant). */}
       {onSwitchToTablet && (
         <div
-          className="flex items-center gap-0.5 rounded-md border border-edge bg-panel-raised/60 p-0.5"
+          className="flex items-center gap-0.5 rounded-md border border-edge bg-surface/60 p-0.5"
           aria-label="Operating mode"
           data-testid="mode-switch"
         >
           <span
             aria-current="true"
-            className="whitespace-nowrap rounded-sm bg-accent-subtle px-2.5 py-1 text-[11px] font-medium text-accent"
+            className="whitespace-nowrap rounded-sm bg-accent px-2.5 py-1 text-[11px] font-semibold text-surface"
           >
             Habitat
           </span>
@@ -73,7 +73,7 @@ export function TopBar({
             type="button"
             onClick={onSwitchToTablet}
             aria-label="Switch to Field Tablet mode"
-            className="whitespace-nowrap rounded-sm px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink"
+            className="whitespace-nowrap rounded-sm px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink"
           >
             Field tablet
           </button>

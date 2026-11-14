@@ -73,7 +73,7 @@ function MapWorkspaceFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-surface">
       <div
-        className="flex items-center gap-2 rounded border border-edge bg-panel px-3 py-2 text-xs text-ink-muted"
+        className="flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs text-ink-muted"
         data-testid="map-workspace-loading"
       >
         <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
@@ -90,7 +90,9 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
-      initial[id] = { visible: id === BASE_LAYER_IDS[0], opacity: 1 };
+      // Initial presentation (Revision 2): CTX imagery is the default base;
+      // the scientific colorshade raster stays off until asked for.
+      initial[id] = { visible: id === 'jezero-ctx-mosaic-soc-008', opacity: 1 };
     }
     return initial;
   });

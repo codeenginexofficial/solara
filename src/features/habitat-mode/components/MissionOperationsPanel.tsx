@@ -3,6 +3,12 @@
  * runtime states, query-only data, and mission planning (Context.md §4.1,
  * Design.md §5).
  *
+ * Revision 2 composition (2026-11-14): the panel is a clean grouped list —
+ * no boxed cards. Region description sits behind a disclosure; layer rows
+ * are flat list items where active layers carry a crimson edge marker plus a
+ * translucent crimson wash; opacity appears only on visible layers; runtime
+ * chips render only when a layer is on (OFF is implied by the switch).
+ *
  * Runtime chips are derived from real wiring only: WMTS bases report
  * OFF/ACTIVE (tile failures surface via the map's tile banner, not fake
  * per-layer health); GeoJSON overlays report OFF/LOADING/ACTIVE/FAILED from
@@ -22,6 +28,7 @@ import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../d
 import type { MapLocation, OverlayLoadState, OverlayStatusMap } from '../../../map/mapTypes';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
+import { Disclosure } from '../../../components/ui/disclosure';
 import { Section } from '../../../components/ui/section';
 import { Switch } from '../../../components/ui/switch';
 import { DatasetDetails } from './DatasetPanel';
@@ -119,7 +126,7 @@ export function MissionOperationsPanel({
 
   return (
     <div className="flex min-h-0 flex-col">
-      {/* (a) Mission area */}
+      {/* (a) Mission area — region identity first, detail on demand */}
       <Section
         title="Mission area"
         actions={
@@ -129,27 +136,29 @@ export function MissionOperationsPanel({
         }
       >
         <div className="flex flex-col gap-1">
-          <span className="text-[13px] font-medium text-ink">{region.name}</span>
-          <p className="text-xs leading-relaxed text-ink-muted">{region.description}</p>
-          <div className="mt-1 grid grid-cols-2 gap-x-3 font-mono text-[11px] text-ink-muted">
+          <span className="text-[13.5px] font-semibold leading-snug text-ink">{region.name}</span>
+          <div className="grid grid-cols-2 gap-x-3 font-mono text-[11px] leading-snug text-ink-muted">
             <span>{formatLon(bbox.westLon)}</span>
             <span>{formatLat(bbox.northLat)}</span>
             <span>{formatLon(bbox.eastLon)}</span>
             <span>{formatLat(bbox.southLat)}</span>
           </div>
-          <span className="mt-1 text-[11px] text-ink-subtle">
+          <span className="text-[11px] text-ink-subtle">
             ≈ {formatDistance(widthM)} × {formatDistance(heightM)} (ground estimate)
           </span>
+          <Disclosure title="About this region" className="mt-1.5">
+            <p className="text-xs leading-relaxed text-ink-muted">{region.description}</p>
+          </Disclosure>
         </div>
       </Section>
 
-      {/* (b) Map layers — grouped presentation, unchanged rendering order */}
+      {/* (b) Map layers — flat grouped list, crimson markers on active layers */}
       <Section title="Map layers">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3.5">
           {LAYER_GROUPS.map((group) => (
             <div key={group.title}>
-              <div className="mb-1 text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{group.title}</div>
-              <ul className="flex flex-col gap-0.5">
+              <div className="mb-1 text-[10.5px] uppercase tracking-[0.08em] text-ink-subtle">{group.title}</div>
+              <ul className="flex flex-col">
                 {group.ids.map((id) => {
                   const dataset = datasetById.get(id);
                   if (!dataset) return null;
@@ -160,8 +169,11 @@ export function MissionOperationsPanel({
                     <li
                       key={id}
                       className={cn(
-                        'rounded-md px-2 py-2 transition-colors duration-150',
-                        infoOpen ? 'bg-panel-raised/60' : 'hover:bg-panel-raised/50',
+                        'border-l-2 py-2 pl-2.5 pr-0.5 transition-colors duration-150',
+                        state.visible
+                          ? 'border-l-accent bg-accent-subtle/40'
+                          : 'border-l-transparent hover:bg-subtle/60',
+                        infoOpen && !state.visible && 'bg-subtle/60',
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -169,8 +181,18 @@ export function MissionOperationsPanel({
                           <div className="truncate text-[13px] font-medium text-ink" title={dataset.title}>
                             {dataset.title}
                           </div>
-                          <div className="text-[11px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
+                          <div className="mt-px flex items-center gap-1.5 text-[11px] leading-snug text-ink-subtle">
+                            <span className="shrink-0">{KIND_LABEL[dataset.kind]}</span>
+                            <span aria-hidden="true">·</span>
+                            <span
+                              className="min-w-0 truncate"
+                              title="Verification-workflow status — renders with verified alignment, CRS and metadata; not a live health signal"
+                            >
+                              {VERIFICATION_LABEL[dataset.verification]}
+                            </span>
+                          </div>
                         </div>
+                        {state.visible && <Badge tone={chip.tone} className="text-[10px]">{chip.label}</Badge>}
                         <Switch
                           checked={state.visible}
                           onCheckedChange={(v) => onToggleVisibility(id, v)}
@@ -181,42 +203,33 @@ export function MissionOperationsPanel({
                           onClick={() => toggleInfo(id)}
                           aria-expanded={infoOpen}
                           aria-label={`Dataset details for ${dataset.title}`}
-                          className="rounded p-0.5 text-ink-subtle transition-colors duration-150 hover:text-ink"
+                          className="rounded-sm p-0.5 text-ink-subtle transition-colors duration-150 hover:text-accent-strong"
                         >
                           <ChevronDown
                             aria-hidden="true"
-                            className={cn('size-3.5 transition-transform duration-150', infoOpen && 'rotate-180')}
+                            className={cn('size-4 transition-transform duration-150', infoOpen && 'rotate-180')}
                           />
                         </button>
                       </div>
-                      <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <Badge tone={chip.tone}>{chip.label}</Badge>
-                          <span
-                            className="truncate text-[10.5px] text-ink-subtle"
-                            title="Verification-workflow status — renders with verified alignment, CRS and metadata; not a live health signal"
-                          >
-                            {VERIFICATION_LABEL[dataset.verification]}
+                      {state.visible && (
+                        <div className="mt-1.5 flex items-center gap-2 pl-0.5">
+                          <span className="shrink-0 text-[10.5px] uppercase tracking-[0.04em] text-ink-subtle">
+                            Opacity
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={Math.round(state.opacity * 100)}
+                            onChange={(e) => onOpacityChange(id, Number(e.target.value) / 100)}
+                            className="solara-range min-w-0 flex-1"
+                            aria-label={`${dataset.title} opacity`}
+                          />
+                          <span className="w-8 shrink-0 text-right font-mono text-[10.5px] text-ink-muted">
+                            {Math.round(state.opacity * 100)}%
                           </span>
                         </div>
-                        {state.visible && (
-                          <label className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className="shrink-0 text-[10.5px] text-ink-subtle">Opacity</span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={Math.round(state.opacity * 100)}
-                              onChange={(e) => onOpacityChange(id, Number(e.target.value) / 100)}
-                              className="solara-range min-w-0 flex-1"
-                              aria-label={`${dataset.title} opacity`}
-                            />
-                            <span className="w-8 shrink-0 text-right font-mono text-[10.5px] text-ink-muted">
-                              {Math.round(state.opacity * 100)}%
-                            </span>
-                          </label>
-                        )}
-                      </div>
+                      )}
                       {infoOpen && <DatasetDetails dataset={dataset} />}
                     </li>
                   );
@@ -233,15 +246,15 @@ export function MissionOperationsPanel({
           <p className="mb-2 text-[11px] leading-snug text-ink-subtle">
             Used for elevation queries and mission-planning terrain costs; not drawn on the map.
           </p>
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex flex-col">
             {queryDatasets.map((dataset) => {
               const infoOpen = openInfoId === dataset.id;
               return (
                 <li
                   key={dataset.id}
                   className={cn(
-                    'rounded-md px-2 py-2 transition-colors duration-150',
-                    infoOpen ? 'bg-panel-raised/60' : 'hover:bg-panel-raised/50',
+                    'border-l-2 border-l-transparent py-2 pl-2.5 pr-0.5 transition-colors duration-150 hover:bg-subtle/60',
+                    infoOpen && 'bg-subtle/60',
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -249,18 +262,27 @@ export function MissionOperationsPanel({
                       <div className="truncate text-[13px] font-medium text-ink" title={dataset.title}>
                         {dataset.title}
                       </div>
-                      <div className="text-[11px] text-ink-subtle">{KIND_LABEL[dataset.kind]}</div>
+                      <div className="mt-px flex items-center gap-1.5 text-[11px] leading-snug text-ink-subtle">
+                        <span className="shrink-0">{KIND_LABEL[dataset.kind]}</span>
+                        <span aria-hidden="true">·</span>
+                        <span
+                          className="min-w-0 truncate"
+                          title="Verification-workflow status — renders with verified alignment, CRS and metadata; not a live health signal"
+                        >
+                          {VERIFICATION_LABEL[dataset.verification]}
+                        </span>
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => toggleInfo(dataset.id)}
                       aria-expanded={infoOpen}
                       aria-label={`Dataset details for ${dataset.title}`}
-                      className="rounded p-0.5 text-ink-subtle transition-colors duration-150 hover:text-ink"
+                      className="rounded-sm p-0.5 text-ink-subtle transition-colors duration-150 hover:text-accent-strong"
                     >
                       <ChevronDown
                         aria-hidden="true"
-                        className={cn('size-3.5 transition-transform duration-150', infoOpen && 'rotate-180')}
+                        className={cn('size-4 transition-transform duration-150', infoOpen && 'rotate-180')}
                       />
                     </button>
                   </div>

@@ -174,7 +174,7 @@ const ROUTE_LINE_STYLE = new Style({
 });
 
 const ROUTE_LINE_INNER_STYLE = new Style({
-  stroke: new Stroke({ color: 'rgba(101, 197, 189, 0.95)', width: 2.5 }),
+  stroke: new Stroke({ color: 'rgba(255, 59, 48, 0.95)', width: 2.5 }),
 });
 
 function markerStyle(color: string, label: string): Style {
@@ -195,7 +195,7 @@ function markerStyle(color: string, label: string): Style {
   });
 }
 
-const START_MARKER_STYLE = markerStyle('rgba(101, 197, 189, 1)', 'START');
+const START_MARKER_STYLE = markerStyle('rgba(255, 59, 48, 1)', 'START');
 const TARGET_MARKER_STYLE = markerStyle('rgba(209, 161, 92, 1)', 'TARGET');
 /** Waypoint token tone: light ring, semi-transparent fill (off-white ink). */
 const SELECTED_MARKER_STYLE = new Style({
@@ -738,7 +738,7 @@ export default function MarsMap({
       </div>
       {baseLayers.every((l) => !l.visible) && (
         <div
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border border-edge bg-panel-raised/85 px-3 py-2 text-xs text-ink-muted"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md border border-edge bg-panel-raised/85 px-3 py-2 text-xs text-ink-muted"
           data-testid="map-empty"
         >
           No layers displayed — enable a layer in the map layers panel to view imagery.
@@ -746,7 +746,7 @@ export default function MarsMap({
       )}
       {tileStats.loaded === 0 && tileStats.loading > 0 && (
         <div
-          className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded border border-edge bg-panel-raised/90 px-3 py-2 text-xs text-ink-muted"
+          className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-md border border-edge bg-panel-raised/90 px-3 py-2 text-xs text-ink-muted"
           data-testid="map-initial-loading"
         >
           <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
@@ -754,14 +754,14 @@ export default function MarsMap({
         </div>
       )}
       {tileStats.loading > 0 && tileStats.loaded > 0 && (
-        <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-muted">
+        <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-md border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-muted">
           <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
           Loading {tileStats.loading} tile{tileStats.loading === 1 ? '' : 's'}
         </div>
       )}
       {tileStats.failed > 0 && (
         <div
-          className="pointer-events-none absolute right-3 top-10 max-w-md rounded border border-danger/40 bg-panel-raised/85 px-2.5 py-1 text-xs text-danger"
+          className="pointer-events-none absolute right-3 top-10 max-w-md rounded-md border border-danger/40 bg-panel-raised/85 px-2.5 py-1 text-xs text-danger"
           data-testid="tile-errors"
         >
           {tileStats.failed} tile request{tileStats.failed === 1 ? '' : 's'} failed —{' '}
@@ -770,7 +770,7 @@ export default function MarsMap({
       )}
       {tileStats.noData > 0 && (
         <div
-          className="pointer-events-none absolute bottom-12 right-3 max-w-md rounded border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-subtle"
+          className="pointer-events-none absolute bottom-12 right-3 max-w-md rounded-md border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-subtle"
           data-testid="tile-nodata"
         >
           {tileStats.noData} tile{tileStats.noData === 1 ? '' : 's'} outside the advertised footprint —
@@ -782,7 +782,7 @@ export default function MarsMap({
         .map(([datasetId, entry]) => (
           <div
             key={datasetId}
-            className="pointer-events-none absolute left-3 top-20 max-w-md rounded border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
+            className="pointer-events-none absolute left-3 top-20 max-w-md rounded-lg border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
             data-testid={`overlay-errors-${datasetId}`}
           >
             {`Overlay "${datasetId}" could not be loaded: ${entry.message ?? 'cause not determined'}`}

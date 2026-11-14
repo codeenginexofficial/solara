@@ -31,6 +31,7 @@ import {
 import { groundDistanceMeters } from '../../science/terrain/geometry';
 import { formatDistance, formatLat, formatLon } from '../../lib/format';
 import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
 import { Section } from '../../components/ui/section';
 import { Switch } from '../../components/ui/switch';
 import { ElevationProfile } from '../mission/components/ElevationProfile';
@@ -49,7 +50,7 @@ const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 
 function MapWorkspaceFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-surface">
-      <div className="flex items-center gap-2 rounded border border-edge bg-panel px-3 py-2 text-sm text-ink-muted">
+      <div className="flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink-muted">
         <span className="inline-block size-2.5 animate-pulse rounded-full bg-accent" aria-hidden="true" />
         Loading map engine…
       </div>
@@ -95,7 +96,12 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
-      initial[id] = { visible: id === BASE_LAYER_IDS[0] || id === 'mars2020-perseverance-traverse', opacity: 1 };
+      // Initial presentation (Revision 2): CTX imagery + rover traverse on;
+      // the scientific colorshade raster stays off until asked for.
+      initial[id] = {
+        visible: id === 'jezero-ctx-mosaic-soc-008' || id === 'mars2020-perseverance-traverse',
+        opacity: 1,
+      };
     }
     return initial;
   });
@@ -155,7 +161,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-edge bg-panel px-3">
         <img src="/solara.svg" alt="" aria-hidden="true" className="size-5 shrink-0" />
         <span className="shrink-0 text-sm font-semibold tracking-[0.14em] text-ink">SOLARA</span>
-        <span className="shrink-0 rounded border border-accent/40 bg-accent-subtle px-1.5 py-0.5 text-[10.5px] font-medium text-accent">
+        <span className="shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-semibold text-surface">
           Field Tablet
         </span>
         <span
@@ -164,7 +170,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           title={mission.position ? 'Simulated position — manually set by tapping the map' : 'No simulated position set yet'}
         >
           {/* Short label on narrow headers so "SIMULATED" never truncates. */}
-          <span className="sm:hidden">{mission.position ? 'SIMULATED (manual)' : 'No position'}</span>
+          <span className="sm:hidden">{mission.position ? 'SIMULATED' : 'No position'}</span>
           <span className="hidden sm:inline">
             {mission.position ? 'Position: SIMULATED (manually set)' : 'Position: not set — tap the map'}
           </span>
@@ -197,21 +203,21 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       {/* Bottom sheet — collapsible, touch-first */}
       <div
         className={cn(
-          'shrink-0 overflow-y-auto border-t border-edge bg-panel transition-[max-height] duration-200',
+          'shrink-0 overflow-y-auto rounded-t-xl border-t border-edge bg-panel transition-[max-height] duration-200',
           sheetOpen ? 'max-h-[52vh]' : 'max-h-14',
         )}
         data-testid="tablet-sheet"
       >
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-edge bg-panel px-4">
+        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 rounded-t-xl border-b border-edge bg-panel px-4">
           <button
             type="button"
-            className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-left"
             onClick={toggleSheet}
             aria-expanded={sheetOpen}
           >
-            <span className="shrink-0 text-sm font-medium text-ink">Mission</span>
+            <span className="shrink-0 text-sm font-semibold text-ink">Mission</span>
             {route && (
-              <span className="min-w-0 truncate font-mono text-xs text-accent">
+              <span className="min-w-0 truncate rounded-sm border border-accent/40 bg-accent-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent-strong">
                 {formatDistance(route.totalGroundDistanceM)} candidate
               </span>
             )}
@@ -234,18 +240,29 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             {/* Position + next waypoint */}
             <Section title="Your position" hint="simulated — tap the map to set" className="px-0">
               {mission.position ? (
-                <div className="flex flex-col gap-2">
-                  <div className="font-mono text-[13px] text-ink">
-                    {formatLon(mission.position.lon)} {formatLat(mission.position.lat)}
+                <div className="rounded-lg border border-edge bg-panel-raised/60 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 font-mono text-[14px] leading-snug text-ink">
+                      <div>{formatLon(mission.position.lon)}</div>
+                      <div>{formatLat(mission.position.lat)}</div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="-mt-1 shrink-0"
+                      onClick={() => setPosition(null)}
+                      aria-label="Clear position"
+                    >
+                      <RotateCcw aria-hidden="true" />
+                      Clear
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => setPosition(null)}
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    Clear position
-                  </Button>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Badge tone="warn">SIMULATED</Badge>
+                    <span className="min-w-0 text-[10.5px] leading-snug text-ink-subtle">
+                      manually set by tapping the map
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <p className="text-xs leading-relaxed text-ink-muted">
@@ -266,15 +283,18 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               )}
 
               {nextWaypoint && (
-                <div className="mt-2 rounded-md border border-edge bg-panel-raised px-3 py-2.5" data-testid="next-waypoint">
+                <div
+                  className="mt-2 rounded-lg border border-edge border-l-2 border-l-accent bg-panel-raised/60 px-3 py-2.5"
+                  data-testid="next-waypoint"
+                >
                   <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Nearest route point</div>
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="font-mono text-xl text-accent">
+                    <span className="font-mono text-xl leading-none text-accent-strong">
                       {formatDistance(nextWaypoint.distanceToWaypointM)}
                     </span>
                     <span className="text-[11px] text-ink-muted">to this point</span>
                   </div>
-                  <div className="mt-1 text-[11.5px] text-ink-muted">
+                  <div className="mt-1.5 text-[11.5px] text-ink-muted">
                     {formatDistance(nextWaypoint.remainingAlongRouteM)} remaining along the route ·
                     elevation {Math.round(nextWaypoint.elevM)} m
                   </div>
@@ -373,7 +393,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               </div>
             </Section>
 
-            {/* Layers — touch-sized toggle rows */}
+            {/* Layers — touch-sized toggle rows with crimson active markers */}
             <Section title="Map layers" className="px-0">
               <div className="flex flex-col gap-0.5">
                 {[...BASE_LAYER_IDS, ...OVERLAY_IDS].map((id) => {
@@ -383,7 +403,12 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                   return (
                     <div
                       key={id}
-                      className="flex min-h-11 items-center justify-between gap-3 rounded-md px-1 transition-colors duration-150 hover:bg-panel-raised/50"
+                      className={cn(
+                        'flex min-h-11 items-center justify-between gap-3 rounded-md border-l-2 pl-2 pr-1 transition-colors duration-150',
+                        state.visible
+                          ? 'border-l-accent bg-accent-subtle/40'
+                          : 'border-l-transparent hover:bg-subtle/60',
+                      )}
                     >
                       <span className="min-w-0 flex-1 truncate text-[13px] text-ink" title={dataset.title}>
                         {dataset.title}

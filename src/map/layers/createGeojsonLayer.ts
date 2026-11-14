@@ -11,8 +11,8 @@
  * Styling is per dataset kind and deliberately simple:
  *  - geology:  translucent unit fills keyed by the USGS unit code
  *              (mNhm / HNt in the verified Jezero extent), thin outline.
- *  - rover:    dashed slate polyline for the historical traverse (visually
- *              distinct from the solid teal PROPOSED route, Design.md §8),
+ *  - rover:    dashed warm-dust polyline for the historical traverse (visually
+ *              distinct from the solid crimson PROPOSED route, Design.md §8),
  *              dashed outline for the landing ellipse (historical context).
  */
 
@@ -57,7 +57,7 @@ function geologyStyleFunction(feature: FeatureLike): Style {
 function roverPathStyle(): Style {
   return new Style({
     stroke: new Stroke({
-      color: 'rgba(148, 168, 184, 0.85)',
+      color: 'rgba(193, 184, 179, 0.85)',
       width: 2,
       lineDash: [5, 4],
     }),

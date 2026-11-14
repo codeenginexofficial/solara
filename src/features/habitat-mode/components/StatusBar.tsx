@@ -25,7 +25,7 @@ const DATASET_STATUS_TEXT: Record<VerificationStatus, string> = {
 
 export function StatusBar({ pointerLocation, viewInfo, dataset, sourceStatus }: StatusBarProps) {
   return (
-    <footer className="flex h-8 shrink-0 items-center gap-3 overflow-x-auto border-t border-edge bg-panel px-3 font-mono text-[10.5px] text-ink-muted">
+    <footer className="flex h-9 shrink-0 items-center gap-3 overflow-x-auto border-t border-edge bg-panel px-3 font-mono text-[11px] text-ink-muted">
       <span className="flex shrink-0 items-center gap-1.5" data-testid="status-pointer">
         <span aria-hidden="true" className="text-ink-subtle">⌖</span>
         {pointerLocation

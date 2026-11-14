@@ -92,8 +92,8 @@ export function ContextWorkspace({
       aria-label="Inspector and Copilot workspace"
       style={{ '--work-w': `${width}px` } as CSSProperties}
       className={cn(
-        'absolute inset-y-0 right-0 z-20 flex-col border-l border-edge bg-panel shadow-2xl',
-        'w-[22rem] max-w-[calc(100vw-2rem)] lg:static lg:z-auto lg:max-w-none lg:shadow-none lg:w-[var(--work-w,22rem)]',
+        'absolute inset-y-0 right-0 z-20 flex-col rounded-l-xl border-l border-edge bg-panel shadow-2xl',
+        'w-[22rem] max-w-[calc(100vw-2rem)] lg:static lg:z-auto lg:max-w-none lg:rounded-none lg:shadow-none lg:w-[var(--work-w,22rem)]',
         open ? 'flex' : 'hidden',
       )}
     >
@@ -126,10 +126,10 @@ export function ContextWorkspace({
             data-testid="workspace-tab-inspector"
             onClick={() => onTabChange('inspector')}
             className={cn(
-              'rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors duration-150',
+              'whitespace-nowrap rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors duration-150',
               tab === 'inspector'
-                ? 'bg-accent-subtle text-accent'
-                : 'text-ink-muted hover:bg-edge/30 hover:text-ink',
+                ? 'bg-accent-subtle font-semibold text-accent-strong shadow-[inset_0_-2px_0_0_var(--color-accent)]'
+                : 'text-ink-muted hover:bg-subtle hover:text-ink',
             )}
           >
             Inspector
@@ -143,10 +143,10 @@ export function ContextWorkspace({
             data-testid="workspace-tab-copilot"
             onClick={() => onTabChange('copilot')}
             className={cn(
-              'rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors duration-150',
+              'whitespace-nowrap rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors duration-150',
               tab === 'copilot'
-                ? 'bg-accent-subtle text-accent'
-                : 'text-ink-muted hover:bg-edge/30 hover:text-ink',
+                ? 'bg-accent-subtle font-semibold text-accent-strong shadow-[inset_0_-2px_0_0_var(--color-accent)]'
+                : 'text-ink-muted hover:bg-subtle hover:text-ink',
             )}
           >
             Copilot

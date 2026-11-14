@@ -19,7 +19,7 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
   if (!route || route.points.length < 2) {
     return (
       <div
-        className="flex items-center justify-center rounded border border-edge bg-panel-raised/40 px-3 py-4 text-[11px] text-ink-subtle"
+        className="flex items-center justify-center rounded-lg border border-edge bg-panel-raised/40 px-3 py-4 text-[11px] text-ink-subtle"
         style={{ height }}
         data-testid="elevation-profile-empty"
       >
@@ -51,14 +51,14 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         style={{ height }}
-        className="w-full rounded border border-edge bg-panel-raised/40"
+        className="w-full rounded-lg border border-edge bg-panel-raised/40"
         role="img"
         aria-label={`Elevation profile along the route: ${Math.round(min)} to ${Math.round(max)} metres over ${formatDistance(total)}`}
       >
         <polyline
           points={coords.join(' ')}
           fill="none"
-          stroke="rgba(101, 197, 189, 0.9)"
+          stroke="rgba(255, 59, 48, 0.9)"
           strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
           strokeLinejoin="round"

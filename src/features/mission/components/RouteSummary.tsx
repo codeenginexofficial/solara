@@ -15,11 +15,19 @@ export interface RouteSummaryProps {
   error?: string | null;
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
-      <span className="font-mono text-[12.5px] text-ink">{value}</span>
+      <span
+        className={
+          emphasis
+            ? 'font-mono text-[15px] font-semibold leading-tight text-accent-strong'
+            : 'font-mono text-[13px] leading-snug text-ink'
+        }
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -35,7 +43,7 @@ export function RouteSummary({ route, computing, error }: RouteSummaryProps) {
   }
   if (error) {
     return (
-      <div className="rounded border border-danger/40 bg-danger/5 px-2.5 py-2 text-[11px] leading-snug text-danger" data-testid="route-summary-error">
+      <div className="rounded-lg border border-danger/40 bg-danger/5 px-2.5 py-2 text-[11px] leading-snug text-danger" data-testid="route-summary-error">
         {error}
       </div>
     );
@@ -48,8 +56,8 @@ export function RouteSummary({ route, computing, error }: RouteSummaryProps) {
   return (
     <Section title="Route candidate" hint="terrain-cost model (slope only)">
       <div className="grid grid-cols-2 gap-x-4 gap-y-2" data-testid="route-summary">
-        <Stat label="Ground distance" value={formatDistance(route.totalGroundDistanceM)} />
-        <Stat label="Cost-equivalent" value={formatDistance(route.totalCostM)} />
+        <Stat label="Ground distance" value={formatDistance(route.totalGroundDistanceM)} emphasis />
+        <Stat label="Cost-equivalent" value={formatDistance(route.totalCostM)} emphasis />
         <Stat label="Direct distance" value={formatDistance(route.directDistanceM)} />
         <Stat label="Route vs direct" value={detourRatio !== null ? `×${detourRatio.toFixed(2)}` : '—'} />
         <Stat label="Max slope" value={route.maxSlopeDeg !== null ? `${route.maxSlopeDeg.toFixed(1)}°` : '—'} />

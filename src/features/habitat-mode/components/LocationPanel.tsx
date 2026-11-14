@@ -2,6 +2,12 @@
  * LocationPanel — the map location selected by clicking, shown in the
  * workspace Inspector tab.
  *
+ * Revision 2 composition (2026-11-14): coordinates lead (large mono pair,
+ * projected metres as a compact secondary line), region membership is a
+ * compact chip, elevation is the prominent scientific value, and the
+ * no-selection case is a deliberate empty state. The query logic is
+ * unchanged.
+ *
  * Elevation is queried LIVE from the verified Trek ImageServer (the static
  * MOLA+HRSC blend DEM, 2018 v2 — a fixed product, not current conditions).
  * When the live query fails, the prepared grid asset (cross-validated
@@ -19,7 +25,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Crosshair } from 'lucide-react';
 import type { MapLocation } from '../../../map/mapTypes';
 import type { RegionRecord } from '../../../data/catalog/types';
-import { Section, DataRow } from '../../../components/ui/section';
+import { Section } from '../../../components/ui/section';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 import { formatLat, formatLon, formatMetreSigned, formatUtcTime } from '../../../lib/format';
@@ -70,11 +76,13 @@ function getPreparedGrid(): Promise<ElevationGrid | null> {
 
 function UnknownRow({ label, reason }: { label: string; reason: string }) {
   return (
-    <div className="flex flex-col gap-0.5 py-1">
+    <div className="flex flex-col gap-0.5 py-1.5">
       <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">{label}</span>
       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="text-[13px] font-medium text-warn">Unknown</span>
-        <span className="text-[11px] leading-snug text-ink-subtle">{reason}</span>
+        <span className="min-w-0 max-w-full flex-1 basis-36 text-[11px] leading-snug text-ink-subtle">
+          {reason}
+        </span>
       </span>
     </div>
   );
@@ -106,19 +114,22 @@ function ElevationRow({ state }: { state: ElevationState }) {
       break;
   }
   return (
-    <div className="flex flex-col gap-0.5 py-1">
+    <div>
       <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">Elevation</span>
-      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className={tone === 'warn' ? 'text-[13px] font-medium text-warn' : 'text-[13px] font-medium text-ink'}>
-          {main}
-        </span>
-        <span className="text-[10.5px] leading-snug text-ink-subtle">{detail}</span>
-      </span>
+      <div
+        className={cn(
+          'mt-0.5 font-mono text-[17px] leading-tight',
+          tone === 'warn' ? 'text-warn' : 'text-ink',
+        )}
+      >
+        {main}
+      </div>
+      <p className="mt-1 text-[10.5px] leading-snug text-ink-subtle">{detail}</p>
       {state.kind === 'error' && state.fallbackValue !== null && (
-        <span className="text-[10.5px] leading-snug text-ink-muted">
+        <p className="mt-1 text-[10.5px] leading-snug text-ink-muted">
           Prepared-grid fallback: {Math.round(state.fallbackValue).toLocaleString('en-US')} m —{' '}
           {state.fallbackLabel}
-        </span>
+        </p>
       )}
     </div>
   );
@@ -207,12 +218,12 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
   if (!location) {
     return (
       <div data-testid="location-panel">
-        <Section title="Selected location">
-          <div className="flex items-start gap-2 py-1 text-xs leading-relaxed text-ink-muted">
-            <Crosshair className="mt-0.5 size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
-            <p>
-              Click anywhere on the map to inspect a coordinate. Pointer coordinates are shown
-              continuously in the status bar.
+        <Section title="Location">
+          <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-edge bg-panel-raised/40 px-4 py-7 text-center">
+            <Crosshair className="size-5 text-accent" aria-hidden="true" />
+            <span className="text-[13px] font-medium text-ink">No location selected</span>
+            <p className="max-w-[26ch] text-[11.5px] leading-snug text-ink-subtle">
+              Click the map to inspect coordinates, elevation and coverage.
             </p>
           </div>
         </Section>
@@ -242,36 +253,50 @@ export function LocationPanel({ location, region, onElevationStateChange }: Loca
 
   return (
     <div data-testid="location-panel">
-      <Section title="Selected location" hint="clicked point">
-        <div className="divide-y divide-edge/60">
-          <DataRow label="Longitude" mono>{formatLon(location.lon)}</DataRow>
-          <DataRow label="Latitude" mono>{formatLat(location.lat)}</DataRow>
-          <DataRow label="Projected X (easting)" mono>{formatMetreSigned(location.x)}</DataRow>
-          <DataRow label="Projected Y (northing)" mono>{formatMetreSigned(location.y)}</DataRow>
-        </div>
-        {bbox && (
-          <div
-            className={cn(
-              'mt-2 rounded border px-2 py-1.5 text-[11.5px] leading-snug',
-              inside ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn',
-            )}
-            data-testid="region-membership"
+      <Section
+        title="Location"
+        hint="clicked point"
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            aria-label="Copy coordinates"
+            className="-mr-1.5"
           >
-            {inside
-              ? 'Inside exploration region'
-              : 'Outside exploration region — global imagery and elevation products only; route planning unavailable here.'}
-          </div>
-        )}
-        <div className="mt-2">
-          <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy coordinates">
-            {copyState === 'ok' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy coordinates'}
+            {copyState === 'ok' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy'}
           </Button>
+        }
+      >
+        <div className="rounded-lg border border-edge bg-panel-raised/60 px-3 py-2.5">
+          <div className="font-mono text-[14px] leading-snug text-ink">
+            <div>{formatLon(location.lon)}</div>
+            <div className="mt-0.5">{formatLat(location.lat)}</div>
+          </div>
+          <div className="mt-1.5 font-mono text-[11px] leading-snug text-ink-subtle">
+            X {formatMetreSigned(location.x)} · Y {formatMetreSigned(location.y)}
+          </div>
+          {bbox && (
+            <div
+              data-testid="region-membership"
+              className={cn(
+                'mt-2.5 rounded-md border px-2 py-1 text-[11.5px] font-medium leading-snug',
+                inside ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn',
+              )}
+            >
+              {inside
+                ? 'Inside exploration region'
+                : 'Outside exploration region — global imagery and elevation products only; route planning unavailable here.'}
+            </div>
+          )}
         </div>
       </Section>
 
       <Section title="Scientific values here">
-        <div className="divide-y divide-edge/60">
+        <div className="rounded-lg border border-edge bg-panel-raised/60 px-3 py-2.5">
           <ElevationRow state={elevationState} />
+        </div>
+        <div className="mt-1.5 divide-y divide-edge/60">
           <UnknownRow
             label="Slope"
             reason="Site-scale slope needs terrain detail beyond the ~200 m/px DEM; no fine DEM is integrated."

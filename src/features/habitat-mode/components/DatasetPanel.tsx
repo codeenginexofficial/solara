@@ -15,6 +15,11 @@ export interface DatasetDetailsProps {
   /** Embedded mode drops the inline-row wrapper (border/spacing) when the
    *  details render inside a titled Section (workspace Inspector tab). */
   embedded?: boolean;
+  /** Suppress the title/badge header block (when the Inspector already
+   *  shows a compact summary card above the disclosure). */
+  hideHeader?: boolean;
+  /** Suppress the description paragraph (shown in the summary card). */
+  hideDescription?: boolean;
 }
 
 const VERIFICATION_BADGE: Record<VerificationStatus, { label: string; tone: 'neutral' | 'info' | 'ok' | 'warn' }> = {
@@ -31,7 +36,12 @@ function sourceLinkLabel(dataset: DatasetRecord): string {
     : 'Source metadata (service document)';
 }
 
-export function DatasetDetails({ dataset, embedded = false }: DatasetDetailsProps) {
+export function DatasetDetails({
+  dataset,
+  embedded = false,
+  hideHeader = false,
+  hideDescription = false,
+}: DatasetDetailsProps) {
   const badge = VERIFICATION_BADGE[dataset.verification];
   const ref = dataset.spatialReference;
   const observationPeriod =
@@ -42,13 +52,19 @@ export function DatasetDetails({ dataset, embedded = false }: DatasetDetailsProp
 
   return (
     <div className={embedded ? undefined : 'mt-2 border-t border-edge/60 pt-2'} data-testid={`dataset-details-${dataset.id}`}>
-      <div className="flex items-start justify-between gap-2">
-        <h4 className="text-[13px] font-medium leading-snug text-ink">{dataset.title}</h4>
-        <span className="shrink-0" title="Verification-workflow status — not a live health signal">
-          <Badge tone={badge.tone}>{badge.label}</Badge>
-        </span>
-      </div>
-      <p className="mt-1 text-xs leading-relaxed text-ink-muted">{dataset.description}</p>
+      {!hideHeader && (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-[13px] font-medium leading-snug text-ink">{dataset.title}</h4>
+            <span className="shrink-0" title="Verification-workflow status — not a live health signal">
+              <Badge tone={badge.tone}>{badge.label}</Badge>
+            </span>
+          </div>
+          {!hideDescription && (
+            <p className="mt-1 text-xs leading-relaxed text-ink-muted">{dataset.description}</p>
+          )}
+        </>
+      )}
 
       <div className="mt-2 divide-y divide-edge/60">
         <DataRow label="Provider" wrap>{dataset.provider}</DataRow>

@@ -50,30 +50,33 @@ function PointRow({
   selectedDisabled: boolean;
 }) {
   return (
-    <div className="rounded-md border border-edge px-2.5 py-2">
+    <div className="rounded-lg border border-edge bg-panel-raised/60 px-2.5 py-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-ink">
-          <MapPin className="size-3.5 text-info" aria-hidden="true" />
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
+          <MapPin
+            className={cn('size-3.5', label === 'Start' ? 'text-accent' : 'text-warn')}
+            aria-hidden="true"
+          />
           {label}
         </span>
         {point && (
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] text-ink-subtle hover:text-danger"
+            className="text-[11px] text-ink-subtle transition-colors hover:text-danger"
             aria-label={`Clear ${label.toLowerCase()} point`}
           >
             clear
           </button>
         )}
       </div>
-      <div className="mt-1 font-mono text-xs text-ink-muted" data-testid={`mission-${label.toLowerCase()}`}>
-        {point ? `${formatLon(point.lon)}  ${formatLat(point.lat)}` : 'not set'}
+      <div className="mt-1 font-mono text-[12.5px] leading-snug text-ink" data-testid={`mission-${label.toLowerCase()}`}>
+        {point ? `${formatLon(point.lon)}  ${formatLat(point.lat)}` : <span className="text-ink-subtle">not set</span>}
       </div>
       <Button
         variant="outline"
         size="sm"
-        className="mt-1.5 w-full"
+        className="mt-2 w-full"
         disabled={selectedDisabled}
         onClick={onUseSelected}
       >
@@ -150,15 +153,15 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
           />
 
           {/* Prototype cost parameters — collapsed by default. */}
-          <div className="rounded-md border border-edge">
+          <div className="rounded-lg border border-edge bg-surface/40">
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-subtle/50"
               aria-expanded={advancedOpen}
               aria-controls="mission-advanced-params"
               onClick={() => setAdvancedOpen((v) => !v)}
             >
-              <span className="text-[11px] uppercase tracking-[0.06em] text-ink-subtle">
+              <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-muted">
                 Advanced (prototype parameters)
               </span>
               <ChevronDown

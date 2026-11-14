@@ -224,18 +224,24 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
               <li
                 key={index}
                 className={cn(
-                  'rounded border px-3 py-2',
-                  message.role === 'user' ? 'border-accent/30 bg-accent/5' : 'border-edge bg-panel-raised/60',
+                  'rounded-lg border px-3 py-2',
+                  message.role === 'user'
+                    ? 'border-accent/40 bg-accent-subtle'
+                    : 'border-edge bg-panel-raised/70',
                 )}
               >
-                <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                <span
+                  className={cn(
+                    'mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em]',
+                    message.role === 'user' ? 'text-accent-strong' : 'text-ink-subtle',
+                  )}
+                >
                   {message.role === 'user' ? 'You' : 'Copilot'}
                 </span>
                 {/* Plain text only — never dangerouslySetInnerHTML. */}
                 <div
                   className={cn(
-                    'whitespace-pre-wrap text-[12.5px] leading-relaxed',
-                    message.role === 'user' ? 'text-ink-muted' : 'text-ink',
+                    'whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink',
                   )}
                 >
                   {message.content}
@@ -254,7 +260,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
 
       {lastError && (
         <div
-          className="mx-3 mb-2 shrink-0 rounded border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-xs leading-snug text-danger"
+          className="mx-3 mb-2 shrink-0 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-xs leading-snug text-danger"
           role="alert"
           data-testid="copilot-error"
         >
@@ -278,7 +284,7 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
             placeholder="Ask about the site, the data, or the plan…"
             aria-label="Copilot message"
             data-testid="copilot-composer"
-            className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-panel-raised px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle"
+            className="max-h-32 min-h-9 w-full resize-none rounded-md border border-edge bg-elevated px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle"
           />
           <Button
             variant="accent"

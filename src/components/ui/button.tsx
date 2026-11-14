@@ -1,7 +1,9 @@
 /**
  * Button — shadcn/ui-style primitive (cva variants), SOLARA styling.
- * Dark instrument look: neutral raised surfaces, teal reserved for the
- * primary accent variant (the single interaction accent).
+ * Clear interaction hierarchy: the accent variant is a visible crimson fill
+ * with dark readable text (primary actions); default/outline use restrained
+ * charcoal surfaces with clear borders; ghost is quiet. Radius system:
+ * 10px standard buttons, 8px icon buttons.
  */
 
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
@@ -9,22 +11,22 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         default:
-          'border border-edge bg-panel-raised text-ink hover:border-ink-subtle/50 hover:bg-edge/60',
+          'border border-edge bg-elevated text-ink hover:border-ink-subtle/60 hover:bg-subtle',
         accent:
-          'border border-accent bg-accent text-surface hover:border-accent-strong hover:bg-accent-strong',
-        ghost: 'text-ink-muted hover:bg-edge/40 hover:text-ink',
+          'border border-accent bg-accent font-semibold text-surface hover:border-accent-hover hover:bg-accent-hover',
+        ghost: 'text-ink-muted hover:bg-subtle hover:text-ink',
         outline:
-          'border border-edge bg-transparent text-ink hover:border-ink-subtle/50 hover:bg-edge/30',
+          'border border-edge bg-panel-raised/60 text-ink hover:border-ink-subtle/60 hover:bg-subtle',
       },
       size: {
-        default: 'h-8 px-3',
-        sm: 'h-7 px-2.5 text-[11.5px]',
-        icon: 'size-8 p-0',
+        default: 'h-9 px-3.5',
+        sm: 'h-8 px-3 text-xs [&_svg]:size-3.5',
+        icon: 'size-9 p-0 rounded-sm [&_svg]:size-4',
       },
     },
     defaultVariants: {

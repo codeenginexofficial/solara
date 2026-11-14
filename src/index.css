@@ -1,42 +1,67 @@
 @import "tailwindcss";
 
 /*
- * SOLARA design tokens — Mission Control Dark with a warm "Martian Earth"
- * neutral base and a cool teal interaction accent (UI milestone 2026-11-14).
+ * SOLARA design tokens — Visual identity "Red Planet Matrix" (2026-11-14).
+ * Sophisticated deep-charcoal instrument surfaces with warm, Mars-inspired
+ * undertones, and a single strong Oxide Crimson interaction accent.
  *
  * Color roles:
- *  - Warm Martian surfaces (#211B19 family) establish the workspace; the strong
- *    color on screen should come from the scientific imagery itself.
- *  - Cool teal (#65C5BD) is the single primary accent: active controls,
- *    selected states, focus rings, and the proposed-route overlay.
- *  - Status colors stay semantic and restrained (ok / warn / danger).
+ *  - The workspace is deep cosmic charcoal (#12131C base); panels step up
+ *    through #191A24 → #20212B → #282934. Warmth lives in the text tones
+ *    and the scientific imagery, not in large surface fills.
+ *  - Oxide Crimson (#FF3B30) marks interaction: active navigation, selected
+ *    tabs, primary actions, active layers, focus, route overlays. Dark
+ *    readable text on crimson fills; the interface stays predominantly
+ *    charcoal.
+ *  - Status colors stay semantic and distinct: ok (green), warn (amber),
+ *    danger (soft red — deliberately lighter than the crimson accent),
+ *    info (steel blue).
+ *
+ * Radius scale (rounded corners): 8px small controls/badges/icon buttons,
+ * 10px standard buttons/inputs, 14px cards/groups, 18px major panels and
+ * bottom sheets, 20px dialogs/overlays.
  */
 @theme {
-  --color-surface: #211b19;
-  --color-panel: #292320;
-  --color-panel-raised: #342a25;
-  --color-edge: #493b33;
+  --color-surface: #12131c;
+  --color-panel: #191a24;
+  --color-panel-raised: #20212b;
+  --color-elevated: #282934;
+  /* Hover/quiet fill a step above elevated. */
+  --color-subtle: #2e2f39;
+  --color-edge: #34343e;
 
-  --color-ink: #e8dcce;
-  --color-ink-muted: #b9aaa0;
-  --color-ink-subtle: #8e8178;
+  --color-ink: #f5f2f0;
+  --color-ink-muted: #c1b8b3;
+  --color-ink-subtle: #a1958e;
+  /* Supporting neutral (Martian Dust Gray). */
+  --color-dust: #7b6f68;
 
-  --color-accent: #65c5bd;
-  --color-accent-strong: #78d7ce;
-  /* Deep teal used for "filled" accent states (e.g. switch track). */
-  --color-accent-soft: #2f6b64;
-  /* Translucent teal wash for selected/active backgrounds. */
-  --color-accent-subtle: rgba(101, 197, 189, 0.12);
+  --color-accent: #ff3b30;
+  /* Hover for crimson fills (slightly deeper, per identity spec). */
+  --color-accent-hover: #e9342b;
+  /* Brighter crimson for accent text on dark surfaces. */
+  --color-accent-strong: #ff6f66;
+  /* Deep crimson for "filled" accent states (e.g. quiet chips). */
+  --color-accent-soft: #8c2b24;
+  /* Translucent crimson wash for selected/active backgrounds. */
+  --color-accent-subtle: rgba(255, 59, 48, 0.12);
 
-  --color-info: #9db4c0;
-  --color-ok: #8cb894;
-  --color-warn: #d2a96e;
-  --color-danger: #c97b72;
+  --color-info: #8ca3c7;
+  --color-ok: #7fbf9e;
+  --color-warn: #d9b36c;
+  --color-danger: #e07b6f;
 
   /* Map overlay palette (route = proposed candidate; track = historical). */
-  --color-route: #65c5bd;
-  --color-track: #94a8b8;
-  --color-waypoint: #e8dcce;
+  --color-route: #ff3b30;
+  --color-track: #c1b8b3;
+  --color-waypoint: #f5f2f0;
+
+  /* Radius system: 8/10/14/18/20. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 20px;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -67,7 +92,7 @@ body {
   background-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-/* Focus visibility for keyboard users. */
+/* Focus visibility for keyboard users — crimson, clearly noticeable. */
 :focus-visible {
   outline: 1px solid var(--color-accent);
   outline-offset: 1px;
@@ -104,10 +129,10 @@ body {
 }
 
 .ol-control button {
-  background-color: color-mix(in srgb, var(--color-panel-raised) 88%, transparent);
+  background-color: color-mix(in srgb, var(--color-elevated) 90%, transparent);
   color: var(--color-ink-muted);
   border: 1px solid var(--color-edge);
-  border-radius: 4px;
+  border-radius: 8px;
   width: 26px;
   height: 26px;
   font-size: 14px;
@@ -116,8 +141,8 @@ body {
 
 .ol-control button:hover,
 .ol-control button:focus-visible {
-  color: var(--color-ink);
-  background-color: var(--color-edge);
+  color: var(--color-accent-strong);
+  background-color: var(--color-subtle);
   outline: none;
 }
 
@@ -146,8 +171,8 @@ body {
   width: 28px;
   height: 28px;
   border: 1px solid var(--color-edge);
-  border-radius: 4px;
-  background-color: color-mix(in srgb, var(--color-panel-raised) 88%, transparent);
+  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--color-elevated) 90%, transparent);
   color: var(--color-ink-muted);
   font-size: 15px;
   line-height: 1;
@@ -155,8 +180,9 @@ body {
 }
 
 .solara-map-zoom-button:hover {
-  color: var(--color-ink);
-  background-color: var(--color-edge);
+  color: var(--color-accent-strong);
+  background-color: var(--color-subtle);
+  border-color: var(--color-ink-subtle);
 }
 
 .ol-attribution {
@@ -173,9 +199,9 @@ body {
   display: inline-block;
   font-size: 10.5px;
   color: var(--color-ink-subtle);
-  background-color: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface) 82%, transparent);
   border: 1px solid var(--color-edge);
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 2px 6px;
   margin: 0;
 }
@@ -201,9 +227,9 @@ body {
   position: absolute;
   left: 10px;
   bottom: 10px;
-  background-color: color-mix(in srgb, var(--color-surface) 75%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface) 78%, transparent);
   border: 1px solid var(--color-edge);
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px 4px;
 }
 
@@ -216,7 +242,7 @@ body {
 
 /*
  * Native range input (layer opacity, cost parameters) styled for the dark
- * instrument look with a teal active thumb.
+ * instrument look with a crimson active thumb.
  */
 .solara-range {
   -webkit-appearance: none;
