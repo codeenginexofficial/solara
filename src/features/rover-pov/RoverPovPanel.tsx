@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, Image as ImageIcon, RefreshCw, X } from 'lucide-react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Camera, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import type { MapLocation } from '../../map/mapTypes';
+import { formatDistance, formatLat, formatLon } from '../../lib/format';
+import { findPerseveranceObservationsNear, type RoverObservationSearchResult } from '../../data/adapters/roverObservationService';
+
+const NasaMarsVideoPanel = lazy(() =>
+  import('./NasaMarsVideoPanel').then((module) => ({ default: module.NasaMarsVideoPanel })),
+);
 import {
   fetchPerseveranceImages,
   roverImageDownloadUrl,
@@ -60,14 +67,232 @@ function pageQueryKey(page: number, sol: number | undefined, camera: string): st
 
 function errorMessage(error: unknown): string {
   if (error instanceof RoverImageServiceError) return error.message;
+  if (error instanceof Error) return error.message;
   return 'Could not load NASA rover images. Try again when a connection is available.';
 }
 
-export function RoverPovPanel({ active }: { active: boolean }) {
+export function RoverPovPanel({ active, location }: { active: boolean; location: MapLocation | null }) {
+  const [view, setView] = useState<'nearby' | 'archive' | 'videos'>('nearby');
+  const [searchResult, setSearchResult] = useState<RoverObservationSearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const locationKey = location ? `${location.lon.toFixed(6)}|${location.lat.toFixed(6)}` : '';
+  const selectedImage = searchResult?.status === 'matched-sol'
+    ? searchResult.imagePage.images.find((image) => image.imageId === selectedImageId) ?? null
+    : null;
+
+  useEffect(() => {
+    setSearchResult(null);
+    setSelectedImageId(null);
+    setSearchError(null);
+  }, [locationKey]);
+
+  useEffect(() => {
+    if (!active) setSelectedImageId(null);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || view !== 'nearby' || !location) return;
+    let disposed = false;
+    const controller = new AbortController();
+    setSearching(true);
+    setSearchError(null);
+    void findPerseveranceObservationsNear(location, {
+      signal: controller.signal,
+      refresh: refreshToken > 0,
+    }).then((result) => {
+      if (!disposed) setSearchResult(result);
+    }).catch((error: unknown) => {
+      if (!disposed && !(error instanceof DOMException && error.name === 'AbortError')) {
+        setSearchError(errorMessage(error));
+      }
+    }).finally(() => {
+      if (!disposed) setSearching(false);
+    });
+    return () => {
+      disposed = true;
+      controller.abort();
+    };
+  }, [active, location, locationKey, refreshToken, view]);
+
+  if (view === 'videos') {
+    return (
+      <Suspense fallback={<p className="p-4 text-xs text-ink-muted" role="status">Loading NASA video library…</p>}>
+        <NasaMarsVideoPanel active={active} onBack={() => setView('nearby')} />
+      </Suspense>
+    );
+  }
+
+  if (view === 'archive') {
+    const initialSol = searchResult?.status === 'matched-sol' ? searchResult.nearestTraverse.sol : undefined;
+    return (
+      <section className="flex h-full min-h-0 flex-col">
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-edge/70 px-3">
+          <Button variant="ghost" size="sm" onClick={() => setView('nearby')}>Nearby observations</Button>
+          <span className="text-xs text-ink-subtle">Historical archive</span>
+        </div>
+        <div className="min-h-0 flex-1">
+          <PerseveranceImageGallery key={initialSol ?? 'all'} active={active} initialSol={initialSol} />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="flex h-full min-h-0 flex-col" aria-label="Rover observations near selected location">
+      <header className="shrink-0 border-b border-edge/70 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Camera className="size-4 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-ink">Nearby rover observations</h2>
+            </div>
+            <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
+              Historical Perseverance traverse positions are matched to NASA images by Sol. Image coordinates are not supplied by this feed.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setView('archive')}>
+              Image archive
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setView('videos')}>
+              NASA videos
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setRefreshToken((value) => value + 1)}
+              disabled={!active || !location || searching}
+              aria-label="Refresh nearby rover observations"
+              title="Refresh nearby rover observations"
+            >
+              <RefreshCw className="size-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+        {location ? (
+          <p className="mt-2 flex items-center gap-1 font-mono text-[10px] text-ink-muted">
+            <MapPin className="size-3 shrink-0" aria-hidden="true" />
+            Selected point {formatLon(location.lon)} {formatLat(location.lat)}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-ink-muted">Select a location on the Mars map to search historical rover observations.</p>
+        )}
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {searching && <p className="py-6 text-center text-xs text-ink-muted" role="status">Finding the nearest historical traverse position…</p>}
+        {searchError && (
+          <div className="rounded-md border border-danger/40 bg-danger/5 p-3 text-xs text-danger" role="alert">
+            <p>{searchError}</p>
+            <p className="mt-1 text-ink-muted">NASA image results could not be confirmed for this search.</p>
+          </div>
+        )}
+        {!location && !searching && (
+          <p className="py-6 text-center text-xs text-ink-muted">No map location selected.</p>
+        )}
+        {location && !searching && searchResult?.status === 'outside-traverse-coverage' && (
+          <div className="rounded-md border border-edge bg-panel-raised/40 p-3 text-xs text-ink-muted" role="status">
+            <p className="font-medium text-ink">No nearby rover observations can be located here.</p>
+            <p className="mt-1">The verified Perseverance traverse dataset covers Jezero only. This selected point is outside its published coverage.</p>
+            <p className="mt-2">NASA raw-image records do not provide surface longitude and latitude, so no image can be placed at this point.</p>
+          </div>
+        )}
+        {location && !searching && searchResult && searchResult.status !== 'outside-traverse-coverage' && (
+          <>
+            <section className="rounded-md border border-edge bg-panel-raised/40 p-3">
+              <h3 className="text-xs font-semibold text-ink">Nearest historical rover traverse</h3>
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <Metadata label="Rover" value="Perseverance" />
+                <Metadata label="Traverse Sol" value={String(searchResult.nearestTraverse.sol)} mono />
+                <Metadata label="Distance from selected point" value={formatDistance(searchResult.nearestTraverse.distanceM)} />
+                <Metadata label="Traverse reference position" value={`${formatLon(searchResult.nearestTraverse.lon)} ${formatLat(searchResult.nearestTraverse.lat)}`} mono />
+              </dl>
+              <p className="mt-2 text-[10px] leading-relaxed text-warn">
+                Derived nearest point on a historical localization line. It is not the image capture position and does not represent current rover location.
+              </p>
+              <a href={searchResult.nearestTraverse.sourceUrl} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex items-center gap-1 text-[10px] text-info hover:underline">
+                NASA Trek traverse source <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            </section>
+
+            {searchResult.status === 'image-unavailable' ? (
+              <p className="mt-3 rounded-md border border-danger/40 bg-danger/5 p-3 text-xs text-danger" role="alert">
+                NASA image results for Sol {searchResult.nearestTraverse.sol} could not be confirmed: {searchResult.message}
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-ink-subtle">
+                  <span>NASA raw images from Sol {searchResult.nearestTraverse.sol}</span>
+                  <span>{searchResult.imagePage.totalResults ?? searchResult.imagePage.images.length} record(s)</span>
+                </div>
+                {searchResult.imagePage.cacheStatus === 'stale' && (
+                  <p className="mt-2 rounded-md border border-warn/30 bg-warn/5 p-2 text-[11px] text-warn" role="status">
+                    Showing a cached NASA response; this image list may be stale.
+                  </p>
+                )}
+                {searchResult.imagePage.images.length === 0 ? (
+                  <p className="mt-3 rounded-md border border-edge p-3 text-xs text-ink-muted" role="status">
+                    NASA returned no raw-image records for the nearest traverse Sol. No neighboring Sols were substituted.
+                  </p>
+                ) : (
+                  <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {searchResult.imagePage.images.map((image) => {
+                      const thumbnail = getGalleryImage(image);
+                      return (
+                        <li key={image.imageId}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedImageId(image.imageId)}
+                            className="group flex h-full w-full flex-col overflow-hidden rounded-md border border-edge bg-panel-raised/40 text-left transition-colors duration-150 hover:border-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            aria-label={`Open Perseverance image ${image.imageId}, Sol ${image.sol ?? 'unknown'}`}
+                          >
+                            <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden bg-surface">
+                              {thumbnail ? (
+                                <img src={thumbnail} alt={image.caption ?? image.title ?? `Perseverance image ${image.imageId}`} loading="lazy" decoding="async" className="h-full w-full object-contain" />
+                              ) : (
+                                <span className="text-[11px] text-ink-subtle">NASA image preview unavailable</span>
+                              )}
+                            </div>
+                            <span className="p-2.5 text-xs text-ink">
+                              <span className="block truncate font-medium">{image.title ?? image.imageId}</span>
+                              <span className="mt-1 block font-mono text-[10px] text-ink-muted">
+                                Sol {image.sol ?? 'unknown'} · {image.instrument ?? 'camera unknown'} · {image.dateTakenUtc ?? 'capture time unknown'}
+                              </span>
+                              <span className="mt-1 block text-[10px] text-warn">Location association: Sol only; image coordinates unknown</span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      <footer className="shrink-0 border-t border-edge/70 px-3 py-2 text-[10px] leading-relaxed text-ink-subtle">
+        Historical traverse: NASA Trek Perseverance localization, Sols 14–1176. Images: NASA Mars 2020 raw-image feed. Capture location and map pointing are unknown unless separately provided by a validated product.
+      </footer>
+      <ImageDetailDialog
+        image={selectedImage}
+        onClose={() => setSelectedImageId(null)}
+        observationContext={searchResult?.status === 'matched-sol' ? searchResult.nearestTraverse : null}
+        selectedLocation={location}
+      />
+    </section>
+  );
+}
+
+function PerseveranceImageGallery({ active, initialSol }: { active: boolean; initialSol?: number }) {
   const [page, setPage] = useState(0);
   const [camera, setCamera] = useState('');
-  const [solInput, setSolInput] = useState('');
-  const [solFilter, setSolFilter] = useState<number | undefined>();
+  const [solInput, setSolInput] = useState(initialSol === undefined ? '' : String(initialSol));
+  const [solFilter, setSolFilter] = useState<number | undefined>(initialSol);
   const [solError, setSolError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [data, setData] = useState<PerseveranceImagePage | null>(null);
@@ -82,6 +307,10 @@ export function RoverPovPanel({ active }: { active: boolean }) {
   const lastSuccessAtRef = useRef(0);
   const dataQueryKeyRef = useRef(dataQueryKey);
   dataQueryKeyRef.current = dataQueryKey;
+
+  useEffect(() => {
+    if (!active) setSelectedImageId(null);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -399,12 +628,17 @@ export function RoverPovPanel({ active }: { active: boolean }) {
 function ImageDetailDialog({
   image,
   onClose,
+  observationContext = null,
+  selectedLocation = null,
 }: {
   image: PerseveranceImage | null;
   onClose: () => void;
+  observationContext?: { sol: number; lon: number; lat: number; distanceM: number } | null;
+  selectedLocation?: MapLocation | null;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [resolution, setResolution] = useState<RoverImageResolution | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [imageFailed, setImageFailed] = useState(false);
   const availableResolutions = image
     ? (Object.keys(image.imageFiles) as RoverImageResolution[]).filter((value) => !!image.imageFiles[value])
@@ -420,6 +654,7 @@ function ImageDetailDialog({
   useEffect(() => {
     setResolution(image ? initialDetailResolution(image) : null);
     setImageFailed(false);
+    setZoom(1);
   }, [image?.imageId]);
 
   const imageUrl = image && resolution ? image.imageFiles[resolution] : undefined;
@@ -462,7 +697,10 @@ function ImageDetailDialog({
               NASA image resolution
               <select
                 value={resolution ?? ''}
-                onChange={(event) => setResolution(event.target.value as RoverImageResolution)}
+                onChange={(event) => {
+                  setResolution(event.target.value as RoverImageResolution);
+                  setZoom(1);
+                }}
                 disabled={availableResolutions.length === 0}
                 className="h-9 rounded-md border border-edge bg-surface px-2 text-xs normal-case tracking-normal text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
               >
@@ -472,6 +710,29 @@ function ImageDetailDialog({
                 ))}
               </select>
             </label>
+            <div className="flex items-center gap-1" aria-label="Image zoom controls">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setZoom((value) => Math.max(1, value - 0.5))}
+                disabled={zoom <= 1}
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <ZoomOut className="size-3.5" aria-hidden="true" />
+              </Button>
+              <span className="min-w-10 text-center font-mono text-[10px] text-ink-muted">{Math.round(zoom * 100)}%</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setZoom((value) => Math.min(3, value + 0.5))}
+                disabled={zoom >= 3}
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <ZoomIn className="size-3.5" aria-hidden="true" />
+              </Button>
+            </div>
             {downloadResolution && (
               <a
                 href={roverImageDownloadUrl(image.imageId, downloadResolution)}
@@ -483,15 +744,18 @@ function ImageDetailDialog({
             )}
           </div>
 
-          <div className="mt-3 flex min-h-48 items-center justify-center rounded-md border border-edge/60 bg-surface p-2">
+          <div className="mt-3 max-h-[65vh] min-h-48 overflow-auto rounded-md border border-edge/60 bg-surface">
             {imageUrl && !imageFailed ? (
-              <img
-                src={imageUrl}
-                alt={image.caption ?? image.title ?? `NASA Perseverance image ${image.imageId}`}
-                className="max-h-[60vh] max-w-full object-contain"
-                decoding="async"
-                onError={() => setImageFailed(true)}
-              />
+              <div className={`flex min-h-48 min-w-full items-center p-2 ${zoom === 1 ? 'justify-center' : 'justify-start'}`}>
+                <img
+                  src={imageUrl}
+                  alt={image.caption ?? image.title ?? `NASA Perseverance image ${image.imageId}`}
+                  className="h-auto shrink-0 max-w-none object-contain"
+                  style={{ width: `${zoom * 100}%`, maxHeight: zoom === 1 ? '60vh' : undefined }}
+                  decoding="async"
+                  onError={() => setImageFailed(true)}
+                />
+              </div>
             ) : (
               <p className="text-center text-xs text-ink-muted">
                 {imageFailed ? 'NASA image could not be loaded.' : 'No image resolution is available in this record.'}
@@ -506,12 +770,56 @@ function ImageDetailDialog({
             <Metadata label="Image ID" value={image.imageId} mono />
             <Metadata label="Acquired (UTC)" value={formatTimestamp(image.dateTakenUtc)} />
             <Metadata label="Mars time" value={formatTimestamp(image.dateTakenMars)} />
+            <Metadata label="Image surface coordinates" value="Unknown — not supplied by the raw-image record" />
+            <Metadata label="Camera pointing on map" value="Unknown — no validated frame transformation or calibration is applied" />
+            {image.sourceMetadata.site && <Metadata label="Rover site" value={image.sourceMetadata.site} mono />}
+            {image.sourceMetadata.drive && <Metadata label="Rover drive" value={image.sourceMetadata.drive} mono />}
+            {image.sourceMetadata.filterName && <Metadata label="Camera filter" value={image.sourceMetadata.filterName} />}
             <Metadata
               label="NASA received"
               value={image.dateReceived ?? 'Not supplied; public release time is not provided by this field.'}
             />
             <Metadata label="Image credit" value={image.credit ?? 'Not supplied in this image record'} />
+            {observationContext && selectedLocation && (
+              <>
+                <Metadata
+                  label="Selected map point"
+                  value={`${formatLon(selectedLocation.lon)} ${formatLat(selectedLocation.lat)}`}
+                  mono
+                />
+                <Metadata
+                  label="Nearest traverse reference"
+                  value={`Sol ${observationContext.sol}; ${formatLon(observationContext.lon)} ${formatLat(observationContext.lat)}; ${formatDistance(observationContext.distanceM)} from selection. This is not the image location.`}
+                  mono
+                />
+              </>
+            )}
           </dl>
+
+          {Object.keys(image.sourceMetadata).some((key) =>
+            !['site', 'drive', 'filterName'].includes(key),
+          ) && (
+            <details className="mt-3 rounded-md border border-edge/60 px-2.5">
+              <summary className="min-h-9 cursor-pointer py-2 text-[10px] text-ink-muted">
+                NASA camera geometry fields (raw; not map interpreted)
+              </summary>
+              <dl className="grid grid-cols-1 gap-2 border-t border-edge/60 py-2 text-xs sm:grid-cols-2">
+                {image.sourceMetadata.sclk && <Metadata label="SCLK" value={image.sourceMetadata.sclk} mono />}
+                {image.sourceMetadata.mastAz && <Metadata label="mastAz (source field)" value={image.sourceMetadata.mastAz} mono />}
+                {image.sourceMetadata.mastEl && <Metadata label="mastEl (source field)" value={image.sourceMetadata.mastEl} mono />}
+                {image.sourceMetadata.attitude && <Metadata label="attitude (source tuple)" value={image.sourceMetadata.attitude} mono />}
+                {image.sourceMetadata.cameraPosition && <Metadata label="camera_position (source tuple)" value={image.sourceMetadata.cameraPosition} mono />}
+                {image.sourceMetadata.cameraVector && <Metadata label="camera_vector (source tuple)" value={image.sourceMetadata.cameraVector} mono />}
+                {image.sourceMetadata.cameraModelType && <Metadata label="camera model" value={image.sourceMetadata.cameraModelType} mono />}
+                {image.sourceMetadata.cameraModelComponentList && <Metadata label="camera model components" value={image.sourceMetadata.cameraModelComponentList} mono />}
+                {image.sourceMetadata.xyz && <Metadata label="xyz (source field)" value={image.sourceMetadata.xyz} mono />}
+                {image.sourceMetadata.sampleType && <Metadata label="sample type" value={image.sourceMetadata.sampleType} />}
+              </dl>
+              <p className="pb-2 text-[10px] leading-relaxed text-ink-subtle">
+                NASA’s raw-feed response does not document the coordinate frame, units, or angle conventions for these fields. They are preserved as metadata only; no position, heading, or field-of-view is inferred.
+              </p>
+            </details>
+          )}
 
           {image.caption && (
             <p className="mt-3 whitespace-pre-line border-t border-edge/60 pt-3 text-xs leading-relaxed text-ink-muted">

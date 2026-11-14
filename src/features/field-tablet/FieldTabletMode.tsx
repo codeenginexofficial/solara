@@ -11,7 +11,7 @@ import { Suspense, lazy, useCallback, useRef, useState } from 'react';
 import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
-import type { MapFeatureSelection, OverlayStatusMap } from '../../map/mapTypes';
+import type { MapFeatureSelection, MapLocation, OverlayStatusMap } from '../../map/mapTypes';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
 import { DATASET_SHORT_NAMES } from '../habitat-mode/components/MissionOperationsPanel';
 import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
@@ -40,7 +40,11 @@ const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
 
-const BASE_LAYER_IDS = ['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008'] as const;
+const BASE_LAYER_IDS = [
+  'mola-hrsc-blend-200m-colorshade',
+  'mars-viking-mdim21-colorized-global',
+  'jezero-ctx-mosaic-soc-008',
+] as const;
 const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 'mars2020-perseverance-traverse', 'mars2020-science-stops', 'jezero-iau-nomenclature', 'jezero-hydrous-minerals-omega-crism'] as const;
 
 function MapWorkspaceFallback() {
@@ -93,7 +97,9 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
       initial[id] = {
-        visible: id === 'jezero-ctx-mosaic-soc-008' || id === 'mars2020-perseverance-traverse',
+        visible: id === 'jezero-ctx-mosaic-soc-008' ||
+          id === 'mars-viking-mdim21-colorized-global' ||
+          id === 'mars2020-perseverance-traverse',
         opacity: 1,
       };
     }
@@ -104,6 +110,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [importError, setImportError] = useState<string | null>(null);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
   const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleToggleVisibility = useCallback((id: string, visible: boolean) => {
@@ -212,6 +219,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
             onPointerLocationChange={() => {}}
             onLocationSelect={(loc) => {
               setSelectedFeature(null);
+              setSelectedLocation(loc);
               setPosition({ lon: loc.lon, lat: loc.lat });
             }}
             onFeatureSelect={setSelectedFeature}
@@ -582,7 +590,10 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           </div>
           ) : (
             <div id="tablet-tabpanel-rover" role="tabpanel" className="h-[calc(52vh-7rem)] min-h-[220px] overflow-hidden">
-              <RoverPovPanel active={sheetOpen && sheetTab === 'rover'} />
+              <RoverPovPanel
+                active={sheetOpen && sheetTab === 'rover'}
+                location={selectedLocation}
+              />
             </div>
           )}
           </>

@@ -9,6 +9,23 @@ export interface RoverImageFiles {
   full_res?: string;
 }
 
+/** Raw NASA fields preserved without interpreting their coordinate frames. */
+export interface RoverImageSourceMetadata {
+  site?: string;
+  drive?: string;
+  sampleType?: string;
+  sclk?: string;
+  mastAz?: string;
+  mastEl?: string;
+  xyz?: string;
+  attitude?: string;
+  filterName?: string;
+  cameraPosition?: string;
+  cameraVector?: string;
+  cameraModelType?: string;
+  cameraModelComponentList?: string;
+}
+
 export interface PerseveranceImage {
   imageId: string;
   sol?: number;
@@ -18,6 +35,7 @@ export interface PerseveranceImage {
   dateTakenUtc?: string;
   dateTakenMars?: string;
   dateReceived?: string;
+  sourceMetadata: RoverImageSourceMetadata;
   credit?: string;
   sourceLink?: string;
   imageFiles: RoverImageFiles;
@@ -85,6 +103,31 @@ function optionalString(value: unknown, maxLength = 2_000): string | undefined {
   return text.length > 0 && text.length <= maxLength ? text : undefined;
 }
 
+function parseSourceMetadata(value: unknown): RoverImageSourceMetadata {
+  if (!isRecord(value)) return {};
+  const metadata: RoverImageSourceMetadata = {};
+  const fields: Array<[keyof RoverImageSourceMetadata, number]> = [
+    ['site', 100],
+    ['drive', 100],
+    ['sampleType', 100],
+    ['sclk', 100],
+    ['mastAz', 100],
+    ['mastEl', 100],
+    ['xyz', 500],
+    ['attitude', 500],
+    ['filterName', 100],
+    ['cameraPosition', 1_000],
+    ['cameraVector', 1_000],
+    ['cameraModelType', 100],
+    ['cameraModelComponentList', 4_000],
+  ];
+  for (const [key, maxLength] of fields) {
+    const parsed = optionalString(value[key], maxLength);
+    if (parsed) metadata[key] = parsed;
+  }
+  return metadata;
+}
+
 function optionalCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
@@ -121,6 +164,7 @@ function parseImage(value: unknown): PerseveranceImage | null {
     dateTakenUtc: optionalString(value.dateTakenUtc, 100),
     dateTakenMars: optionalString(value.dateTakenMars, 100),
     dateReceived: optionalString(value.dateReceived, 100),
+    sourceMetadata: parseSourceMetadata(value.sourceMetadata),
     credit: optionalString(value.credit, 500),
     sourceLink: isNasaUrl(value.sourceLink) ? value.sourceLink : undefined,
     imageFiles,

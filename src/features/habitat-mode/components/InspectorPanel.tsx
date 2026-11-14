@@ -4,10 +4,11 @@
  * (Design.md §5, Solara Mars Mission Dashboard reference).
  */
 
-import { Database, Flag, Route } from 'lucide-react';
+import { Camera, Database, Flag, Route } from 'lucide-react';
 import type { MapFeatureSelection, MapLocation } from '../../../map/mapTypes';
 import type { DatasetRecord, RegionRecord, VerificationStatus } from '../../../data/catalog/types';
 import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
 import { Disclosure } from '../../../components/ui/disclosure';
 import { AtmosphereThumbnail, CtxThumbnail, TopographyThumbnail } from '../../../components/ui/thumbnails';
 import { DatasetDetails } from './DatasetPanel';
@@ -33,6 +34,7 @@ export interface InspectorPanelProps {
   region: RegionRecord;
   dataset: DatasetRecord | undefined;
   onElevationStateChange: (state: ElevationState | null) => void;
+  onOpenRoverPov: () => void;
 }
 
 export function InspectorPanel({
@@ -41,6 +43,7 @@ export function InspectorPanel({
   region,
   dataset,
   onElevationStateChange,
+  onOpenRoverPov,
 }: InspectorPanelProps) {
   const mission = useMissionState();
   const route = mission.route;
@@ -55,6 +58,19 @@ export function InspectorPanel({
         region={region}
         onElevationStateChange={onElevationStateChange}
       />
+
+      {location && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start"
+          onClick={onOpenRoverPov}
+          aria-label="Find nearby historical rover observations for the selected map point"
+        >
+          <Camera className="mr-2 size-3.5" aria-hidden="true" />
+          Nearby rover observations
+        </Button>
+      )}
 
       {/* 2. Modelled Mars clock + stale weather snapshot */}
       <EnvironmentPanel

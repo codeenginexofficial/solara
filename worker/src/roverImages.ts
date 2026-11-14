@@ -15,6 +15,23 @@ export interface RoverImageFiles {
   full_res?: string;
 }
 
+/** NASA raw-feed fields retained verbatim; their tuple frames are not map coordinates. */
+export interface RoverImageSourceMetadata {
+  site?: string;
+  drive?: string;
+  sampleType?: string;
+  sclk?: string;
+  mastAz?: string;
+  mastEl?: string;
+  xyz?: string;
+  attitude?: string;
+  filterName?: string;
+  cameraPosition?: string;
+  cameraVector?: string;
+  cameraModelType?: string;
+  cameraModelComponentList?: string;
+}
+
 export interface PerseveranceImage {
   imageId: string;
   sol?: number;
@@ -24,6 +41,7 @@ export interface PerseveranceImage {
   dateTakenUtc?: string;
   dateTakenMars?: string;
   dateReceived?: string;
+  sourceMetadata: RoverImageSourceMetadata;
   credit?: string;
   sourceLink?: string;
   imageFiles: RoverImageFiles;
@@ -120,6 +138,19 @@ function boundedString(value: unknown, maxLength = 2_000): string | undefined {
   return trimmed.length > 0 && trimmed.length <= maxLength ? trimmed : undefined;
 }
 
+function sourceScalar(value: unknown, maxLength = 1_000): string | undefined {
+  if (typeof value === 'string') return boundedString(value, maxLength);
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (Array.isArray(value) || isRecord(value)) {
+    try {
+      return boundedString(JSON.stringify(value), maxLength);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 function nonNegativeInteger(value: unknown): number | undefined {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
@@ -147,6 +178,7 @@ function normalizeImage(value: unknown): PerseveranceImage | null {
   if (!imageId || !/^[A-Za-z0-9_-]+$/.test(imageId)) return null;
 
   const camera = isRecord(value.camera) ? value.camera : undefined;
+  const extended = isRecord(value.extended) ? value.extended : undefined;
   const rawFiles = isRecord(value.image_files) ? value.image_files : undefined;
   const imageFiles: RoverImageFiles = {};
   if (rawFiles) {
@@ -154,6 +186,25 @@ function normalizeImage(value: unknown): PerseveranceImage | null {
       const url = safeNasaUrl(rawFiles[resolution]);
       if (url) imageFiles[resolution] = url;
     }
+  }
+
+  const sourceMetadata: RoverImageSourceMetadata = {
+    site: sourceScalar(value.site, 100),
+    drive: sourceScalar(value.drive, 100),
+    sampleType: sourceScalar(value.sample_type, 100),
+    sclk: sourceScalar(extended?.sclk, 100),
+    mastAz: sourceScalar(extended?.mastAz, 100),
+    mastEl: sourceScalar(extended?.mastEl, 100),
+    xyz: sourceScalar(extended?.xyz, 500),
+    attitude: sourceScalar(value.attitude, 500),
+    filterName: sourceScalar(camera?.filter_name, 100),
+    cameraPosition: sourceScalar(camera?.camera_position, 1_000),
+    cameraVector: sourceScalar(camera?.camera_vector, 1_000),
+    cameraModelType: sourceScalar(camera?.camera_model_type, 100),
+    cameraModelComponentList: sourceScalar(camera?.camera_model_component_list, 4_000),
+  };
+  for (const [key, item] of Object.entries(sourceMetadata)) {
+    if (item === undefined) delete sourceMetadata[key as keyof RoverImageSourceMetadata];
   }
 
   return {
@@ -165,6 +216,7 @@ function normalizeImage(value: unknown): PerseveranceImage | null {
     dateTakenUtc: boundedString(value.date_taken_utc, 100),
     dateTakenMars: boundedString(value.date_taken_mars, 100),
     dateReceived: boundedString(value.date_received, 100),
+    sourceMetadata,
     credit: boundedString(value.credit, 500),
     sourceLink: safeNasaUrl(value.link),
     imageFiles,
@@ -267,10 +319,7 @@ function nasaListUrl(query: ImageQuery): URL {
   url.searchParams.set('num', String(query.limit));
   url.searchParams.set('page', String(query.page));
   url.searchParams.set('order', 'sol desc');
-  if (query.sol !== undefined) {
-    url.searchParams.set('condition_2', `${query.sol}:sol:gte`);
-    url.searchParams.set('condition_3', `${query.sol}:sol:lte`);
-  }
+  if (query.sol !== undefined) url.searchParams.set('sol', String(query.sol));
   if (query.camera) url.searchParams.set('search', `|${query.camera}|`);
   return url;
 }

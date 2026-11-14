@@ -2,10 +2,8 @@
  * ContextWorkspace — Habitat Mode's right panel: a tabbed, resizable,
  * collapsible workspace holding the Inspector and the Mission Copilot.
  *
- * - Tabs: "Inspector" (location + dataset + route results) and "Copilot".
- *   Both tab contents stay mounted (toggled via the `hidden` attribute) so
- *   LocationPanel's debounced elevation queries keep reporting state for the
- *   Copilot context even while the Copilot tab is active.
+ * - Tabs: Inspector, Rover POV and Mission Copilot. Tabs stay mounted so
+ *   their local state is preserved; inactive Rover POV panels stop polling.
  * - Resizing: a pointer/keyboard drag handle on the panel's left edge
  *   (desktop widths only, 320–640 px, default 360 px, double-click resets).
  * - Collapsing: the close button hides the panel entirely; TopBar's panel
@@ -91,7 +89,7 @@ export function ContextWorkspace({
   return (
     <aside
       data-testid="context-workspace"
-      aria-label="Inspector and Solara AI workspace"
+      aria-label="Inspector, Rover POV and Mission Copilot workspace"
       style={{ '--work-w': `${width}px` } as CSSProperties}
       className={cn(
         'absolute inset-y-0 right-0 z-20 flex-col rounded-l-2xl border-l border-edge bg-panel shadow-2xl',

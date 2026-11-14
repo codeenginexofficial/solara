@@ -13,6 +13,7 @@ import {
   Crosshair,
   Database,
   FlaskConical,
+  Globe,
   Landmark,
   Layers,
   MapPin,
@@ -51,6 +52,7 @@ export interface MissionOperationsPanelProps {
 /** Concise display titles for high-density UI readability. */
 export const DATASET_SHORT_NAMES: Record<string, string> = {
   'jezero-ctx-mosaic-soc-008': 'CTX Imagery',
+  'mars-viking-mdim21-colorized-global': 'Viking Global Mosaic',
   'mola-hrsc-blend-200m-colorshade': 'MOLA Topography',
   'usgs-sim3292-jezero-geology': 'Geology (USGS)',
   'mars2020-perseverance-traverse': 'Rover Traverse',
@@ -64,6 +66,7 @@ export const DATASET_SHORT_NAMES: Record<string, string> = {
 
 const LAYER_ICONS: Record<string, typeof CircleDot> = {
   'jezero-ctx-mosaic-soc-008': CircleDot,
+  'mars-viking-mdim21-colorized-global': Globe,
   'mola-hrsc-blend-200m-colorshade': Mountain,
   'usgs-sim3292-jezero-geology': Layers,
   'mars2020-perseverance-traverse': Navigation,
@@ -77,6 +80,7 @@ const LAYER_ICONS: Record<string, typeof CircleDot> = {
 
 const ALL_LAYER_IDS = [
   'jezero-ctx-mosaic-soc-008',
+  'mars-viking-mdim21-colorized-global',
   'mola-hrsc-blend-200m-colorshade',
   'usgs-sim3292-jezero-geology',
   'mars2020-perseverance-traverse',
@@ -131,11 +135,14 @@ export function MissionOperationsPanel({
   const heightM = (bbox.northLat - bbox.southLat) * MARS_METRES_PER_DEGREE;
 
   // Active base layer display name
-  const activeBaseName = layerStates['jezero-ctx-mosaic-soc-008']?.visible
-    ? 'CTX Imagery'
-    : layerStates['mola-hrsc-blend-200m-colorshade']?.visible
-      ? 'MOLA Topography'
-      : 'None active';
+  const activeBaseName = [
+    ['jezero-ctx-mosaic-soc-008', 'CTX Imagery'],
+    ['mars-viking-mdim21-colorized-global', 'Viking Global'],
+    ['mola-hrsc-blend-200m-colorshade', 'MOLA Topography'],
+  ]
+    .filter(([id]) => layerStates[id!]?.visible)
+    .map(([, name]) => name)
+    .join(' + ') || 'None active';
 
   return (
     <div className="flex min-h-0 flex-col gap-1 p-3">

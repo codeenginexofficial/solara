@@ -15,6 +15,9 @@ export const MARS_EQUIRECTANGULAR = 'SOLARA:MARS_EQC_IAU2015';
  *  Internal identifier used for display and reference transforms. */
 export const MARS_GEOGRAPHIC = 'SOLARA:MARS_2000_SPHERE_LONLAT';
 
+/** Source CRS used by the Esri-hosted global Viking mosaic tiles. */
+export const MARS_VIKING_MARSECO0 = 'SOLARA:MARS_VIKING_MARSECO0';
+
 /** The CRS URN exactly as declared by the NASA Trek WMTS document.
  *  Preserved as source metadata — it does not resolve to the projected
  *  CRS the service actually serves (verified equivalent to IAU:2015:49910;
@@ -32,6 +35,14 @@ export const MARS_EQC_PROJ4 =
   '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs';
 
 export const MARS_GEOGRAPHIC_PROJ4 = '+proj=longlat +R=3396190 +no_defs';
+
+/**
+ * Esri MapServer's published MarsEC0 equirectangular CRS. Its Mars 2000
+ * ellipsoid is retained as source metadata; OpenLayers reprojects these
+ * cached image tiles into SOLARA's Mars-sphere working projection.
+ */
+export const MARS_VIKING_MARSECO0_PROJ4 =
+  '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +a=3396190 +b=3376200 +units=m +no_defs';
 
 /** CRS descriptions shown in the UI. Honest about internal vs authoritative. */
 export const PROJECTION_INFO = {

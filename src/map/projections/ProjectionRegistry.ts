@@ -62,6 +62,8 @@ import type { Projection } from 'ol/proj.js';
 export {
   MARS_EQUIRECTANGULAR,
   MARS_GEOGRAPHIC,
+  MARS_VIKING_MARSECO0,
+  MARS_VIKING_MARSECO0_PROJ4,
   TREK_DECLARED_CRS_URN,
   MARS_2000_SPHERE_RADIUS_M,
   MARS_METRES_PER_DEGREE,
@@ -73,6 +75,8 @@ export {
 import {
   MARS_EQUIRECTANGULAR,
   MARS_GEOGRAPHIC,
+  MARS_VIKING_MARSECO0,
+  MARS_VIKING_MARSECO0_PROJ4,
   MARS_2000_SPHERE_RADIUS_M,
   MARS_EQC_PROJ4,
   MARS_GEOGRAPHIC_PROJ4,
@@ -85,6 +89,7 @@ export function ensureMarsProjectionsRegistered(): void {
   if (registered) return;
   proj4.defs(MARS_EQUIRECTANGULAR, MARS_EQC_PROJ4);
   proj4.defs(MARS_GEOGRAPHIC, MARS_GEOGRAPHIC_PROJ4);
+  proj4.defs(MARS_VIKING_MARSECO0, MARS_VIKING_MARSECO0_PROJ4);
   register(proj4);
 
   // ol's default getPointResolution estimates scale by transforming a pixel

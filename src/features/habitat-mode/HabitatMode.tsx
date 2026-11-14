@@ -48,8 +48,12 @@ const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
 
-/** WMTS base layers, bottom-first rendering order (topography under imagery). */
-const BASE_LAYER_IDS = ['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008'] as const;
+/** Base layers, bottom-first: global topography, global Viking, Jezero CTX detail. */
+const BASE_LAYER_IDS = [
+  'mola-hrsc-blend-200m-colorshade',
+  'mars-viking-mdim21-colorized-global',
+  'jezero-ctx-mosaic-soc-008',
+] as const;
 /** Prepared GeoJSON overlay datasets, bottom-first rendering order. */
 const OVERLAY_IDS = [
   'usgs-sim3292-jezero-geology',
@@ -67,7 +71,7 @@ const OVERLAY_ID_SET: ReadonlySet<string> = new Set(OVERLAY_IDS);
 /** Fixed honesty statement attached to every Copilot request. */
 const DATA_NOT_AVAILABLE_CONTEXT =
   'Not available in SOLARA data: current real-time/live weather at Jezero, dust opacity, and radiation ' +
-  'observations; real-time rover position (historical track through sol 1176 only); site-scale ' +
+  'observations; current rover position (historical traverse through Sol 1176 only); site-scale ' +
   'slope, hazards, or rock abundance; route safety validation; image content (Solara AI cannot ' +
   'see map imagery). Mars Ls/LMST are modelled (Mars24), not observations. The MSL weather snapshot ' +
   '(sol 4995, 2026-08-25, Gale Crater) is stale and not local; MEDA in-situ observations shown in the ' +
@@ -99,9 +103,12 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
-      // Initial presentation (Revision 2): CTX imagery is the default base;
-      // the scientific colorshade raster stays off until asked for.
-      initial[id] = { visible: id === 'jezero-ctx-mosaic-soc-008', opacity: 1 };
+      // Global Viking context remains visible beneath the local Jezero CTX;
+      // the scientific topographic colorshade stays off until requested.
+      initial[id] = {
+        visible: id === 'mars-viking-mdim21-colorized-global' || id === 'jezero-ctx-mosaic-soc-008',
+        opacity: 1,
+      };
     }
     return initial;
   });
@@ -348,10 +355,19 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
               region={REGION}
               dataset={selectedDataset}
               onElevationStateChange={setLocationElevation}
+              onOpenRoverPov={() => {
+                setWorkspaceTab('rover');
+                setWorkspaceOpen(true);
+              }}
             />
           }
           copilot={<CopilotPanel context={copilotContext} />}
-          roverPov={<RoverPovPanel active={workspaceOpen && workspaceTab === 'rover'} />}
+          roverPov={
+            <RoverPovPanel
+              active={workspaceOpen && workspaceTab === 'rover'}
+              location={selectedLocation}
+            />
+          }
         />
       </div>
 

@@ -36,11 +36,12 @@ import Feature from 'ol/Feature.js';
 import LineString from 'ol/geom/LineString.js';
 import Point from 'ol/geom/Point.js';
 import VectorSource from 'ol/source/Vector.js';
+import type TileImageSource from 'ol/source/TileImage.js';
 import VectorLayer from 'ol/layer/Vector.js';
 import { Fill, Stroke, Style, Text } from 'ol/style.js';
 import CircleStyle from 'ol/style/Circle.js';
 
-import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL, SCIENCE_STOPS_DATASET_ID, IAU_NOMENCLATURE_DATASET_ID } from '../data/catalog/datasets';
+import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL, SCIENCE_STOPS_DATASET_ID, IAU_NOMENCLATURE_DATASET_ID, VIKING_GLOBAL_MOSAIC_DATASET } from '../data/catalog/datasets';
 import type { DatasetRecord } from '../data/catalog/types';
 import type { GeoPoint, RouteResult } from '../workers/routeClient';
 import {
@@ -58,6 +59,7 @@ import {
 } from './trek/trekCapabilities';
 import { gridFingerprint } from './trek/tileGrid';
 import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
+import { createVikingGlobalLayer } from './layers/createVikingGlobalLayer';
 import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
 import { createRasterOverlayLayer } from './layers/createRasterOverlayLayer';
 import type BaseLayer from 'ol/layer/Base.js';
@@ -261,7 +263,7 @@ export default function MarsMap({
   const regionExtentRef = useRef<[number, number, number, number] | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const baseLayerRecordsRef = useRef<
-    Array<{ datasetId: string; layer: BaseLayer; source: import('ol/source/WMTS.js').default; footprint: Extent }>
+    Array<{ datasetId: string; layer: BaseLayer; source: TileImageSource; footprint: Extent }>
   >([]);
   const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: BaseLayer }>>([]);
   const routeSourceRef = useRef<VectorSource | null>(null);
@@ -342,10 +344,21 @@ export default function MarsMap({
     ensureMarsProjectionsRegistered();
     const projection: Projection = getMarsEquirectangular();
 
-    /* --- Base WMTS layers from verified snapshots ---------------------- */
+    /* --- Base raster layers: verified Trek WMTS plus global Viking XYZ -- */
     const baseRecords = baseLayers.map(({ datasetId }) => {
       const dataset = getDatasetById(datasetId);
-      if (!dataset) throw new Error(`Unknown WMTS dataset id "${datasetId}".`);
+      if (!dataset) throw new Error(`Unknown base layer dataset id "${datasetId}".`);
+      if (datasetId === VIKING_GLOBAL_MOSAIC_DATASET.id) {
+        const created = createVikingGlobalLayer();
+        const bbox = dataset.boundingBox;
+        if (!bbox) throw new Error(`Global Viking dataset "${datasetId}" has no verified coverage extent.`);
+        return {
+          datasetId,
+          layer: created.layer as BaseLayer,
+          source: created.source,
+          footprint: marsBboxToMetresExtent(bbox),
+        };
+      }
       const verifiedXml = VERIFIED_CAPABILITIES_XML_BY_ID[datasetId];
       if (!verifiedXml) throw new Error(`No verified capabilities snapshot for "${datasetId}".`);
       const snapshotConfig = parseTrekCapabilitiesXml(verifiedXml);

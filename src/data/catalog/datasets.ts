@@ -44,6 +44,9 @@ export const TREK_CAPABILITIES_URL =
 export const TREK_MOLA_200M_CAPABILITIES_URL =
   'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/WMTSCapabilities.xml';
 
+export const VIKING_ARCGIS_MOSAIC_SERVICE_URL =
+  'https://tiles.arcgis.com/tiles/lqRTrQp2HrfnJt8U/arcgis/rest/services/mars_viking_mosaic/MapServer';
+
 export const TREK_ARCGIS_SERVICES = 'https://trek.nasa.gov/mars/trekarcgis/rest/services';
 
 /** Dataset id shared with the map's feature hit-testing. */
@@ -77,6 +80,51 @@ const GEOGRAPHIC_AUTHORITY =
 /* ------------------------------------------------------------------ */
 /* 1. Optical — Jezero CTX mosaic (Milestone 0.1, verified)            */
 /* ------------------------------------------------------------------ */
+
+export const VIKING_GLOBAL_MOSAIC_DATASET: DatasetRecord = {
+  id: 'mars-viking-mdim21-colorized-global',
+  title: 'Viking MDIM 2.1 Colorized Global Mosaic',
+  provider: 'NASA Ames / USGS Astrogeology Science Center; cached tiles hosted by Esri',
+  mission: 'Viking orbiters',
+  instrument: 'Viking imaging cameras',
+  productId: 'Mars_Viking_MDIM21_ClrMosaic_global_232m',
+  kind: 'optical',
+  description:
+    'Global historical Mars color mosaic from Viking imagery, blended over the USGS MDIM 2.1 grayscale mosaic. Used as low-resolution optical context beneath the detailed Jezero CTX layer.',
+  sourceUrl: VIKING_ARCGIS_MOSAIC_SERVICE_URL,
+  accessMethod: 'xyz',
+  assetUrl: `${VIKING_ARCGIS_MOSAIC_SERVICE_URL}/tile/{z}/{y}/{x}`,
+  spatialReference: {
+    body: 'Mars',
+    authority:
+      'Esri MapServer publishes custom projected CRS MarsEC0 over GCS_Mars_2000 (ESRI:104905; semimajor 3,396,190 m, semiminor 3,376,200 m). SOLARA preserves this as the source CRS and reprojects tiles into its internal Mars sphere equirectangular view.',
+    proj4:
+      '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +a=3396190 +b=3376200 +units=m +no_defs',
+    datum: 'Mars 2000 ellipsoid as published by the Esri MapServer',
+    coordinateSystem: 'MarsEC0 equidistant cylindrical, metres, central meridian 0°',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees (geographic lon/lat), metres (MarsEC0 projected service tiles)',
+    sourceDefinition: 'Custom Esri MarsEC0 / GCS_Mars_2000 as published in the ArcGIS MapServer metadata.',
+  },
+  coverageDescription: 'Global: lon −180° – +180°, lat −90° – +90° (Esri MapServer full extent).',
+  boundingBox: { westLon: -180, eastLon: 180, southLat: -90, northLat: 90 },
+  spatialResolution: 231,
+  resolutionUnit:
+    'Native mosaic resolution approximately 231 m/pixel at the equator. The cached MapServer exposes 9 levels, with finest level 8 at 325.605638 m/pixel; map display beyond that level is resampled.',
+  observationPeriod:
+    'Viking mission era (1976–1982); individual source-image acquisition dates are not exposed by this map service.',
+  attribution: 'NASA Ames; USGS Astrogeology Science Center; NASA / JPL; Esri; Rice University (MapServer copyright metadata).',
+  limitations: [
+    'Historical global context imagery; the service does not expose acquisition dates for individual source frames.',
+    'The product description estimates positional accuracy at roughly one pixel (~200 m); this is not local hazard-scale imagery.',
+    'The MapServer cache exposes 9 levels (0–8), with finest served resolution 325.605638 m/pixel. Its approximately 231 m/pixel native product resolution is not available at every location/level.',
+    'Tiles use the custom MarsEC0 projection on the Mars 2000 ellipsoid and are reprojected into SOLARA:MARS_EQC_IAU2015 on the Mars sphere.',
+    'This layer provides broad optical context only; Jezero CTX remains the higher-resolution local planning source within its verified footprint.',
+  ],
+  verification: 'inspected',
+  lastVerifiedAt: '2026-11-14',
+};
 
 export const JEZERO_CTX_DATASET: DatasetRecord = {
   id: 'jezero-ctx-mosaic-soc-008',
@@ -699,6 +747,7 @@ export const JEZERO_REGION: RegionRecord = {
     northLat: 18.7211945,
   },
   datasetIds: [
+    VIKING_GLOBAL_MOSAIC_DATASET.id,
     JEZERO_CTX_DATASET.id,
     MOLA_HRSC_COLORSHADE_DATASET.id,
     USGS_SIM3292_GEOLOGY_DATASET.id,
@@ -713,6 +762,7 @@ export const JEZERO_REGION: RegionRecord = {
 };
 
 const DATASETS: readonly DatasetRecord[] = [
+  VIKING_GLOBAL_MOSAIC_DATASET,
   JEZERO_CTX_DATASET,
   MOLA_HRSC_COLORSHADE_DATASET,
   MOLA_HRSC_BLEND_DEM_DATASET,
