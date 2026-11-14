@@ -25,6 +25,19 @@ export interface ViewInfo {
 }
 
 /**
+ * A named overlay feature selected by clicking the map (science waypoints).
+ * Plain values only — the map never leaks ol feature objects to the shell.
+ */
+export interface MapFeatureSelection {
+  datasetId: string;
+  name: string;
+  lon: number;
+  lat: number;
+  /** Link to the source bookmark page, when the service publishes one. */
+  detailUrl?: string;
+}
+
+/**
  * Why a single tile request failed. Recorded by the Trek tile loader and
  * combined with the advertised footprint to separate expected no-data tiles
  * from genuine failures:

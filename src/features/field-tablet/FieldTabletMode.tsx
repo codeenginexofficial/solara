@@ -39,7 +39,7 @@ const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
 
 const BASE_LAYER_IDS = ['mola-hrsc-blend-200m-colorshade', 'jezero-ctx-mosaic-soc-008'] as const;
-const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 'mars2020-perseverance-traverse'] as const;
+const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 'mars2020-perseverance-traverse', 'mars2020-science-stops', 'jezero-iau-nomenclature', 'jezero-hydrous-minerals-omega-crism'] as const;
 
 function MapWorkspaceFallback() {
   return (

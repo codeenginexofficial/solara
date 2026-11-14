@@ -14,12 +14,17 @@
  *  - rover:    dashed gray polyline for the historical traverse (visually
  *              distinct from the solid white PROPOSED route, Design.md §8),
  *              dashed outline for the landing ellipse (historical context).
+ *  - science:  white waypoint tokens with mono name labels (decluttered);
+ *              named destinations for a planned walk, not a hazard map.
+ *              IAU nomenclature renders as a hollow ring + name label only
+ *              (the gazetteer publishes a centre, not a boundary).
  */
 
 import VectorLayer from 'ol/layer/Vector.js';
 import VectorSource from 'ol/source/Vector.js';
 import GeoJSON from 'ol/format/GeoJSON.js';
 import { Fill, Stroke, Style, Text } from 'ol/style.js';
+import CircleStyle from 'ol/style/Circle.js';
 import type { FeatureLike } from 'ol/Feature.js';
 import { getMarsEquirectangular, getMarsGeographic } from '../projections/ProjectionRegistry';
 import type { DatasetRecord } from '../../data/catalog/types';
@@ -75,6 +80,52 @@ function landingEllipseStyle(): Style {
   });
 }
 
+/** IAU nomenclature: identification label only — hollow ring + name, no
+ *  boundary is drawn (the gazetteer publishes a centre, not a rim). */
+function iauLabelStyle(feature: FeatureLike): Style {
+  const name = String(feature.get('name') ?? '').trim();
+  return new Style({
+    image: new CircleStyle({
+      radius: 6,
+      fill: new Fill({ color: 'rgba(8, 12, 18, 0.0)' }),
+      stroke: new Stroke({ color: 'rgba(255, 255, 255, 0.75)', width: 1.25 }),
+    }),
+    text: name
+      ? new Text({
+          text: `${name.toUpperCase()} · IAU`,
+          offsetY: -14,
+          font: '600 10px ui-monospace, monospace',
+          fill: new Fill({ color: 'rgba(255, 255, 255, 0.9)' }),
+          stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.9)', width: 3 }),
+          overflow: true,
+        })
+      : undefined,
+  });
+}
+
+/** Science waypoints: white token with a mono name label. Labels declutter
+ *  (the layer sets `declutter: true`) so the eight bookmarks stay readable. */
+function scienceStopStyle(feature: FeatureLike): Style {
+  const name = String(feature.get('name') ?? '').trim();
+  return new Style({
+    image: new CircleStyle({
+      radius: 4.5,
+      fill: new Fill({ color: 'rgba(255, 255, 255, 0.85)' }),
+      stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.9)', width: 1.5 }),
+    }),
+    text: name
+      ? new Text({
+          text: name,
+          offsetY: 14,
+          font: '500 10px ui-monospace, monospace',
+          fill: new Fill({ color: 'rgba(255, 255, 255, 0.95)' }),
+          stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.9)', width: 3 }),
+          overflow: true,
+        })
+      : undefined,
+  });
+}
+
 export interface CreatedGeojsonLayer {
   layer: VectorLayer<VectorSource>;
   source: VectorSource;
@@ -123,6 +174,13 @@ export function createGeojsonOverlayLayer(
           dataset.id === 'mars2020-landing-ellipse'
             ? landingEllipseStyle()
             : roverPathStyle(),
+      });
+      break;
+    case 'science':
+      layer = new VectorLayer({
+        source,
+        style: dataset.id === 'jezero-iau-nomenclature' ? iauLabelStyle : scienceStopStyle,
+        declutter: true,
       });
       break;
     default:

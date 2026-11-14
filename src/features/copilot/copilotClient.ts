@@ -33,7 +33,10 @@ export interface CopilotContext {
   selectedLocation?: string;
   visibleLayers?: string;
   missionPlan?: string;
+  /** NASA MEDA/PDS in-situ observations (fetched by the app, worker-clamped). */
   environmentalObservations?: string;
+  /** Modelled Mars time (Ls/LMST) and stale weather-snapshot context. */
+  environment?: string;
   dataNotAvailable?: string;
 }
 

@@ -27,6 +27,7 @@ export type DatasetKind =
   | 'spectral'
   | 'atmospheric'
   | 'radiation'
+  | 'science'
   | 'other';
 
 export type VerificationStatus =
@@ -41,6 +42,7 @@ export type AccessMethod =
   | 'xyz'
   | 'geotiff'
   | 'geojson'
+  | 'raster'
   | 'csv'
   | 'api'
   | 'download'

@@ -26,7 +26,6 @@ import View from 'ol/View.js';
 import { defaults as defaultControls } from 'ol/control/defaults.js';
 import Attribution from 'ol/control/Attribution.js';
 import ScaleLine from 'ol/control/ScaleLine.js';
-import type BaseLayer from 'ol/layer/Base.js';
 import type MapBrowserEvent from 'ol/MapBrowserEvent.js';
 import { unByKey } from 'ol/Observable.js';
 import type { EventsKey } from 'ol/events.js';
@@ -41,7 +40,7 @@ import VectorLayer from 'ol/layer/Vector.js';
 import { Fill, Stroke, Style, Text } from 'ol/style.js';
 import CircleStyle from 'ol/style/Circle.js';
 
-import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL } from '../data/catalog/datasets';
+import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL, SCIENCE_STOPS_DATASET_ID, IAU_NOMENCLATURE_DATASET_ID } from '../data/catalog/datasets';
 import type { DatasetRecord } from '../data/catalog/types';
 import type { GeoPoint, RouteResult } from '../workers/routeClient';
 import {
@@ -60,7 +59,10 @@ import {
 import { gridFingerprint } from './trek/tileGrid';
 import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
 import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
+import { createRasterOverlayLayer } from './layers/createRasterOverlayLayer';
+import type BaseLayer from 'ol/layer/Base.js';
 import type {
+  MapFeatureSelection,
   MapLocation,
   OverlayLoadState,
   OverlayStatusMap,
@@ -92,6 +94,8 @@ export interface MarsMapProps {
   selectedMarker?: GeoPoint | null;
   onPointerLocationChange: (location: MapLocation | null) => void;
   onLocationSelect: (location: MapLocation) => void;
+  /** Fires when the click landed on a named science waypoint. */
+  onFeatureSelect?: (feature: MapFeatureSelection) => void;
   onViewChange: (view: ViewInfo) => void;
   onSourceStatusChange: (status: SourceStatus) => void;
   /** Overlay asset load states, keyed by dataset id (serializable). */
@@ -245,6 +249,7 @@ export default function MarsMap({
   selectedMarker,
   onPointerLocationChange,
   onLocationSelect,
+  onFeatureSelect,
   onViewChange,
   onSourceStatusChange,
   onOverlayStatusChange,
@@ -258,7 +263,7 @@ export default function MarsMap({
   const baseLayerRecordsRef = useRef<
     Array<{ datasetId: string; layer: BaseLayer; source: import('ol/source/WMTS.js').default; footprint: Extent }>
   >([]);
-  const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: VectorLayer<VectorSource> }>>([]);
+  const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: BaseLayer }>>([]);
   const routeSourceRef = useRef<VectorSource | null>(null);
 
   /* Latest callbacks kept in refs so the mount effect never re-runs on
@@ -266,6 +271,7 @@ export default function MarsMap({
   const callbacksRef = useRef({
     onPointerLocationChange,
     onLocationSelect,
+    onFeatureSelect,
     onViewChange,
     onSourceStatusChange,
     onOverlayStatusChange,
@@ -274,6 +280,7 @@ export default function MarsMap({
     callbacksRef.current = {
       onPointerLocationChange,
       onLocationSelect,
+      onFeatureSelect,
       onViewChange,
       onSourceStatusChange,
       onOverlayStatusChange,
@@ -400,7 +407,13 @@ export default function MarsMap({
     callbacksRef.current.onOverlayStatusChange?.(simplifyOverlayStatus(initialOverlayLoad));
     const overlayPromises = overlays.map(async ({ datasetId }) => {
       const dataset = getDatasetById(datasetId);
-      if (!dataset?.preparedAssetUrl) {
+      if (!dataset) {
+        throw new Error(`Overlay dataset "${datasetId}" is not in the catalog.`);
+      }
+      if (dataset.accessMethod === 'raster') {
+        return createRasterOverlayLayer(dataset);
+      }
+      if (!dataset.preparedAssetUrl) {
         throw new Error(`Overlay dataset "${datasetId}" has no prepared asset URL.`);
       }
       const response = await fetch(dataset.preparedAssetUrl);
@@ -408,7 +421,7 @@ export default function MarsMap({
         throw new Error(`Overlay asset for "${datasetId}" failed: HTTP ${response.status}.`);
       }
       const geojson: unknown = await response.json();
-      return createGeojsonOverlayLayer(geojson, dataset);
+      return createGeojsonOverlayLayer(geojson, dataset).layer;
     });
 
     const map = new Map({
@@ -530,6 +543,42 @@ export default function MarsMap({
       if (!pair) return;
       const [lon, lat] = marsMetresToLonLat(pair[0], pair[1]);
       callbacksRef.current.onLocationSelect({ lon, lat, x: pair[0], y: pair[1] });
+
+      // Named science waypoints: hit-test only their layer so polygons and
+      // the rover track keep the plain coordinate-selection behaviour.
+      const pixel = evt.pixel;
+      if (!pixel || !callbacksRef.current.onFeatureSelect) return;
+      const hits: Array<{ datasetId: string; name: string; detailUrl?: string }> = [];
+      map.forEachFeatureAtPixel(
+        pixel,
+        (feature, layer) => {
+          if (!layer) return false;
+          const datasetId = layer.get('datasetId');
+          if (datasetId !== SCIENCE_STOPS_DATASET_ID && datasetId !== IAU_NOMENCLATURE_DATASET_ID) {
+            return false;
+          }
+          const name = feature.get('name');
+          if (typeof name !== 'string' || name.length === 0) return false;
+          const link = feature.get('template') ?? feature.get('gazetteerUrl');
+          hits.push({
+            name,
+            datasetId,
+            detailUrl: typeof link === 'string' && link.length > 0 ? link : undefined,
+          });
+          return true;
+        },
+        { hitTolerance: 4 },
+      );
+      const hit = hits[0];
+      if (hit) {
+        callbacksRef.current.onFeatureSelect?.({
+          datasetId: hit.datasetId,
+          name: hit.name,
+          lon,
+          lat,
+          detailUrl: hit.detailUrl,
+        });
+      }
     };
     const emitView = () => {
       const view = map.getView();
@@ -627,8 +676,8 @@ export default function MarsMap({
       settled.forEach((outcome, index) => {
         const datasetId = overlays[index]!.datasetId;
         if (outcome.status === 'fulfilled') {
-          map.addLayer(outcome.value.layer);
-          overlayLayerRecordsRef.current.push({ datasetId, layer: outcome.value.layer });
+          map.addLayer(outcome.value);
+          overlayLayerRecordsRef.current.push({ datasetId, layer: outcome.value });
           statusMap[datasetId] = { state: 'active' };
         } else {
           const reason = outcome.reason;

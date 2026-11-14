@@ -12,7 +12,10 @@ import {
   CircleDot,
   Crosshair,
   Database,
+  FlaskConical,
+  Landmark,
   Layers,
+  MapPin,
   Mountain,
   Navigation,
 } from 'lucide-react';
@@ -52,6 +55,9 @@ export const DATASET_SHORT_NAMES: Record<string, string> = {
   'usgs-sim3292-jezero-geology': 'Geology (USGS)',
   'mars2020-perseverance-traverse': 'Rover Traverse',
   'mars2020-landing-ellipse': 'Landing Ellipse',
+  'mars2020-science-stops': 'Science Stops',
+  'jezero-iau-nomenclature': 'IAU Nomenclature',
+  'jezero-hydrous-minerals-omega-crism': 'Hydrous Minerals',
   'mola-hrsc-blend-200m-dem': 'MOLA DEM (query)',
   'mars2020-meda-environmental': 'MEDA Environment',
 };
@@ -62,6 +68,9 @@ const LAYER_ICONS: Record<string, typeof CircleDot> = {
   'usgs-sim3292-jezero-geology': Layers,
   'mars2020-perseverance-traverse': Navigation,
   'mars2020-landing-ellipse': Crosshair,
+  'mars2020-science-stops': MapPin,
+  'jezero-iau-nomenclature': Landmark,
+  'jezero-hydrous-minerals-omega-crism': FlaskConical,
   'mola-hrsc-blend-200m-dem': Database,
   'mars2020-meda-environmental': Activity,
 };
@@ -72,6 +81,9 @@ const ALL_LAYER_IDS = [
   'usgs-sim3292-jezero-geology',
   'mars2020-perseverance-traverse',
   'mars2020-landing-ellipse',
+  'mars2020-science-stops',
+  'jezero-iau-nomenclature',
+  'jezero-hydrous-minerals-omega-crism',
   'mola-hrsc-blend-200m-dem',
 ] as const;
 
@@ -82,7 +94,7 @@ function runtimeChip(
   overlayStatus: OverlayStatusMap,
 ): { label: string; tone: 'neutral' | 'info' | 'ok' | 'danger' } {
   if (!state.visible) return { label: 'OFF', tone: 'neutral' };
-  if (dataset.accessMethod === 'geojson') {
+  if (dataset.accessMethod === 'geojson' || dataset.accessMethod === 'raster') {
     const load: OverlayLoadState | undefined = overlayStatus[dataset.id];
     if (load === 'failed') return { label: 'FAILED', tone: 'danger' };
     if (load === 'active') return { label: 'ACTIVE', tone: 'ok' };
