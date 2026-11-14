@@ -18,16 +18,26 @@ npm run typecheck:copilot # tsc --noEmit -p worker
 npm run build             # typecheck + production build (run after meaningful changes)
 ```
 
-There is no test framework and no linter. The verification loop is: `typecheck` → `build` → manual browser checks (`npx playwright-cli open http://localhost:5173 --browser msedge`; session supports `reload`, `eval`, `route`, `network-state-set`, `console`, `screenshot`).
+There is no test framework and no linter. The verification loop is: `typecheck` → `build` → manual browser checks via playwright-cli (see the quirks section below; a session supports `reload`, `eval`, `route`, `network-state-set`, `console`, `screenshot`).
 
 Copilot development needs **both** processes running. Without the Worker, copilot sends fail with honest errors (`copilot-unconfigured` / `offline` / `invalid-response`) — that is correct behavior, not a bug to fix.
 
 ## Environment gotchas (Windows / PowerShell 5.1)
 
-- Editing files via PowerShell string commands (`Get-Content`/`Set-Content`/`.Replace`) silently corrupts UTF-8 characters (`°`, `λ`). Use the Read/Edit file tools instead.
+- Editing files via PowerShell string commands (`Get-Content`/`Set-Content`/`.Replace`) silently corrupts UTF-8 characters (`°`, `λ`, `§`, `—`) and `Set-Content -Encoding UTF8` adds a BOM. Use the Read/Edit file tools instead; if a BOM slips into a file, repair bytes only with `[IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))` (a decode→re-encode round-trip, safe for UTF-8).
 - `curl` is aliased to `Invoke-WebRequest` here; use `curl.exe` for real curl syntax.
 - Screenshots and probe scripts are disposable: delete them when done. Validation PNGs have accidentally been committed before — never stage them.
 - The Vite dev server watches the project root: writing any file into the repo while it runs (playwright snapshots, console logs, downloads) can trigger a full page reload, which resets in-memory module state (mission store: start/target/route). Keep validation artifacts OUTSIDE the repo (use `C:\Users\aas03\AppData\Local\Temp\opencode`), or expect reloads mid-test. Mission state is intentionally in-memory only — a browser reload discards the current route; plans survive only via export/import files.
+
+## Playwright-cli quirks (browser verification, learned the hard way)
+
+- Invoke with the full path: `& (Join-Path (npm config get prefix) 'playwright-cli.cmd') …` (not on PATH). Run from the temp dir so `.playwright-cli` artifacts stay out of the repo.
+- The bash tool often reports `Unknown: ChildProcess.kill` even when the command succeeded — verify through a redirect log (`… *> <temp-log>`), never trust that error.
+- NEVER redirect to `NUL` (`*> NUL`) in PowerShell 5.1: the device-open failure prevents execution and can swallow the preceding action in the chain (cost a lost map click once).
+- Viewport: `resize <w> <h>` (`--viewport-size` is not valid for `open`). `screenshot` needs `--filename <name>` — a bare argument is parsed as a selector. `status` is not a command.
+- `click` takes a selector, not x/y — coordinate taps need `mousemove` → `mousedown` → `mouseup`.
+- The .cmd shim mangles quoted args: in `eval` use PowerShell single-quoted strings with doubled `''` for literal quotes; avoid double quotes, backticks and `${}`. `[data-testid=value]` unquoted attribute selectors work; role selectors containing spaces lose their inner quotes and fail — click such buttons via `eval` + `querySelectorAll('button').find(…)` instead.
+- Do React state updates and dependent button clicks in separate evals with sleeps between — a same-tick click hits the still-disabled button.
 
 ## CRS facts (do not re-derive or "fix" these)
 
@@ -46,6 +56,15 @@ Copilot development needs **both** processes running. Without the Worker, copilo
 - ol quirk (verified 2026-11-13, fixed in `ProjectionRegistry.ts`): with a proj4-registered projection, ol's default `getPointResolution` estimates scale by transforming a pixel window to EPSG:4326 and measuring it on the **Earth** sphere (`node_modules/ol/proj.js` estimation path). For the Mars sphere this inflates the estimate by ≈ (R⊕/R♂)·(1+cos φ)/2 — ×1.83 at 18.5°N — so the ol `ScaleLine` control drew bars ~1.8–3.6× too short (a "20 km" bar actually spanned ~36.6 km). Fixed by `setGetPointResolution((r) => r)` on the eqc projection — exact, because eqc at lat_ts 0 is equidistant in x and y. Never remove that call; verify with a screenshot or pixel measure (a 5 km bar spans 5000/res pixels, e.g. 120 px at ~42 m/px, 90 px at 55.44 m/px).
 - ol `View.fit()` does NOT snap resolution to a custom `resolutions` list (`constrainResolution` defaults to false) — fitted views land at fractional zooms between tile levels (e.g. zoom 9.554 → 55.44 m/px). Expected, not a bug.
 - GeoJSON overlay layers stack above the route layer in default render order; the route layer is pinned on top with `routeLayer.setZIndex(100)` in `MarsMap.tsx`. Any new layer needs an explicit zIndex or stacking will surprise you.
+
+## UI design system ("Minimal Monochrome Dark", as-built 2026-11-14)
+
+- All colors/radii/fonts flow from the `@theme` block in `src/index.css`; components style exclusively through Tailwind tokens — never hardcode hex in components. The identity is grayscale: the `accent` token is **white** (primary actions are contrast, not color); the only non-grays are muted semantic status tones (ok/warn/danger/info), always paired with a text label. Do not reintroduce decorative color accents — three themed passes already happened (teal → crimson → monochrome); don't start a fourth.
+- Fonts: IBM Plex Sans / IBM Plex Mono, locally bundled via `@fontsource/ibm-plex-sans` + `@fontsource/ibm-plex-mono` (sans 400/500/600, mono 400/500), imported at the top of `src/index.css`. Coordinates and technical values use `font-mono`. Never add an external (Google Fonts) request.
+- Radius tokens: 8px badges, 12px buttons/inputs, 16px cards/panels, 20px drawers + bottom sheets (Tailwind `rounded-sm/md/lg/xl` remapped in `@theme`).
+- Motion: hover 150ms, buttons 160ms, tabs 180ms, drawers/sheets 220ms, ease-out; flat surfaces — no shadows on ordinary buttons/panels, no glass/blur/gradients; no pulse/bounce/infinite animations (loading dots are static); `prefers-reduced-motion` is honored by the block at the end of `index.css`.
+- Map overlays (UI chrome only, not data): route = solid white over a dark casing (a PROPOSED terrain-cost candidate); rover traverse + landing ellipse = dashed gray (historical); markers carry mono labels (`START`/`TARGET`/`SELECTED`/`YOU·SIM`) — identity comes from the label, not color. Geology unit fills are USGS data colors — never recolor scientific data layers.
+- Copy: short labels and descriptions; technical metadata and provenance live behind `Disclosure` (`src/components/ui/disclosure.tsx`). Honesty statements (hypothesis labels, "not a validated or safe route", SIMULATED markers, Unknown-with-reason rows) are Context.md §7 compliance — wording may be shortened but they must never be deleted from the UI.
 
 ## Capabilities / data semantics
 
@@ -76,7 +95,7 @@ Copilot development needs **both** processes running. Without the Worker, copilo
 - Never commit unless explicitly asked. Work in small increments; leave commits to the user unless instructed.
 - Keep scope: Mars/Jezero only, MVP features from Context.md §6. Don't install dependencies or swap frameworks without a concrete, stated reason.
 
-## Implemented module map (Milestone 2, as-built 2026-11-13)
+## Implemented module map (Milestone 2, as-built 2026-11-14)
 
 - `src/data/catalog/` — `types.ts` + `datasets.ts` (6 verified records: CTX, MOLA colorshade, MOLA blend DEM api-record, SIM 3292 geology, Perseverance traverse, landing ellipse; per-record verification evidence; `verifiedServedLevels`; `preparedAssetUrl`/`queryEndpoint` for non-WMTS data). `src/map/trek/trekCapabilities.ts` holds the embedded verified capabilities XML snapshots keyed by dataset id (`VERIFIED_CAPABILITIES_XML_BY_ID`) and parses them once.
 - `src/map/layers/` — `createWmtsLayer.ts` (truncates declared levels to `verifiedServedLevels`, analytic footprint via `marsBboxToMetresExtent`), `createGeojsonLayer.ts` (kind-based styles for geology/rover overlays; throws on non-FeatureCollection).
@@ -85,7 +104,8 @@ Copilot development needs **both** processes running. Without the Worker, copilo
 - `src/workers/` — `route.worker.ts` (A*, 8-connected, no corner cutting, unknown cells impassable, snapping + warnings + provenance) + `routeClient.ts` (module singleton; typed `RouteClientError` codes: grid-not-loaded/start-outside/target-outside/start-unknown/target-unknown/no-path/invalid-params).
 - `src/features/mission/` — `store.ts` (module singleton via `useSyncExternalStore`; start/target/route/params/position/gridMeta; plan export/import `solara-plan/1`), `components/ElevationProfile.tsx`, `components/RouteSummary.tsx`, `components/MissionPanel.tsx` (habitat).
 - `src/features/field-tablet/FieldTabletMode.tsx` — map-dominant, bottom mission sheet, simulated position (always labelled SIMULATED), nearest-route-point card, plan import.
-- `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `MissionOperationsPanel` (mission area, grouped map layers with runtime state chips, query-only datasets, selected location with region-membership row, mission planning with an "Advanced (prototype parameters)" disclosure), `CopilotPanel` (right-panel Mission Copilot; expanded mode is width-only and preserves history), `LocationPanel`, `MissionPanel`, `DatasetPanel` (details renderer). `LayerPanel.tsx` was superseded by `MissionOperationsPanel` and removed.
+- `src/features/habitat-mode/` — `HabitatMode.tsx` orchestrates `MissionOperationsPanel` (mission area, grouped map layers with runtime state chips, query-only datasets, selected location with region-membership row, mission planning with an "Advanced (prototype parameters)" disclosure), `ContextWorkspace` (tabbed Inspector/Copilot right panel; resizable 320–640 px via pointer/keyboard handle, drawer below `lg`), `InspectorPanel` (location → scientific values → selected-dataset summary card with details/provenance disclosure → route candidate/profile/warnings → provenance), `CopilotPanel` (right-panel Mission Copilot; expanded mode is width-only and preserves history), `LocationPanel`, `MissionPanel`, `DatasetPanel` (details renderer). `LayerPanel.tsx` was superseded by `MissionOperationsPanel` and removed.
+- `src/components/ui/` — token-styled primitives: `button.tsx` (cva: default/accent/ghost/outline; sizes default h-9 / sm h-8 / icon size-9), `badge.tsx` (neutral/info/ok/warn/danger/accent tones), `switch.tsx`, `section.tsx`, `disclosure.tsx`.
 - `src/features/copilot/` — `copilotClient.ts`: typed client for `POST /api/copilot/chat`; see "Mission Copilot contract" above for the shared limits/error codes; no credentials client-side.
 - `worker/` — Cloudflare Worker copilot proxy (`POST /api/copilot/chat`): validates/clamps the payload, injects server-side honesty guardrails + verified dataset facts, forwards to OpenRouter (`OPENROUTER_MODEL` var, default `openrouter/free`); secrets `OPENROUTER_API_KEY` via `wrangler secret put` (`.dev.vars` git-ignored, never committed). Dev: `npm run dev:copilot` + Vite proxy `/api/copilot` → 127.0.0.1:8787.
 - `src/lib/marsCrs.ts` — ol-free CRS ids/sphere constants/display metadata (re-exported by ProjectionRegistry); shell components import from here so proj4/ol stay out of the shell bundle. `src/lib/bbox.ts` — shared `isInsideBoundingBox`.
