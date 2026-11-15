@@ -217,7 +217,7 @@ export function MissionPanel({ selectedLocation }: MissionPanelProps) {
           <div className="flex gap-2">
             <Button
               variant="accent"
-              className="flex-1 h-8 text-xs font-semibold rounded-md"
+              className="flex-1 h-8 text-xs rounded-md"
               disabled={!canCompute}
               onClick={() => computeRoute()}
             >

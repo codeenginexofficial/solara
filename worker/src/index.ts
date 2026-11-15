@@ -16,10 +16,12 @@
  */
 
 import { handleMedaEnvironmentLatest } from './meda';
+import instructions from '../INSTRUCTIONS.md';
 import {
   handlePerseveranceImageDownload,
   handlePerseveranceImages,
 } from './roverImages';
+import { runScientificToolCall, SCIENTIFIC_TOOL_DEFINITIONS } from './tools';
 
 export interface Env {
   OPENROUTER_API_KEY?: string;
@@ -54,27 +56,34 @@ const MAX_MESSAGE_CHARS = 8_000;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CONTEXT_CHARS = 4_000;
 const MAX_UPSTREAM_DETAIL_CHARS = 300;
+const MAX_SCIENCE_TOOL_CALLS = 4;
+const MAX_SCIENCE_TOOL_ROUNDS = 3;
+const MAX_TOOL_CALLS_PER_RESPONSE = 4;
 const DEFAULT_MODEL = 'openrouter/free';
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-const GUARDRAILS = `You are Solara AI, embedded in the SOLARA Mars mission-operations workstation for Jezero Crater (NASA Space Apps Challenge 2026 project). You help the operator with terrain, datasets, and mission planning.
+interface OpenRouterToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
 
-GROUNDING — answer ONLY from:
-1. VERIFIED DATASET FACTS below (fixed, source-verified text).
-2. CURRENT APP CONTEXT (values the app retrieved or computed at request time). Honor the labels it carries (observed / derived / modelled / historical / unavailable).
-3. The user's conversation.
+type OpenRouterMessage =
+  | { role: 'system'; content: string }
+  | ChatMessage
+  | { role: 'assistant'; content: string | null; tool_calls: OpenRouterToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
 
-You must never invent values for: temperature, pressure, wind, dust opacity, radiation, illumination, real-time rover position, mission progress beyond the historical track, site-scale slope or hazards, rock abundance, route safety, or image content. If a value is not in your grounding, say "unknown" and, where useful, why (for example: "no environmental dataset is integrated").
+type OpenRouterRequestResult =
+  | { ok: true; content: string | null; toolCalls: OpenRouterToolCall[]; model: string }
+  | { ok: false; response: Response };
 
-Specific rules:
-- Imagery: you cannot see the map imagery. If asked what something looks like, state that the mosaic is rendered as raster tiles in the user's browser and you have no access to its pixels; offer provenance and coverage facts instead.
-- Routes: SOLARA routes are "proposed terrain-cost candidates" computed by a prototype slope-only model on a ~200 m/px prepared grid. Never call a route safe, validated, or drivable.
-- Mars seasonal/diurnal values (Ls, LMST/LTST) are MODELLED with a validated Mars24 port (Allison & McEwen 2000). Always label them modelled; they are not observations and do not describe conditions.
-- The weather context is a stale snapshot: the public MSL/REMS feed ends at sol 4995 (2026-08-25, Gale Crater). Never describe it as current, live, or Jezero weather. Jezero MEDA data in that feed covers only 7 sols (2024-04-21…27) with missing temperatures. Radiation is not integrated.
-- Mission thresholds are prototype thresholds — not operational safety limits.
-- Elevation values come from the static MOLA+HRSC blend (2018, areoid-referenced, ~200 m/px). Never present them as current conditions or site surveys.
-- The rover traverse is historical (sols 14-1176); there is no live rover feed.
-- Keep unknown visibly unknown. Prefer short, factual answers; cite dataset ids and the labels carried by the context when quoting data.`;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 const VERIFIED_DATASET_FACTS = `VERIFIED DATASET FACTS (verification date 2026-11-14):
 - jezero-ctx-mosaic-soc-008: NASA Trek WMTS serving the USGS "Mars 2020 Terrain Relative Navigation Context Camera Orthorectified Image Mosaic" (USGS Astrogeology, published 2020-07-24, DOI 10.5066/P9GV1ND3). ~6 m/px nominal; finest served level 13 ~5.087 m/px; footprint 77.1604655-77.6991776 E, 18.2110274-18.7211945 N (~30.3 x 30.2 km). Built from three CTX stereo pairs; imagery content 2006-2019. Historical imagery.
@@ -141,15 +150,15 @@ function sanitizeContext(value: unknown): string {
 }
 
 function buildSystemPrompt(contextBlock: string): string {
-  return `${GUARDRAILS}\n\n${VERIFIED_DATASET_FACTS}${contextBlock}`;
+  return `${instructions.trim()}\n\n${VERIFIED_DATASET_FACTS}${contextBlock}`;
 }
 
-async function callOpenRouter(
+async function requestOpenRouter(
   env: Env,
-  messages: ChatMessage[],
-  contextBlock: string,
+  messages: OpenRouterMessage[],
   requestOrigin: string | null,
-): Promise<Response> {
+  allowTools: boolean,
+): Promise<OpenRouterRequestResult> {
   const model = (env.OPENROUTER_MODEL ?? '').trim() || DEFAULT_MODEL;
   const headers: Record<string, string> = {
     authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -165,31 +174,47 @@ async function callOpenRouter(
       headers,
       body: JSON.stringify({
         model,
-        messages: [{ role: 'system', content: buildSystemPrompt(contextBlock) }, ...messages],
+        messages,
+        ...(allowTools
+          ? {
+              tools: SCIENTIFIC_TOOL_DEFINITIONS,
+              tool_choice: 'auto',
+              parallel_tool_calls: false,
+            }
+          : {}),
       }),
     });
   } catch {
-    return fail(
-      'upstream-unreachable',
-      'Could not reach the OpenRouter API. Solara AI is unavailable right now.',
-      502,
-    );
+    return {
+      ok: false,
+      response: fail(
+        'upstream-unreachable',
+        'Could not reach the OpenRouter API. Solara AI is unavailable right now.',
+        502,
+      ),
+    };
   }
 
   if (!upstream.ok) {
     if (upstream.status === 429) {
-      return fail(
-        'rate-limited',
-        'The Solara AI provider rate limit is active. Try again shortly.',
-        429,
-      );
+      return {
+        ok: false,
+        response: fail(
+          'rate-limited',
+          'The Solara AI provider rate limit is active. Try again shortly.',
+          429,
+        ),
+      };
     }
     if (upstream.status === 401 || upstream.status === 403) {
-      return fail(
-        'upstream-auth',
-        'The Solara AI proxy key was rejected by OpenRouter. Check OPENROUTER_API_KEY.',
-        502,
-      );
+      return {
+        ok: false,
+        response: fail(
+          'upstream-auth',
+          'The Solara AI proxy key was rejected by OpenRouter. Check OPENROUTER_API_KEY.',
+          502,
+        ),
+      };
     }
     let detail = '';
     try {
@@ -197,33 +222,156 @@ async function callOpenRouter(
     } catch {
       detail = '';
     }
-    return fail(
-      'upstream-error',
-      `OpenRouter returned HTTP ${upstream.status}.${detail ? ` ${detail}` : ''}`,
-      502,
-    );
+    return {
+      ok: false,
+      response: fail(
+        'upstream-error',
+        `OpenRouter returned HTTP ${upstream.status}.${
+          allowTools && upstream.status === 404 ? ' The selected model may not support tool calling.' : ''
+        }${detail ? ` ${detail}` : ''}`,
+        502,
+      ),
+    };
   }
 
   let payload: unknown;
   try {
     payload = await upstream.json();
   } catch {
-    return fail('upstream-error', 'OpenRouter returned a malformed response.', 502);
+    return { ok: false, response: fail('upstream-error', 'OpenRouter returned a malformed response.', 502) };
   }
-  const choices = (payload as { choices?: unknown })?.choices;
+  const choices = isRecord(payload) ? payload.choices : undefined;
   const first = Array.isArray(choices) ? choices[0] : undefined;
-  const content = (first as { message?: { content?: unknown } } | undefined)?.message?.content;
+  const rawMessage = isRecord(first) ? first.message : undefined;
+  if (!isRecord(rawMessage)) {
+    return { ok: false, response: fail('upstream-error', 'OpenRouter returned no assistant message.', 502) };
+  }
+  const rawContent = rawMessage.content;
+  const content = typeof rawContent === 'string' ? rawContent : rawContent === null || rawContent === undefined ? null : undefined;
+  if (content === undefined) {
+    return { ok: false, response: fail('upstream-error', 'OpenRouter returned an invalid assistant message.', 502) };
+  }
+
+  const rawToolCalls = rawMessage.tool_calls;
+  if (rawToolCalls !== undefined && !Array.isArray(rawToolCalls)) {
+    return { ok: false, response: fail('upstream-error', 'OpenRouter returned malformed tool calls.', 502) };
+  }
+  const toolCalls: OpenRouterToolCall[] = [];
+  const callIds = new Set<string>();
+  for (const rawCall of rawToolCalls ?? []) {
+    if (!isRecord(rawCall) || rawCall.type !== 'function' || typeof rawCall.id !== 'string') {
+      return { ok: false, response: fail('upstream-error', 'OpenRouter returned a malformed tool call.', 502) };
+    }
+    const rawFunction = rawCall.function;
+    if (
+      !isRecord(rawFunction) ||
+      typeof rawFunction.name !== 'string' ||
+      typeof rawFunction.arguments !== 'string' ||
+      rawCall.id.length === 0 ||
+      rawCall.id.length > 128 ||
+      callIds.has(rawCall.id)
+    ) {
+      return { ok: false, response: fail('upstream-error', 'OpenRouter returned a malformed tool call.', 502) };
+    }
+    callIds.add(rawCall.id);
+    toolCalls.push({
+      id: rawCall.id,
+      type: 'function',
+      function: { name: rawFunction.name, arguments: rawFunction.arguments },
+    });
+  }
+
+  const usedModel = isRecord(payload) && typeof payload.model === 'string' ? payload.model : model;
+  return { ok: true, content, toolCalls, model: usedModel };
+}
+
+function assistantResponse(content: string | null, model: string): Response {
   if (typeof content !== 'string' || content.trim().length === 0) {
     return fail('upstream-error', 'OpenRouter returned no assistant content.', 502);
   }
-  const usedModel = (payload as { model?: unknown })?.model;
-  return json(
-    {
-      reply: content,
-      model: typeof usedModel === 'string' ? usedModel : model,
-    },
-    200,
-  );
+  return json({ reply: content, model }, 200);
+}
+
+async function callOpenRouter(
+  env: Env,
+  messages: ChatMessage[],
+  contextBlock: string,
+  requestOrigin: string | null,
+): Promise<Response> {
+  const providerMessages: OpenRouterMessage[] = [
+    { role: 'system', content: buildSystemPrompt(contextBlock) },
+    ...messages,
+  ];
+  const seenToolCallIds = new Set<string>();
+  let executedToolCalls = 0;
+  let usedModel = (env.OPENROUTER_MODEL ?? '').trim() || DEFAULT_MODEL;
+
+  for (let round = 0; round < MAX_SCIENCE_TOOL_ROUNDS; round += 1) {
+    const result = await requestOpenRouter(
+      env,
+      providerMessages,
+      requestOrigin,
+      executedToolCalls < MAX_SCIENCE_TOOL_CALLS,
+    );
+    if (!result.ok) return result.response;
+    usedModel = result.model;
+
+    if (result.toolCalls.length === 0) return assistantResponse(result.content, usedModel);
+    if (executedToolCalls >= MAX_SCIENCE_TOOL_CALLS) {
+      return fail(
+        'upstream-error',
+        'OpenRouter continued requesting scientific tools after the per-turn tool limit.',
+        502,
+      );
+    }
+    if (result.toolCalls.length > MAX_TOOL_CALLS_PER_RESPONSE) {
+      return fail('upstream-error', 'OpenRouter returned too many tool calls in one response.', 502);
+    }
+    for (const toolCall of result.toolCalls) {
+      if (seenToolCallIds.has(toolCall.id)) {
+        return fail('upstream-error', 'OpenRouter reused a tool-call id within one turn.', 502);
+      }
+      seenToolCallIds.add(toolCall.id);
+    }
+
+    providerMessages.push({
+      role: 'assistant',
+      content: result.content,
+      tool_calls: result.toolCalls,
+    });
+
+    const availableSlots = MAX_SCIENCE_TOOL_CALLS - executedToolCalls;
+    const toolResults = await Promise.all(
+      result.toolCalls.map((toolCall, index) =>
+        index < availableSlots
+          ? runScientificToolCall(toolCall.function.name, toolCall.function.arguments)
+          : Promise.resolve(
+              JSON.stringify({
+                status: 'unavailable',
+                warnings: ['This tool was not run because the per-turn scientific tool-call limit was reached.'],
+              }),
+            ),
+      ),
+    );
+    executedToolCalls += Math.min(result.toolCalls.length, availableSlots);
+    for (let index = 0; index < result.toolCalls.length; index += 1) {
+      const toolCall = result.toolCalls[index]!;
+      providerMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: toolResults[index]!,
+      });
+    }
+  }
+
+  // Give the model one final chance to summarize tool results with tools
+  // disabled. This bounds both external data calls and provider-side loops.
+  const finalResult = await requestOpenRouter(env, providerMessages, requestOrigin, false);
+  if (!finalResult.ok) return finalResult.response;
+  if (finalResult.toolCalls.length > 0) {
+    return fail('upstream-error', 'OpenRouter requested another tool after the tool-call budget was exhausted.', 502);
+  }
+  return assistantResponse(finalResult.content, finalResult.model || usedModel);
 }
 
 export default {

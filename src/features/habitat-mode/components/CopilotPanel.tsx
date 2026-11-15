@@ -5,14 +5,14 @@
  * Cloudflare Worker). The proxy injects the honesty guardrails server-side;
  * this client never sends a system role or credentials. Conversation state
  * is in-memory (lost on reload — same philosophy as the mission store).
- * Assistant replies are plain text with preserved line breaks; nothing is
- * ever rendered as HTML.
+ * Assistant replies render as Markdown with KaTeX math. Raw HTML remains
+ * disabled; the renderer produces React elements from the Markdown AST.
  *
  * Panel sizing/collapse is owned by ContextWorkspace; this component fills
  * the tab panel and manages only conversation state.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Eraser, Send } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
@@ -40,6 +40,10 @@ export interface CopilotPanelProps {
 }
 
 type CopilotStatus = 'idle' | 'ready' | 'unconfigured' | 'offline';
+
+const AssistantMarkdown = lazy(() =>
+  import('./AssistantMarkdown').then((module) => ({ default: module.AssistantMarkdown })),
+);
 
 const STATUS_CHIP: Record<CopilotStatus, { label: string; tone: 'neutral' | 'ok' | 'warn' }> = {
   idle: { label: 'Idle', tone: 'neutral' },
@@ -240,13 +244,14 @@ export function CopilotPanel({ context }: CopilotPanelProps) {
                 >
                   {message.role === 'user' ? 'You' : 'Solara AI'}
                 </span>
-                {/* Plain text only — never dangerouslySetInnerHTML. */}
                 <div
                   className={cn(
-                    'whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink',
+                    'max-w-full text-[12.5px] leading-relaxed text-ink [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:py-1',
                   )}
                 >
-                  {message.content}
+                  <Suspense fallback={<span className="whitespace-pre-wrap">{message.content}</span>}>
+                    <AssistantMarkdown>{message.content}</AssistantMarkdown>
+                  </Suspense>
                 </div>
               </li>
             ))}

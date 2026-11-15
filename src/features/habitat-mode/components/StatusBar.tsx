@@ -147,7 +147,7 @@ export function StatusBar({
             size="sm"
             onClick={onComputeRoute}
             disabled={!canComputeRoute || computingRoute}
-            className="h-8 px-3.5 gap-1.5 font-semibold text-xs rounded-md"
+            className="h-8 px-3.5 gap-1.5 text-xs rounded-md"
             data-testid="status-compute-route"
           >
             <Play className="size-3.5 fill-current" aria-hidden="true" />

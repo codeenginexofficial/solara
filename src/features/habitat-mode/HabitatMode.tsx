@@ -49,11 +49,17 @@ const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
 
-/** Base layers, bottom-first: global topography, global Viking, Jezero CTX detail. */
+/**
+ * Base layers, bottom-first: global topography, global Viking optical context.
+ * The Jezero CTX WMTS layer is intentionally NOT constructed/rendered: its
+ * small (~30 × 30 km) mosaic footprint rendered as a distinct grayscale square
+ * over the global layers at regional zoom (verified in the running app,
+ * 2026-11-15). Its catalog record and capabilities code are preserved for
+ * reuse; the layer is simply no longer part of the visible map.
+ */
 const BASE_LAYER_IDS = [
   'mola-hrsc-blend-200m-colorshade',
   'mars-viking-mdim21-colorized-global',
-  'jezero-ctx-mosaic-soc-008',
 ] as const;
 /** Prepared GeoJSON overlay datasets, bottom-first rendering order. */
 const OVERLAY_IDS = [
@@ -104,10 +110,10 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const [layerStates, setLayerStates] = useState<Record<string, LayerUiState>>(() => {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
-      // Global Viking context remains visible beneath the local Jezero CTX;
-      // the scientific topographic colorshade stays off until requested.
+      // Global Viking optical context stays visible by default; the
+      // topographic colorshade remains off until requested.
       initial[id] = {
-        visible: id === 'mars-viking-mdim21-colorized-global' || id === 'jezero-ctx-mosaic-soc-008',
+        visible: id === 'mars-viking-mdim21-colorized-global',
         opacity: 1,
       };
     }

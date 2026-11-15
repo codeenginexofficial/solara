@@ -41,10 +41,15 @@ const DATASETS = getAllDatasets();
 const REGIONS = getAllRegions();
 const REGION = REGIONS[0]!;
 
+/**
+ * Base layers, bottom-first: global topography, global Viking optical context.
+ * The Jezero CTX WMTS layer is intentionally not rendered — its ~30 × 30 km
+ * footprint showed as a grayscale square over the global layers (verified
+ * 2026-11-15). Catalog record and service code are preserved for reuse.
+ */
 const BASE_LAYER_IDS = [
   'mola-hrsc-blend-200m-colorshade',
   'mars-viking-mdim21-colorized-global',
-  'jezero-ctx-mosaic-soc-008',
 ] as const;
 const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 'mars2020-perseverance-traverse', 'mars2020-science-stops', 'jezero-iau-nomenclature', 'jezero-hydrous-minerals-omega-crism'] as const;
 
@@ -98,8 +103,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
     const initial: Record<string, LayerUiState> = {};
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
       initial[id] = {
-        visible: id === 'jezero-ctx-mosaic-soc-008' ||
-          id === 'mars-viking-mdim21-colorized-global' ||
+        visible: id === 'mars-viking-mdim21-colorized-global' ||
           id === 'mars2020-perseverance-traverse',
         opacity: 1,
       };
@@ -492,7 +496,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="accent"
-                  className="h-9 text-xs font-semibold rounded-md"
+                  className="h-9 text-xs rounded-md"
                   disabled={!canCompute}
                   onClick={() => computeRoute()}
                 >

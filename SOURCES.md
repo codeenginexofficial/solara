@@ -1,10 +1,11 @@
 # SOLARA external sources and attribution audit
 
 This file records external datasets, APIs, services, software and scientific
-references used by the repository. `Integrated` means there is code that
-consumes the source; it does not imply current upstream availability. An
-investigated source is explicitly marked and must not be presented as an
-active SOLARA layer.
+references consumed by or directly supporting the repository's implemented
+features. `Integrated` means there is code that consumes the source; it does
+not imply current upstream availability. Static snapshots and prepared assets
+are distinguished from runtime requests, and scientific references are not
+presented as runtime integrations.
 
 ## 3D globe and planetary rendering
 
@@ -109,33 +110,6 @@ active SOLARA layer.
   highest cached level.
 - **Attribution:** NASA Ames, USGS Astrogeology Science Center, NASA/JPL, Esri and
   source mosaic contributors; see MapServer copyright metadata and catalog record.
-
-### Murray Lab Global CTX Mosaic V01
-
-- **Status:** Investigated, not integrated as a streaming layer.
-- **Official URLs:** [Murray Lab tile pages](https://murray-lab.caltech.edu/CTX/V01/TilePages/),
-  [Murray Lab V01 tiles](https://murray-lab.caltech.edu/CTX/V01/tiles/),
-  [NASA PDS bundle](https://pds.nasa.gov/ds-view/pds/viewBundle.jsp?identifier=urn:nasa:pds:mars_mro_ctx_globalmosaicv01_murraylab_2023).
-- **Provider:** Caltech Murray Lab; archived as a NASA PDS bundle.
-- **What it provides:** Global CTX mosaic data as individual 4° × 4° GeoTIFF tile
-  archives, with seam maps, tie points and data sheets. The complete archive is
-  multi-terabyte and is not downloaded by SOLARA.
-- **SOLARA use:** Source research only; no application file consumes the tiles.
-- **Format/API:** Downloadable ZIPs containing GeoTIFF and vector ancillary files.
-  The official page documents ArcGIS/ArcGIS Pro use; no supported production XYZ,
-  WMTS or ArcGIS REST image endpoint was verified for this integration.
-- **Coverage/resolution:** Global mosaic product; nominally about 5 m/pixel. Individual
-  4° tiles are available. Do not infer a SOLARA layer coverage from this product's
-  global footprint.
-- **Authentication:** No token described for individual downloads; bulk bandwidth
-  is discouraged by the provider. No download or unauthenticated streaming check
-  is performed by SOLARA.
-- **Limitations:** No browser-compatible streaming endpoint, CRS/tile matrix and CORS
-  behavior were validated for SOLARA. The entire mosaic is not suitable for browser
-  download. The Trek `CTX_beta01_uncontrolled_5m_Caltech` catalog entry was not
-  treated as proof that it serves this controlled PDS V01 product.
-- **Attribution:** Caltech Murray Lab and PDS product attribution/instructions; follow
-  the product label and individual tile data sheets if integrating later.
 
 ## Mars regional imagery and CTX
 
@@ -553,14 +527,12 @@ versions are in `package-lock.json`; dependency declarations are in `package.jso
 
 ### NASA PDS and Mars archive documentation
 
-- **Status:** Integrated for the MEDA data products above; the PDS archive is also the
-  archival record for the Murray Lab CTX mosaic (not streamed by SOLARA).
-- **Official URLs:** [PDS Imaging Node](https://pds-imaging.jpl.nasa.gov/),
-  [PDS Atmospheres MEDA](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html),
-  [PDS Murray Lab CTX bundle](https://pds.nasa.gov/ds-view/pds/viewBundle.jsp?identifier=urn:nasa:pds:mars_mro_ctx_globalmosaicv01_murraylab_2023).
+- **Status:** Supports the implemented MEDA archive adapter.
+- **Official URLs:** [PDS Atmospheres MEDA documentation](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html),
+  [MEDA PDS data bundle](https://atmos.nmsu.edu/PDS/data/PDS4/Mars2020/mars2020_meda/).
 - **Provider:** NASA Planetary Data System nodes.
-- **SOLARA use:** MEDA archive source in `worker/src/meda.ts`; CTX archive is documented
-  here as a product reference only, not a runtime endpoint.
+- **SOLARA use:** MEDA archive source in `worker/src/meda.ts`; this is not a general
+  PDS search or download integration.
 - **Format/API:** PDS product labels, archive documentation and data files.
 - **Coverage/resolution:** Product-specific; see each dataset's entry above.
 - **Authentication:** Public records; the current PDS sources used by SOLARA need no
@@ -568,6 +540,22 @@ versions are in `package-lock.json`; dependency declarations are in `package.jso
 - **Limitations:** Source-specific labels and product metadata take precedence over
   assumptions from a viewer or file extension.
 - **Attribution:** NASA/PDS and contributing instrument teams.
+
+## Licensing and attribution notes
+
+- The repository code is licensed under Apache-2.0 (`LICENSE` and `package.json`).
+  This does not grant rights to third-party data, hosted services, trademarks or
+  dependencies. No blanket license is asserted for the listed scientific data.
+- Dataset credits are stored in the catalog and displayed in dataset details; the
+  globe keeps Cesium's credit display and its separate ion data attribution visible.
+  Follow the upstream product and service terms when redistributing or deploying.
+- The package manifest and lockfile identify dependencies, but the repository does
+  not include a complete third-party dependency license report. Verify applicable
+  notices/licenses for a distribution that bundles those dependencies.
+- Before public deployment, confirm that the Cesium ion account/plan permits the
+  intended use, retain its required credits, and restrict the browser token. The
+  local Worker has no authentication or rate limiting and is not public-deployment
+  ready.
 
 ## Adding or updating a source
 

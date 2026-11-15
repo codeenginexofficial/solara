@@ -51,7 +51,6 @@ export interface MissionOperationsPanelProps {
 
 /** Concise display titles for high-density UI readability. */
 export const DATASET_SHORT_NAMES: Record<string, string> = {
-  'jezero-ctx-mosaic-soc-008': 'CTX Imagery',
   'mars-viking-mdim21-colorized-global': 'Viking Global Mosaic',
   'mola-hrsc-blend-200m-colorshade': 'MOLA Topography',
   'usgs-sim3292-jezero-geology': 'Geology (USGS)',
@@ -65,7 +64,6 @@ export const DATASET_SHORT_NAMES: Record<string, string> = {
 };
 
 const LAYER_ICONS: Record<string, typeof CircleDot> = {
-  'jezero-ctx-mosaic-soc-008': CircleDot,
   'mars-viking-mdim21-colorized-global': Globe,
   'mola-hrsc-blend-200m-colorshade': Mountain,
   'usgs-sim3292-jezero-geology': Layers,
@@ -78,8 +76,13 @@ const LAYER_ICONS: Record<string, typeof CircleDot> = {
   'mars2020-meda-environmental': Activity,
 };
 
+/**
+ * Visible layer list. The Jezero CTX WMTS layer is deliberately excluded:
+ * its ~30 × 30 km mosaic footprint rendered as a distinct grayscale square
+ * over the global layers at regional zoom (verified in the running app,
+ * 2026-11-15). The catalog record and Trek service code are preserved.
+ */
 const ALL_LAYER_IDS = [
-  'jezero-ctx-mosaic-soc-008',
   'mars-viking-mdim21-colorized-global',
   'mola-hrsc-blend-200m-colorshade',
   'usgs-sim3292-jezero-geology',
@@ -136,7 +139,6 @@ export function MissionOperationsPanel({
 
   // Active base layer display name
   const activeBaseName = [
-    ['jezero-ctx-mosaic-soc-008', 'CTX Imagery'],
     ['mars-viking-mdim21-colorized-global', 'Viking Global'],
     ['mola-hrsc-blend-200m-colorshade', 'MOLA Topography'],
   ]

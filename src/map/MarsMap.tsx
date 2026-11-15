@@ -307,6 +307,11 @@ export default function MarsMap({
   const [overlayLoad, setOverlayLoad] = useState<
     Record<string, { state: OverlayLoadState; message?: string }>
   >({});
+  /** Whether the view rests at its min/max zoom (disables the zoom buttons). */
+  const [zoomAtBounds, setZoomAtBounds] = useState<{ min: boolean; max: boolean }>({
+    min: false,
+    max: false,
+  });
 
   const zoomView = (delta: number) => {
     const map = mapRef.current;
@@ -376,9 +381,9 @@ export default function MarsMap({
     });
     baseLayerRecordsRef.current = baseRecords;
 
-    // The view uses the finest available level set across base layers
-    // (currently the CTX grid; the MOLA blend serves fewer levels and is
-    // upscaled by OpenLayers beyond its finest served level).
+    // The view uses the longest available resolution list across its base
+    // sources. With the Jezero CTX layer currently disabled, MOLA supplies
+    // the view's finest level; coarser sources upscale beyond their own levels.
     const resolutionsPerLayer = baseRecords.map((rec) =>
       rec.source.getTileGrid()?.getResolutions() ?? [],
     );
@@ -537,17 +542,35 @@ export default function MarsMap({
           } else {
             stats.failed += 1;
             stats.lastFailure = failure ?? 'unknown';
+            // Detailed failure cause stays in the developer log; the map UI
+            // only shows a compact, neutral notice.
+            console.warn(
+              `Tile request failed (${record.datasetId}): ${FAILURE_DESCRIPTION[stats.lastFailure]}`,
+            );
           }
           scheduleFlush();
         }),
       );
     }
+    const updateZoomBounds = () => {
+      const view = map.getView();
+      const zoom = view.getZoom();
+      const minZoom = view.getMinZoom();
+      const maxZoom = view.getMaxZoom();
+      if (zoom === undefined) return;
+      setZoomAtBounds({
+        min: zoom <= minZoom + 0.001,
+        max: zoom >= maxZoom - 0.001,
+      });
+    };
     const resolutionKey = map.getView().on('change:resolution', () => {
       stats.failed = 0;
       stats.noData = 0;
       stats.lastFailure = null;
       scheduleFlush();
+      updateZoomBounds();
     });
+    updateZoomBounds();
 
     /* --- Pointer, selection and view reporting ------------------------- */
     let pointerRaf: number | null = null;
@@ -688,8 +711,14 @@ export default function MarsMap({
       message: 'Re-verifying the live capabilities documents against the verified configurations…',
     });
     void (async () => {
+      // Only WMTS sources with an embedded verified capabilities snapshot can
+      // be fingerprint-checked. The global Viking context is XYZ and has no
+      // Trek WMTS capabilities document, so it is intentionally skipped.
+      const checkableBaseRecords = baseRecords.filter(({ datasetId }) =>
+        Object.hasOwn(VERIFIED_CAPABILITIES_XML_BY_ID, datasetId),
+      );
       const results = await Promise.allSettled(
-        baseRecords.map(async (record) => {
+        checkableBaseRecords.map(async (record) => {
           const live = await fetchLiveTrekCapabilities(capabilitiesUrlFor(record.datasetId), controller.signal);
           const snapshot = parseTrekCapabilitiesXml(VERIFIED_CAPABILITIES_XML_BY_ID[record.datasetId]!);
           return { datasetId: record.datasetId, same: gridFingerprint(live) === gridFingerprint(snapshot) };
@@ -744,10 +773,11 @@ export default function MarsMap({
           statusMap[datasetId] = { state: 'active' };
         } else {
           const reason = outcome.reason;
-          statusMap[datasetId] = {
-            state: 'failed',
-            message: reason instanceof Error ? reason.message : String(reason),
-          };
+          const message = reason instanceof Error ? reason.message : String(reason);
+          // Detailed overlay failure cause stays in the developer log; the
+          // layer list shows the contextual FAILED state chip.
+          console.warn(`Overlay "${datasetId}" could not be loaded: ${message}`);
+          statusMap[datasetId] = { state: 'failed', message };
         }
       });
       setOverlayLoad(statusMap);
@@ -840,6 +870,7 @@ export default function MarsMap({
           type="button"
           className="solara-map-zoom-button"
           aria-label="Zoom in"
+          disabled={zoomAtBounds.max}
           onClick={() => zoomView(1)}
         >
           +
@@ -848,6 +879,7 @@ export default function MarsMap({
           type="button"
           className="solara-map-zoom-button"
           aria-label="Zoom out"
+          disabled={zoomAtBounds.min}
           onClick={() => zoomView(-1)}
         >
           −
@@ -891,11 +923,11 @@ export default function MarsMap({
       )}
       {tileStats.failed > 0 && (
         <div
-          className="pointer-events-none absolute right-3 top-10 max-w-md rounded-md border border-danger/40 bg-panel-raised/85 px-2.5 py-1 text-xs text-danger"
+          className="pointer-events-none absolute right-3 top-10 max-w-md rounded-md border border-edge bg-panel-raised/85 px-2.5 py-1 text-xs text-ink-muted"
           data-testid="tile-errors"
         >
-          {tileStats.failed} tile request{tileStats.failed === 1 ? '' : 's'} failed —{' '}
-          {FAILURE_DESCRIPTION[tileStats.lastFailure ?? 'unknown']}
+          {tileStats.failed} tile request{tileStats.failed === 1 ? '' : 's'} failed to load — cause
+          recorded in the console log
         </div>
       )}
       {tileStats.noData > 0 && (
@@ -907,17 +939,6 @@ export default function MarsMap({
           no imagery expected there
         </div>
       )}
-      {Object.entries(overlayLoad)
-        .filter(([, entry]) => entry.state === 'failed')
-        .map(([datasetId, entry]) => (
-          <div
-            key={datasetId}
-            className="pointer-events-none absolute left-3 top-20 max-w-md rounded-lg border border-danger/40 bg-panel-raised/90 px-2.5 py-1.5 text-xs text-danger"
-            data-testid={`overlay-errors-${datasetId}`}
-          >
-            {`Overlay "${datasetId}" could not be loaded: ${entry.message ?? 'cause not determined'}`}
-          </div>
-        ))}
     </div>
   );
 }

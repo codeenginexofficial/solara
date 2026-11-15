@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Compass, Gauge, RefreshCw, Thermometer, Wind, Droplets, Info, AlertTriangle } from 'lucide-react';
+import { Compass, Gauge, RefreshCw, Thermometer, Wind, Droplets, Info } from 'lucide-react';
 import {
   fetchMedaEnvironment,
   type MedaEnvironmentData,
@@ -40,7 +40,10 @@ export function EnvironmentalPanel() {
       const result = await fetchMedaEnvironment({ forceRefresh });
       setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      // Detailed failure cause stays in the log, never as permanent UI text.
+      console.warn(`NASA PDS MEDA archive request failed: ${message}`);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -73,8 +76,8 @@ export function EnvironmentalPanel() {
               Querying PDS…
             </Badge>
           ) : error && !data ? (
-            <Badge tone="warn" className="text-[10px]">
-              PDS Unavailable
+            <Badge tone="neutral" className="text-[10px]">
+              Archive
             </Badge>
           ) : isCached ? (
             <Badge tone="info" className="text-[10px]">
@@ -117,23 +120,24 @@ export function EnvironmentalPanel() {
         </div>
       )}
 
-      {/* Error state without data */}
+      {/* Compact contextual empty state — no raw provider errors in the UI;
+          the detailed cause is written to the console log. */}
       {error && !data && (
-        <div className="mt-3 rounded border border-warn/40 bg-warn/10 p-3 text-xs text-warn">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <p className="font-medium">Could not reach the NASA PDS MEDA archive.</p>
-              <p className="mt-0.5 text-[11px] text-warn/80">{error}</p>
-              <button
-                type="button"
-                onClick={() => void loadData(true)}
-                className="mt-2 rounded border border-edge bg-panel px-2 py-1 text-[11px] text-ink hover:bg-subtle"
-              >
-                Retry Request
-              </button>
-            </div>
-          </div>
+        <div
+          className="mt-3 flex items-center justify-between gap-2 rounded border border-edge/60 bg-surface/40 px-2.5 py-2 text-[11px] text-ink-muted"
+          data-testid="meda-unavailable"
+        >
+          <span className="min-w-0">
+            NASA PDS MEDA archive unreachable — historical observations
+            unavailable right now.
+          </span>
+          <button
+            type="button"
+            onClick={() => void loadData(true)}
+            className="shrink-0 rounded border border-edge bg-panel px-2 py-1 text-[10px] text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
+          >
+            Retry
+          </button>
         </div>
       )}
 

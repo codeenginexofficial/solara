@@ -19,7 +19,7 @@ const buttonVariants = cva(
         default:
           'border border-edge bg-elevated text-ink hover:border-ink-subtle/60 hover:bg-subtle',
         accent:
-          'border border-accent bg-accent font-semibold text-surface hover:border-accent-hover hover:bg-accent-hover',
+          'border border-accent bg-accent font-medium text-surface hover:border-accent-hover hover:bg-accent-hover',
         ghost: 'text-ink-muted hover:bg-subtle hover:text-ink',
         outline:
           'border border-edge bg-panel-raised/60 text-ink hover:border-ink-subtle/60 hover:bg-subtle',
