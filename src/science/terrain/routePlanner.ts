@@ -290,6 +290,7 @@ function buildCoverage(
     datelineSegments: source.datelineSegments,
     validFraction,
     missingFraction: 1 - validFraction,
+    seamBridgedCells: source.seamBridgedCells,
     pathCells,
     pathUnknownNeighbourCells,
   };
@@ -446,7 +447,7 @@ export function planRouteOnGrid(
   }
   if (coverage.datelineSegments > 1) {
     warnings.push(
-      `The DEM window crosses ±180° and was fetched as ${coverage.datelineSegments} tiles, then stitched on the Mars sphere. Seam alignment is limited by the effective cell size.`,
+      `The DEM window crosses ±180° and was fetched as ${coverage.datelineSegments} tiles, then stitched on the Mars sphere. Seam alignment is limited by the effective cell size. In the global EQC view the map fits the full planet because both sides of the seam cannot be shown at once; zoom/pan to inspect the route.`,
     );
   }
   if ((source.seamBridgedCells ?? 0) > 0) {

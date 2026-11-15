@@ -85,11 +85,13 @@ export function useMissionState(): MissionState {
 /* ------------------------------------------------------------------ */
 
 export function setStart(point: GeoPoint | null): void {
-  setState({ start: point });
+  computingRequest = null;
+  setState({ start: point, routeStatus: 'idle', route: null, routeError: null, importedAt: null });
 }
 
 export function setTarget(point: GeoPoint | null): void {
-  setState({ target: point });
+  computingRequest = null;
+  setState({ target: point, routeStatus: 'idle', route: null, routeError: null, importedAt: null });
 }
 
 /** Set the (manually selected / simulated) astronaut position. */
@@ -109,6 +111,7 @@ export function setRouteParams(patch: Partial<RouteCostParams>): void {
 }
 
 export function clearRoute(): void {
+  computingRequest = null;
   setState({ routeStatus: 'idle', route: null, routeError: null, importedAt: null });
 }
 

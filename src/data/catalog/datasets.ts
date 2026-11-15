@@ -483,10 +483,11 @@ export const MOLA_HRSC_BLEND_DEM_DATASET: DatasetRecord = {
   description:
     'Elevation values from the merged MGS MOLA / Mars Express HRSC digital ' +
     'elevation model blend, served by NASA Trek as an ArcGIS ImageServer. ' +
-    'Point elevations are queried live from the service; the route engine ' +
-    'uses a prepared, validated grid crop over the Jezero exploration area ' +
+    'Point elevations are queried live from the service. The route engine uses ' +
+    'the prepared, validated Jezero grid crop when it covers the route window ' +
     '(public/data/mars/jezero/rasters/mola-hrsc-dem-jezero-grid.json, ' +
-    'cross-validated against the live service at the crop centre).',
+    'cross-validated against the live service at the crop centre), and bounded ' +
+    'live exportImage windows elsewhere on Mars.',
   sourceUrl:
     `${TREK_ARCGIS_SERVICES}/Mars_MOLA_blend200ppx_HRSC_DEM_clon0dd_200mpp_lzw/ImageServer?f=pjson`,
   accessMethod: 'api',
@@ -538,9 +539,12 @@ export const MOLA_HRSC_BLEND_DEM_DATASET: DatasetRecord = {
     'The prepared route grid was fetched 2026-11-13 and validated against the live identify endpoint (centre-point difference 10.5 m, bilinear vs nearest-neighbour sampling). If the source service updates, the grid and the live service can disagree.',
     'Vertical alignment artifacts between HRSC and MOLA can exist in blend seams.',
     'NoData handling: cells the service reports as missing are treated as UNKNOWN terrain, never as safe. The prepared crop contained no NoData cells (verified by value range).',
+    'Live route windows are resampled by the service and coarsened by the route engine as distance grows (bounded search grid); long routes are reconnaissance geometry, not local hazard mapping.',
+    'The global product ends at +179.9984479°E with a narrow gap at +180°. Only this narrow seam is bridged from equivalent-meridian samples; seam-bridged cells are derived handling, not additional measured coverage.',
+    'exportImage returns pixel-aligned extents that can differ from the requested bbox; SOLARA uses the returned extent and verifies the exported TIFF dimensions before sampling.',
   ],
   verification: 'integrated',
-  lastVerifiedAt: '2026-11-13',
+  lastVerifiedAt: '2026-11-15',
 };
 
 /* ------------------------------------------------------------------ */

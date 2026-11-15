@@ -236,8 +236,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         `Selected point: ${formatLon(selectedLocation.lon)} ${formatLat(selectedLocation.lat)}`,
         `Working projection: X ${Math.round(selectedLocation.x)} m, Y ${Math.round(selectedLocation.y)} m`,
         inside
-          ? 'Inside the exploration region.'
-          : 'Outside the exploration region — global imagery and elevation products only; route planning unavailable here.',
+          ? 'Inside the detailed Jezero exploration region.'
+          : 'Outside the detailed Jezero exploration region — global imagery and live-DEM terrain-cost routing remain available, subject to DEM coverage and resolution.',
       ];
       if (selectedFeature) {
         parts.push(
@@ -295,7 +295,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         mission.routeStatus === 'computing'
           ? 'Route: computing…'
           : mission.route
-            ? `Route candidate: ground ${formatDistance(mission.route.totalGroundDistanceM)}, cost-equivalent ${formatDistance(mission.route.totalCostM)}, direct ${formatDistance(mission.route.directDistanceM)}, ${mission.route.warnings.length} warning(s)${mission.route.warnings.length > 0 ? `: ${mission.route.warnings.join(' ')}` : ''}. PROPOSED TERRAIN-COST CANDIDATE — not a validated or safe route.`
+            ? `Route candidate: ground ${formatDistance(mission.route.totalGroundDistanceM)}, cost-equivalent ${formatDistance(mission.route.totalCostM)}, direct ${formatDistance(mission.route.directDistanceM)}; DEM ${mission.route.coverage ? `${mission.route.coverage.qualityNote} ${mission.route.coverage.cols}×${mission.route.coverage.rows} cells at ~${Math.round(mission.route.coverage.nominalResolutionMPerPixel)} m/px nominal, ${(mission.route.coverage.validFraction * 100).toFixed(1)}% known` : 'prepared/local provenance'}; ${mission.route.warnings.length} warning(s)${mission.route.warnings.length > 0 ? `: ${mission.route.warnings.join(' ')}` : ''}. PROPOSED TERRAIN-COST CANDIDATE — not a validated or safe route.`
             : 'Route: none computed.',
       ].join(' '),
     );

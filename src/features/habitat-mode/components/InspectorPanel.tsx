@@ -159,6 +159,35 @@ export function InspectorPanel({
           </div>
         )}
 
+        {route?.coverage && (
+          <div className="mt-3 border-t border-edge/60 pt-2">
+            <Disclosure title="Route DEM window provenance">
+              <div className="flex flex-col gap-1 text-[11px] leading-snug text-ink-muted">
+                <span>
+                  {route.coverage.qualityNote} Acquired{' '}
+                  <span className="font-mono">{route.coverage.acquiredAt.slice(0, 19).replace('T', ' ')} UTC</span>.
+                </span>
+                <span>
+                  Window <span className="font-mono">
+                    {route.coverage.window.westLon.toFixed(4)}…{route.coverage.window.eastLon.toFixed(4)}°E,
+                    {' '}{route.coverage.window.southLat.toFixed(4)}…{route.coverage.window.northLat.toFixed(4)}°N
+                  </span>
+                </span>
+                <span>
+                  {route.coverage.cols}×{route.coverage.rows} cells · ~
+                  {Math.round(route.coverage.nominalResolutionMPerPixel)} m/px nominal ·{' '}
+                  {(route.coverage.validFraction * 100).toFixed(1)}% known elevation
+                  {route.coverage.datelineSegments > 1 ? ` · ${route.coverage.datelineSegments} tiles stitched` : ''}
+                  {(route.coverage.seamBridgedCells ?? 0) > 0 ? ` · ${route.coverage.seamBridgedCells} seam-gap cells bridged (derived)` : ''}
+                </span>
+                <span className="break-all">{route.coverage.sourceService}</span>
+                <span>{route.coverage.sourceMethod}</span>
+                <span className="text-ink-subtle">{route.provenance.verticalReference}</span>
+              </div>
+            </Disclosure>
+          </div>
+        )}
+
         {mission.gridMeta && (
           <div className="mt-3 border-t border-edge/60 pt-2">
             <Disclosure title="Route data provenance">

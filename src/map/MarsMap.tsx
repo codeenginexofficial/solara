@@ -1064,7 +1064,10 @@ export default function MarsMap({
     const centerLocation = oldCenter
       ? locationAtViewCoordinate(oldCenter, oldMode)
       : { lon: 0, lat: 0 };
-    const center = projectLocation(centerLocation, projectionMode);
+    // A global view can be centred on either hemisphere; a polar projection
+    // cannot represent the opposite one. Fall back to the pole instead of
+    // throwing and unmounting the map during the switch.
+    const center = projectLocationVisible(centerLocation, projectionMode) ?? [0, 0];
 
     for (const record of overlayLayerRecordsRef.current) {
       if (!(record.layer instanceof VectorLayer)) continue;
@@ -1096,7 +1099,8 @@ export default function MarsMap({
     const request = focusRequest;
     const map = mapRef.current;
     if (!request || !map) return;
-    const center = projectLocation(request.location, projectionModeRef.current);
+    const center = projectLocationVisible(request.location, projectionModeRef.current);
+    if (!center) return;
     const targetZoom = regionBoundingBox &&
       request.location.lon >= regionBoundingBox.westLon && request.location.lon <= regionBoundingBox.eastLon &&
       request.location.lat >= regionBoundingBox.southLat && request.location.lat <= regionBoundingBox.northLat

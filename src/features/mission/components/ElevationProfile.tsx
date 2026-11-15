@@ -7,6 +7,7 @@
  */
 
 import type { RouteResult } from '../../../workers/routeClient';
+import { ROUTE_DATA_QUALITY_LABELS } from '../../../science/terrain/routeTypes';
 import { formatDistance } from '../../../lib/format';
 
 export interface ElevationProfileProps {
@@ -44,6 +45,9 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
     const y = 100 - ((p.elevM - (min - pad)) / (span + 2 * pad)) * 100;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
+  const demNote = route.coverage
+    ? `${ROUTE_DATA_QUALITY_LABELS[route.coverage.quality]} · ~${Math.round(route.coverage.nominalResolutionMPerPixel)} m/px nominal · ${(route.coverage.validFraction * 100).toFixed(1)}% known elevation — derived from DEM samples.`
+    : 'Areoid-referenced · prepared ~200 m/px grid — derived, coarse.';
 
   return (
     <div className="flex flex-col gap-1" data-testid="elevation-profile">
@@ -72,8 +76,8 @@ export function ElevationProfile({ route, height = 96 }: ElevationProfileProps) 
         </span>
         <span className="ml-auto">{formatDistance(total)} ground distance</span>
       </div>
-      <p className="text-[10.5px] leading-snug text-ink-subtle">
-        Areoid-referenced · ~200 m/px grid — derived, coarse.
+      <p className="text-[10.5px] leading-snug text-ink-subtle" data-testid="elevation-profile-dem-note">
+        {demNote}
       </p>
     </div>
   );

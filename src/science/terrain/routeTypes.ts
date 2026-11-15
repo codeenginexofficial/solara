@@ -56,6 +56,7 @@ export interface RouteCoverage {
   datelineSegments: number;
   validFraction: number;
   missingFraction: number;
+  seamBridgedCells?: number;
   pathCells: number;
   pathUnknownNeighbourCells: number;
 }

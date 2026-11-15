@@ -110,7 +110,7 @@ export function StatusBar({
         {/* Region */}
         <span className="hidden sm:inline shrink-0">
           <span className="text-ink-subtle font-sans">Region: </span>
-          <span className="text-ink">Jezero</span>
+          <span className="text-ink">Mars · Jezero detail</span>
         </span>
 
         <span aria-hidden="true" className="hidden lg:inline h-3.5 w-px shrink-0 bg-edge" />

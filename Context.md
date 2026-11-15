@@ -102,6 +102,7 @@ Future regions, such as Gale Crater, should be added only after their source cov
 - Clear dataset metadata: source, instrument/mission, spatial coverage, resolution, coordinate reference system, and observation/acquisition time where applicable.
 - Start point, destination, and waypoint selection.
 - Preliminary terrain-aware route planning from a verified DEM-derived cost surface.
+- Bounded global DEM windows outside the prepared Jezero grid, with the effective resolution, coverage gaps, and source labelled honestly.
 - Route distance and elevation profile.
 - A mission summary that describes the route and its known data limitations.
 - Habitat and Field Tablet layouts sharing the same mission data.

@@ -260,7 +260,7 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
               className={cn('size-1.5 rounded-full', inside ? 'bg-ok' : 'bg-warn')}
               aria-hidden="true"
             />
-            <span>{inside ? 'Jezero planning region' : 'Outside Jezero planning region'}</span>
+            <span>{inside ? 'Inside Jezero detail area' : 'Outside Jezero detail area'}</span>
           </div>
 
           <span className="font-mono text-[11px] text-ink-subtle">
@@ -273,6 +273,14 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
           {jezeroCtx?.extentStatus === 'within_declared_extent' ? ' the controlled Jezero CTX mosaic also lists this point in its footprint.' : ' the controlled Jezero CTX mosaic is not declared at this point.'}
           {' '}No HiRISE coverage is implied.
         </p>
+        {!inside && (
+          <p className="mt-1.5 text-[11px] leading-snug text-ink-subtle">
+            Global terrain-cost routing remains available here through live NASA Trek DEM windows.
+            Coverage can be missing or coarser than the prepared Jezero grid; the route report states
+            the effective resolution and any gaps. Detailed Jezero overlays remain limited to their
+            published footprints.
+          </p>
+        )}
       </div>
 
       <Disclosure title="Dataset extents at this coordinate" className="mt-3" contentClassName="max-h-72 space-y-2 overflow-y-auto">
