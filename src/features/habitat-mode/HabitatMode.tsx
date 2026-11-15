@@ -36,6 +36,7 @@ import type { ElevationState } from './components/LocationPanel';
 import { buildPlanFile, computeRoute, importPlanFile, useMissionState } from '../mission/store';
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
+import { ErrorBoundary } from '../../components/ui/error-boundary';
 import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
 import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
 import { computeMarsClock, formatMarsClock, seasonForLs } from '../../science/environment/marsTime';
@@ -371,49 +372,61 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         {/* Main map workspace — rounded instrument card */}
         <main className="relative min-w-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
           {globeActive ? (
-            <Suspense fallback={<MapWorkspaceFallback />}>
-              <MarsGlobe
-                selectedLocation={selectedLocation}
-                onLocationSelect={(loc) => {
-                  setSelectedFeature(null);
-                  setSelectedLocation(loc);
-                  handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
-                  setWorkspaceTab('inspector');
-                  setWorkspaceOpen(true);
-                }}
-                onSelectTraverse={() => {
-                  setWorkspaceTab('rover');
-                  setWorkspaceOpen(true);
-                }}
-                onSwitchToMap={() => setGlobeActive(false)}
-              />
-            </Suspense>
+            <ErrorBoundary
+              title="3D globe unavailable"
+              description="Cesium could not render the Mars globe. The rest of SOLARA remains available; return to the 2D map or retry the globe."
+              resetLabel="Retry globe"
+            >
+              <Suspense fallback={<MapWorkspaceFallback />}>
+                <MarsGlobe
+                  selectedLocation={selectedLocation}
+                  onLocationSelect={(loc) => {
+                    setSelectedFeature(null);
+                    setSelectedLocation(loc);
+                    handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
+                    setWorkspaceTab('inspector');
+                    setWorkspaceOpen(true);
+                  }}
+                  onSelectTraverse={() => {
+                    setWorkspaceTab('rover');
+                    setWorkspaceOpen(true);
+                  }}
+                  onSwitchToMap={() => setGlobeActive(false)}
+                />
+              </Suspense>
+            </ErrorBoundary>
           ) : (
-            <Suspense fallback={<MapWorkspaceFallback />}>
-              <MarsMap
-                ref={mapApi}
-                baseLayers={baseLayers}
-                overlays={overlays}
-                regionBoundingBox={REGION.boundingBox}
-                routeVisible
-                start={mission.start}
-                target={mission.target}
-                route={mission.route}
-                selectedMarker={selectedLocation}
-                initialFocusLocation={selectedLocation}
-                projectionMode={projectionMode}
-                focusRequest={focusRequest}
-                onPointerLocationChange={setPointerLocation}
-                onLocationSelect={(loc) => {
-                  setSelectedFeature(null);
-                  setSelectedLocation(loc);
-                }}
-                onFeatureSelect={setSelectedFeature}
-                onViewChange={setViewInfo}
-                onSourceStatusChange={setSourceStatus}
-                onOverlayStatusChange={setOverlayStatus}
-              />
-            </Suspense>
+            <ErrorBoundary
+              title="Map workspace unavailable"
+              description="The OpenLayers map could not be rendered. The mission workspace and other tools remain available."
+              resetLabel="Retry map"
+            >
+              <Suspense fallback={<MapWorkspaceFallback />}>
+                <MarsMap
+                  ref={mapApi}
+                  baseLayers={baseLayers}
+                  overlays={overlays}
+                  regionBoundingBox={REGION.boundingBox}
+                  routeVisible
+                  start={mission.start}
+                  target={mission.target}
+                  route={mission.route}
+                  selectedMarker={selectedLocation}
+                  initialFocusLocation={selectedLocation}
+                  projectionMode={projectionMode}
+                  focusRequest={focusRequest}
+                  onPointerLocationChange={setPointerLocation}
+                  onLocationSelect={(loc) => {
+                    setSelectedFeature(null);
+                    setSelectedLocation(loc);
+                  }}
+                  onFeatureSelect={setSelectedFeature}
+                  onViewChange={setViewInfo}
+                  onSourceStatusChange={setSourceStatus}
+                  onOverlayStatusChange={setOverlayStatus}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </main>
 

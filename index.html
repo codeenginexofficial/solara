@@ -10,9 +10,54 @@
       content="SOLARA — Martian surface-intelligence and mission-planning workspace. Prototype for the NASA International Space Apps Challenge 2026."
     />
     <title>SOLARA — Mars Surface Intelligence</title>
+    <style>
+      #boot-fallback {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #090909;
+        color: #ffffff;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+      #boot-fallback .boot-card {
+        width: min(100%, 34rem);
+        padding: 20px;
+        border: 1px solid #292929;
+        border-radius: 16px;
+        background: #121212;
+        text-align: center;
+      }
+      #boot-fallback h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      #boot-fallback p {
+        margin: 8px 0 0;
+        color: #a3a3a3;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-fallback" role="status" aria-live="polite">
+      <div class="boot-card">
+        <h1>Loading SOLARA</h1>
+        <p>Preparing the Mars workspace.</p>
+      </div>
+    </div>
+    <script>
+      window.setTimeout(function () {
+        var fallback = document.getElementById('boot-fallback');
+        if (!fallback) return;
+        fallback.innerHTML = '<div class="boot-card" role="alert"><h1>SOLARA did not finish loading</h1><p>The development server returned an error. Restart <code>npm run dev</code> and reload this page. Details are in the browser console.</p></div>';
+      }, 12000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

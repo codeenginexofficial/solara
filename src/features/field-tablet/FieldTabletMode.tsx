@@ -30,6 +30,7 @@ import { formatDistance, formatLat, formatLon } from '../../lib/format';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Switch } from '../../components/ui/switch';
+import { ErrorBoundary } from '../../components/ui/error-boundary';
 import { ElevationProfile } from '../mission/components/ElevationProfile';
 import { RouteSummary } from '../mission/components/RouteSummary';
 import { cn } from '../../lib/utils';
@@ -274,51 +275,63 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
       {/* Map — dominant instrument workspace */}
       <main className="relative min-h-0 flex-1 rounded-lg border border-edge bg-surface overflow-hidden shadow-sm">
         {globeActive ? (
-          <Suspense fallback={<MapWorkspaceFallback />}>
-            <MarsGlobe
-              selectedLocation={selectedLocation}
-              onLocationSelect={(loc) => {
-                setSelectedFeature(null);
-                setSelectedLocation(loc);
-                handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
-                setPosition({ lon: loc.lon, lat: loc.lat });
-                setSheetTab('mission');
-                setSheetOpen(true);
-              }}
-              onSelectTraverse={() => {
-                setSheetTab('rover');
-                setSheetOpen(true);
-              }}
-              onSwitchToMap={() => setGlobeActive(false)}
-            />
-          </Suspense>
+          <ErrorBoundary
+            title="3D globe unavailable"
+            description="Cesium could not render the Mars globe. The rest of SOLARA remains available; return to the 2D map or retry the globe."
+            resetLabel="Retry globe"
+          >
+            <Suspense fallback={<MapWorkspaceFallback />}>
+              <MarsGlobe
+                selectedLocation={selectedLocation}
+                onLocationSelect={(loc) => {
+                  setSelectedFeature(null);
+                  setSelectedLocation(loc);
+                  handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
+                  setPosition({ lon: loc.lon, lat: loc.lat });
+                  setSheetTab('mission');
+                  setSheetOpen(true);
+                }}
+                onSelectTraverse={() => {
+                  setSheetTab('rover');
+                  setSheetOpen(true);
+                }}
+                onSwitchToMap={() => setGlobeActive(false)}
+              />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
-          <Suspense fallback={<MapWorkspaceFallback />}>
-            <MarsMap
-              baseLayers={baseLayers}
-              overlays={overlays}
-              regionBoundingBox={REGION.boundingBox}
-              routeVisible
-              start={mission.start}
-              target={mission.target}
-              route={route}
-              positionMarker={mission.position}
-              selectedMarker={selectedLocation}
-              initialFocusLocation={selectedLocation}
-              projectionMode={projectionMode}
-              focusRequest={focusRequest}
-              onPointerLocationChange={() => {}}
-              onLocationSelect={(loc) => {
-                setSelectedFeature(null);
-                setSelectedLocation(loc);
-                setPosition({ lon: loc.lon, lat: loc.lat });
-              }}
-              onFeatureSelect={setSelectedFeature}
-              onViewChange={() => {}}
-              onSourceStatusChange={() => {}}
-              onOverlayStatusChange={setOverlayStatus}
-            />
-          </Suspense>
+          <ErrorBoundary
+            title="Map workspace unavailable"
+            description="The OpenLayers map could not be rendered. The mission workspace and other tools remain available."
+            resetLabel="Retry map"
+          >
+            <Suspense fallback={<MapWorkspaceFallback />}>
+              <MarsMap
+                baseLayers={baseLayers}
+                overlays={overlays}
+                regionBoundingBox={REGION.boundingBox}
+                routeVisible
+                start={mission.start}
+                target={mission.target}
+                route={route}
+                positionMarker={mission.position}
+                selectedMarker={selectedLocation}
+                initialFocusLocation={selectedLocation}
+                projectionMode={projectionMode}
+                focusRequest={focusRequest}
+                onPointerLocationChange={() => {}}
+                onLocationSelect={(loc) => {
+                  setSelectedFeature(null);
+                  setSelectedLocation(loc);
+                  setPosition({ lon: loc.lon, lat: loc.lat });
+                }}
+                onFeatureSelect={setSelectedFeature}
+                onViewChange={() => {}}
+                onSourceStatusChange={() => {}}
+                onOverlayStatusChange={setOverlayStatus}
+              />
+            </Suspense>
+          </ErrorBoundary>
         )}
       </main>
 

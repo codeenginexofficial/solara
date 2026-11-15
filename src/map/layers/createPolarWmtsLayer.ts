@@ -92,7 +92,7 @@ function parsePolarConfig(xml: string, hemisphere: 'north' | 'south'): PolarConf
   let previous: [number, number] | null = null;
   for (const matrix of matrixElements) {
     const id = oneText(matrix, OWS_NS, 'Identifier');
-    const topLeft = oneText(matrix, OWS_NS, 'TopLeftCorner').split(/\s+/).map(Number);
+    const topLeft = oneText(matrix, WMTS_NS, 'TopLeftCorner').split(/\s+/).map(Number);
     const tileWidth = Number(oneText(matrix, WMTS_NS, 'TileWidth'));
     const tileHeight = Number(oneText(matrix, WMTS_NS, 'TileHeight'));
     const matrixWidth = Number(oneText(matrix, WMTS_NS, 'MatrixWidth'));

@@ -17,6 +17,7 @@ export default defineConfig({
       targets: cesiumStaticDirectories.map((directory) => ({
         src: `node_modules/cesium/Build/Cesium/${directory}`,
         dest: 'cesium',
+        rename: { stripBase: 4 },
       })),
     }),
   ],

@@ -237,7 +237,7 @@ function MarsGlobe({
             ? globalCtxProvider.errorEvent.addEventListener(() => {
                 if (reported || cancelled) return;
                 reported = true;
-                setLoadMessage('Some global CTX tiles could not be loaded; service gaps or tile errors may occur. MOLA/HRSC global hillshade remains the underlying layer.');
+                setLoadMessage('Some global CTX tiles could not be loaded; gaps can reveal the underlying MOLA/HRSC color hillshade (a data gap, not a marker).');
                 activeViewer.scene.requestRender();
               })
             : molaProvider.errorEvent.addEventListener(() => {
@@ -329,20 +329,20 @@ function MarsGlobe({
             duration: getMotionDuration(),
           });
         } else {
-          viewer.camera.flyToBoundingSphere(
-            new CesiumModule.BoundingSphere(
-              CesiumModule.Cartesian3.ZERO,
-              marsSphere.maximumRadius,
+          viewer.camera.flyTo({
+            destination: CesiumModule.Cartesian3.fromDegrees(
+              0,
+              0,
+              marsSphere.maximumRadius * 2.7,
+              marsSphere,
             ),
-            {
-              offset: new CesiumModule.HeadingPitchRange(
-                0,
-                -Math.PI / 2,
-                marsSphere.maximumRadius * 2.7,
-              ),
-              duration: getMotionDuration(),
+            orientation: {
+              heading: 0,
+              pitch: -Math.PI / 2,
+              roll: 0,
             },
-          );
+            duration: getMotionDuration(),
+          });
         }
 
         viewer.scene.requestRender();
@@ -431,20 +431,20 @@ function MarsGlobe({
     const viewer = viewerRef.current;
     const CesiumModule = cesiumRef.current;
     if (!viewer || !CesiumModule) return;
-    viewer.camera.flyToBoundingSphere(
-      new CesiumModule.BoundingSphere(
-        CesiumModule.Cartesian3.ZERO,
-        viewer.scene.globe.ellipsoid.maximumRadius,
+    viewer.camera.flyTo({
+      destination: CesiumModule.Cartesian3.fromDegrees(
+        0,
+        0,
+        viewer.scene.globe.ellipsoid.maximumRadius * 2.7,
+        viewer.scene.globe.ellipsoid,
       ),
-      {
-        offset: new CesiumModule.HeadingPitchRange(
-          0,
-          -Math.PI / 2,
-          viewer.scene.globe.ellipsoid.maximumRadius * 2.7,
-        ),
-        duration: getMotionDuration(),
+      orientation: {
+        heading: 0,
+        pitch: -Math.PI / 2,
+        roll: 0,
       },
-    );
+      duration: getMotionDuration(),
+    });
   }, []);
 
   const setHistoricalTraverseVisible = useCallback(async (visible: boolean) => {
