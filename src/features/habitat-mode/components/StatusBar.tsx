@@ -63,9 +63,9 @@ export function StatusBar({
   const activeLoc = selectedLocation ?? pointerLocation;
 
   return (
-    <footer className="flex h-12 shrink-0 items-center justify-between gap-3 overflow-x-auto rounded-xl border border-edge bg-panel px-4 font-mono text-[11px] text-ink-muted">
+    <footer className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-edge bg-panel px-4 py-1.5 font-mono text-[11px] text-ink-muted sm:h-12 sm:flex-nowrap sm:overflow-x-auto sm:py-0">
       {/* Left side telemetry indicators */}
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         {/* System nominal / live indicator */}
         <span
           className="flex shrink-0 items-center gap-1.5 font-sans font-medium text-xs text-ink"
@@ -85,15 +85,16 @@ export function StatusBar({
           System Nominal
         </span>
 
-        <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-edge" />
+        <span aria-hidden="true" className="hidden h-3.5 w-px shrink-0 bg-edge sm:block" />
 
-        {/* Elevation readout */}
-        <span className="shrink-0">
+        {/* Elevation readout (dropped below sm — position is the primary
+            mobile readout; elevation stays in the Inspector). */}
+        <span className="hidden shrink-0 sm:inline">
           <span className="text-ink-subtle font-sans">Elevation: </span>
           <span className="text-ink font-semibold">{elevationDisplay}</span>
         </span>
 
-        <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-edge" />
+        <span aria-hidden="true" className="hidden h-3.5 w-px shrink-0 bg-edge sm:block" />
 
         {/* Position coordinates */}
         <span className="shrink-0" data-testid="status-pointer">
@@ -139,8 +140,10 @@ export function StatusBar({
         )}
       </div>
 
-      {/* Right side actions (Compute Route, Export, More) */}
-      <div className="flex shrink-0 items-center gap-2">
+      {/* Right side actions (Compute Route, Export, More) — ml-auto keeps
+          them right-aligned whether they share the telemetry row (sm+) or
+          wrap to their own row below sm. */}
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {onComputeRoute && (
           <Button
             variant="accent"

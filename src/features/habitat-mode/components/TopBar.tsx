@@ -59,11 +59,11 @@ export function TopBar({
   const status = STATUS_TEXT[sourceStatus.capabilities];
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 rounded-xl border border-edge bg-panel px-3.5">
+    <header className="flex h-12 shrink-0 items-center gap-2 rounded-xl border border-edge bg-panel px-2 sm:gap-3 sm:px-3.5">
       {/* Wordmark */}
       <div className="flex items-center gap-2.5">
         <img src="/solara.svg" alt="" aria-hidden="true" className="size-5" />
-        <span className="text-sm font-medium tracking-[0.2em] text-ink">SOLARA</span>
+        <span className="hidden text-sm font-medium tracking-[0.2em] text-ink sm:inline">SOLARA</span>
       </div>
 
       <span className="hidden h-4 w-px bg-edge md:block" aria-hidden="true" />
@@ -102,11 +102,14 @@ export function TopBar({
         <span className="truncate">{globeActive ? 'Mars · Global 3D' : 'Mars · Planetary surface'}</span>
       </div>
 
+      {/* Search drops out below sm — the header cannot fit it beside the
+          mode switch and panel toggles at phone widths; the map itself and
+          Field Tablet's header keep search reachable there. */}
       <PlanetaryLocationSearch
         projectionMode={projectionMode}
         onProjectionModeChange={onProjectionModeChange}
         onSelectLocation={onSelectLocation}
-        className="mx-1 flex-1"
+        className="mx-1 hidden min-w-0 flex-1 sm:flex"
         compact
       />
 
@@ -142,6 +145,7 @@ export function TopBar({
           aria-label="Fit view to region"
           title="Fit view to region"
           onClick={onFitRegion}
+          className="hidden sm:inline-flex"
         >
           <Maximize2 />
         </Button>}
@@ -154,7 +158,7 @@ export function TopBar({
           onClick={onToggleGlobe}
         >
           <Globe className="size-3.5" aria-hidden="true" />
-          {globeActive ? '2D Map' : '3D Globe'}
+          <span className="hidden sm:inline">{globeActive ? '2D Map' : '3D Globe'}</span>
         </Button>
         {!globeActive && <Button
           variant="ghost"

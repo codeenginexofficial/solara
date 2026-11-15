@@ -37,7 +37,9 @@ import { buildPlanFile, computeRoute, importPlanFile, useMissionState } from '..
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from '../../components/ui/error-boundary';
+import { Button } from '../../components/ui/button';
 import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
+import { X } from 'lucide-react';
 import { formatDistance, formatLat, formatLon, formatUtcTime } from '../../lib/format';
 import { computeMarsClock, formatMarsClock, seasonForLs } from '../../science/environment/marsTime';
 import { MSL_WEATHER_SNAPSHOT, daysBetween } from '../../science/environment/weatherContext';
@@ -343,6 +345,18 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
       .catch(() => {});
   }, []);
 
+  /* Below lg the mission-operations panel is an overlay drawer over the map:
+     Escape dismisses it (the scrim and its close button are the primary
+     dismissal affordances; Escape is the keyboard equivalent). */
+  useEffect(() => {
+    if (!leftPanelOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLeftPanelOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [leftPanelOpen]);
+
   return (
     <div className="flex h-screen w-screen min-h-0 flex-col gap-3 p-3 bg-surface overflow-hidden">
       <TopBar
@@ -360,25 +374,56 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
       />
 
       <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden">
-        {/* Left panel — mission operations */}
+        {/* Scrim behind the mission-operations drawer below lg — makes the
+            floating panel explicitly dismissible instead of silently
+            obstructing the map. Desktop keeps the static docked panel. */}
+        {leftPanelOpen && !globeActive && (
+          <button
+            type="button"
+            aria-label="Close mission operations panel"
+            title="Close mission operations panel"
+            onClick={() => setLeftPanelOpen(false)}
+            className="absolute inset-0 z-10 bg-black/50 lg:hidden"
+          />
+        )}
+
+        {/* Left panel — mission operations (overlay drawer below lg) */}
         <aside
           className={cn(
-            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:shadow-none',
+            'absolute inset-y-0 left-0 z-20 flex w-80 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:max-w-none lg:shadow-none',
             globeActive ? 'hidden lg:hidden' : leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
           aria-label="Mission operations"
         >
-          <MissionOperationsPanel
-            region={REGION}
-            datasets={DATASETS}
-            layerStates={layerStates}
-            overlayStatus={overlayStatus}
-            selectedLocation={selectedLocation}
-            onSelectDataset={setSelectedDatasetId}
-            onToggleVisibility={handleToggleVisibility}
-            onOpacityChange={handleOpacityChange}
-            onFitRegion={handleFitRegion}
-          />
+          {/* Drawer header — visible dismissal affordance below lg only. */}
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-edge/60 px-3 lg:hidden">
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              Mission operations
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 [&_svg]:size-3.5"
+              aria-label="Close mission operations panel"
+              title="Close mission operations panel"
+              onClick={() => setLeftPanelOpen(false)}
+            >
+              <X />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <MissionOperationsPanel
+              region={REGION}
+              datasets={DATASETS}
+              layerStates={layerStates}
+              overlayStatus={overlayStatus}
+              selectedLocation={selectedLocation}
+              onSelectDataset={setSelectedDatasetId}
+              onToggleVisibility={handleToggleVisibility}
+              onOpacityChange={handleOpacityChange}
+              onFitRegion={handleFitRegion}
+            />
+          </div>
         </aside>
 
         {/* Main map workspace — rounded instrument card */}
