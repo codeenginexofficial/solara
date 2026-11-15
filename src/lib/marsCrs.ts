@@ -18,6 +18,13 @@ export const MARS_GEOGRAPHIC = 'SOLARA:MARS_2000_SPHERE_LONLAT';
 /** Source CRS used by the Esri-hosted global Viking mosaic tiles. */
 export const MARS_VIKING_MARSECO0 = 'SOLARA:MARS_VIKING_MARSECO0';
 
+/** NASA Trek's native MOLA polar tile products use IAU 2000 polar stereographic
+ * coordinates on Mars' 3,376,200 m polar radius. These are SOLARA working ids,
+ * not EPSG registrations. */
+export const MARS_POLAR_NORTH_IAU2000 = 'SOLARA:MARS_POLAR_NORTH_IAU2000';
+export const MARS_POLAR_SOUTH_IAU2000 = 'SOLARA:MARS_POLAR_SOUTH_IAU2000';
+export const MARS_POLAR_RADIUS_M = 3_376_200;
+
 /** The CRS URN exactly as declared by the NASA Trek WMTS document.
  *  Preserved as source metadata — it does not resolve to the projected
  *  CRS the service actually serves (verified equivalent to IAU:2015:49910;
@@ -61,6 +68,13 @@ export function marsPlanetocentricToEqc(
  */
 export const MARS_VIKING_MARSECO0_PROJ4 =
   '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +a=3396190 +b=3376200 +units=m +no_defs';
+
+/** Spherical polar stereographic variants used by NASA Trek's MOLA polar
+ * mosaics (IAU2000:49918 north / 49920 south; central meridian 0, k=1). */
+export const MARS_POLAR_NORTH_PROJ4 =
+  '+proj=stere +lat_0=90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=3376200 +b=3376200 +units=m +no_defs';
+export const MARS_POLAR_SOUTH_PROJ4 =
+  '+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=3376200 +b=3376200 +units=m +no_defs';
 
 /** CRS descriptions shown in the UI. Honest about internal vs authoritative. */
 export const PROJECTION_INFO = {

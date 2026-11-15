@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:copilot": "tsc --noEmit -p worker",
-    "test:map": "node --import ./tests/science/ts-resolve-hook.mjs --test tests/map/tile-cache.test.mjs tests/map/mars-globe-coordinates.test.mjs",
+    "test:map": "node --import ./tests/science/ts-resolve-hook.mjs --test tests/map/tile-cache.test.mjs tests/map/mars-globe-coordinates.test.mjs tests/map/global-exploration.test.mjs",
     "test:science": "node --import ./tests/science/ts-resolve-hook.mjs --test tests/science/dem-slope.test.mjs tests/science/coverage.test.mjs tests/science/meda.test.mjs tests/science/rover.test.mjs",
     "test:worker": "node --import ./tests/worker/resolve-hook.mjs --test tests/worker/tools.test.mjs",
     "test": "npm run test:map && npm run test:science && npm run test:worker"

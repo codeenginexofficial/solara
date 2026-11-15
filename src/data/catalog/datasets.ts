@@ -44,6 +44,11 @@ export const TREK_CAPABILITIES_URL =
 export const TREK_MOLA_200M_CAPABILITIES_URL =
   'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/WMTSCapabilities.xml';
 
+export const TREK_THEMIS_DAY_CAPABILITIES_URL =
+  'https://trek.nasa.gov/tiles/Mars/EQ/THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018/1.0.0/WMTSCapabilities.xml';
+export const TREK_THEMIS_NIGHT_CAPABILITIES_URL =
+  'https://trek.nasa.gov/tiles/Mars/EQ/THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018/1.0.0/WMTSCapabilities.xml';
+
 export const VIKING_ARCGIS_MOSAIC_SERVICE_URL =
   'https://tiles.arcgis.com/tiles/lqRTrQp2HrfnJt8U/arcgis/rest/services/mars_viking_mosaic/MapServer';
 
@@ -254,6 +259,152 @@ export const MOLA_HRSC_COLORSHADE_DATASET: DatasetRecord = {
   lastVerifiedAt: '2026-11-13',
   verifiedServedLevels: 9,
 };
+
+/* ------------------------------------------------------------------ */
+/* 2. Global optical / thermal / polar context products                 */
+/* ------------------------------------------------------------------ */
+
+export const GLOBAL_CTX_MOSAIC_DATASET: DatasetRecord = {
+  id: 'mars-global-ctx-mosaic-v01',
+  title: 'Caltech Bruce Murray Laboratory Global CTX Mosaic V01',
+  provider: 'Caltech Bruce Murray Laboratory; tile service hosted by Esri ArcGIS',
+  mission: 'Mars Reconnaissance Orbiter (MRO)',
+  instrument: 'CTX — Context Camera',
+  productId: 'Global CTX Mosaic V01',
+  kind: 'optical',
+  description:
+    'Global CTX image mosaic made from MRO Context Camera observations. SOLARA accesses the provider tile pyramid; it does not download or assemble the multi-terabyte mosaic.',
+  sourceUrl: 'https://murray-lab.caltech.edu/CTX/',
+  accessMethod: 'xyz',
+  assetUrl: 'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}',
+  spatialReference: {
+    body: 'Mars',
+    authority: 'Esri ArcGIS MapServer WKID 104971 (Mars 2000 geographic sphere); no EPSG authority is claimed.',
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: 'Mars 2000 sphere, R = 3,396,190 m',
+    coordinateSystem: 'Geographic longitude/latitude tile matrix, east-positive longitude',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'ArcGIS MapServer spatialReference wkid 104971 and published tileInfo.',
+  },
+  coverageDescription: 'Nominally 99.5% of the Martian surface between 88°S and 88°N; approximately 0.5% gaps are reported by the source. Extent membership is not pixel-level coverage.',
+  boundingBox: { westLon: -180, eastLon: 180, southLat: -88, northLat: 88 },
+  spatialResolution: 5,
+  resolutionUnit: 'm/pixel nominal at the equator (global mosaic V01); provider tile pyramid reaches about 5.087 m/pixel at level 12 and resamples away from the equator.',
+  observationPeriod: 'CTX image acquisitions compiled in Global CTX Mosaic V01; per-pixel acquisition dates are not exposed by the hosted tile service.',
+  attribution: 'Caltech Bruce Murray Laboratory Global CTX Mosaic V01; source imagery NASA/JPL-Caltech/MSSS; hosted tile service Esri ArcGIS.',
+  limitations: [
+    'The ArcGIS item is explicitly marked beta and not recommended by Esri for production; service contents and availability can change without notice.',
+    'The mosaic has reported gaps (about 0.5% of the area) and the rectangular service extent does not prove that each tile contains imagery.',
+    'CTX is historical orbital imagery, not current surface conditions. It does not provide elevation or hazard-scale HiRISE coverage.',
+    'The source mosaic is approximately 11 TB; SOLARA requests only view tiles and never loads the full mosaic into browser memory.',
+  ],
+  verification: 'tested',
+  lastVerifiedAt: '2026-11-15',
+};
+
+function makeThemisDataset(variant: 'day' | 'night'): DatasetRecord {
+  const isDay = variant === 'day';
+  const id = isDay ? 'themis-day-ir-global' : 'themis-night-ir-global';
+  const product = isDay
+    ? 'THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018'
+    : 'THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018';
+  const title = isDay ? 'THEMIS Daytime Infrared Mosaic' : 'THEMIS Nighttime Infrared Mosaic';
+  const capabilitiesUrl = isDay ? TREK_THEMIS_DAY_CAPABILITIES_URL : TREK_THEMIS_NIGHT_CAPABILITIES_URL;
+  return {
+    id,
+    title,
+    provider: 'NASA Trek (trek.nasa.gov)',
+    mission: 'Mars Odyssey',
+    instrument: 'Thermal Emission Imaging System (THEMIS)',
+    productId: product,
+    kind: 'thermal',
+    description: `${isDay ? 'Daytime' : 'Nighttime'} 100 m THEMIS infrared controlled mosaic. This is rendered thermal infrared science data, not visible-light photography or a direct map of air temperature.`,
+    sourceUrl: capabilitiesUrl,
+    accessMethod: 'wmts',
+    assetUrl: `https://trek.nasa.gov/tiles/Mars/EQ/${product}/1.0.0//default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.png`,
+    spatialReference: {
+      body: 'Mars',
+      authority: MARS_SPHERE_AUTHORITY,
+      proj4: '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs',
+      datum: MARS_SPHERE_DATUM,
+      coordinateSystem: EQC_COORD_SYSTEM,
+      latitudeType: 'planetocentric',
+      longitudeDirection: 'east',
+      units: 'degrees (source grid metadata), metres (SOLARA working projection)',
+      sourceDefinition: 'Trek capabilities declaration urn:ogc:def:crs:EPSG::104905, preserved verbatim as source metadata; SOLARA uses its internally defined Mars sphere EQC projection.',
+    },
+    coverageDescription: 'Conservative product coverage approximately 60°S–60°N, all longitudes (USGS product inventory); source WMTS matrix bounding box extends farther, which is not treated as confirmed product coverage.',
+    boundingBox: { westLon: -180, eastLon: 180, southLat: -60, northLat: 60 },
+    spatialResolution: 100,
+    resolutionUnit: 'm/pixel nominal product resolution; WMTS display levels are derived from matrix geometry and may resample the product.',
+    observationPeriod: 'THEMIS controlled mosaic product V2, published 2018-10; individual source observation dates vary and are not exposed per pixel.',
+    units: 'Rendered infrared mosaic values; calibrated temperature units are not exposed by this image tile layer.',
+    attribution: 'NASA/JPL-Caltech/Arizona State University THEMIS; tiles via NASA Trek.',
+    limitations: [
+      'Infrared radiance/brightness mosaic, not ordinary visible imagery and not a point temperature measurement.',
+      'USGS documents conservative coverage only to about 60° latitude; no coverage is inferred poleward of that extent.',
+      'Rendered PNG tiles do not expose calibrated values or per-pixel acquisition times.',
+      'Mosaic gaps and source-specific missing tiles may occur inside the declared extent.',
+    ],
+    verification: 'inspected',
+    lastVerifiedAt: '2026-11-15',
+    verifiedServedLevels: 10,
+  };
+}
+
+export const THEMIS_DAY_IR_DATASET = makeThemisDataset('day');
+export const THEMIS_NIGHT_IR_DATASET = makeThemisDataset('night');
+
+function makePolarMolaDataset(hemisphere: 'north' | 'south'): DatasetRecord {
+  const north = hemisphere === 'north';
+  const suffix = north ? 'np' : 'sp';
+  const product = `Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw_${suffix}`;
+  return {
+    id: `mola-hrsc-blend-200m-colorshade-${hemisphere}-polar`,
+    title: `MOLA + HRSC ${north ? 'North' : 'South'} Polar Color Hillshade`,
+    provider: 'NASA Trek (trek.nasa.gov)',
+    mission: 'Mars Global Surveyor (MOLA) + Mars Express (HRSC)',
+    instrument: 'MOLA laser altimeter / HRSC stereo camera blend',
+    productId: product,
+    kind: 'topography',
+    description: `Native ${north ? 'north' : 'south'} polar stereographic MOLA/HRSC blended color hillshade. The map switches to this source in the corresponding polar view.`,
+    sourceUrl: `https://trek.nasa.gov/tiles/Mars/${north ? 'NP' : 'SP'}/${product}/1.0.0/WMTSCapabilities.xml`,
+    accessMethod: 'wmts',
+    assetUrl: `https://trek.nasa.gov/tiles/Mars/${north ? 'NP' : 'SP'}/${product}/1.0.0//default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.png`,
+    spatialReference: {
+      body: 'Mars',
+      authority: `NASA Trek service declares urn:ogc:def:crs:EPSG::0 (not a resolvable EPSG CRS); parameters are the NASA Trek IAU2000 Mars polar stereographic grid ${north ? '49918' : '49920'}.`,
+      proj4: `${north ? '+proj=stere +lat_0=90' : '+proj=stere +lat_0=-90'} +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=3376200 +b=3376200 +units=m +no_defs`,
+      datum: 'Mars 2000 polar sphere, R = 3,376,200 m',
+      coordinateSystem: `Polar stereographic, central meridian 0°, scale factor 1; SOLARA internal id SOLARA:MARS_POLAR_${north ? 'NORTH' : 'SOUTH'}_IAU2000.`,
+      latitudeType: 'planetocentric',
+      longitudeDirection: 'east',
+      units: 'metres',
+      sourceDefinition: `Trek native polar WMTS matrix metadata; CRS declaration is urn:ogc:def:crs:EPSG::0 and is not used as an authority identifier. Parameters documented as IAU2000:${north ? '49918' : '49920'}.`,
+    },
+    coverageDescription: `Conservative analytically derived cap: all longitudes from ${north ? '60°N to 90°N' : '90°S to 60°S'}. Square WMTS extent and catalog cap are not a per-pixel data guarantee.`,
+    boundingBox: north
+      ? { westLon: -180, eastLon: 180, southLat: 60, northLat: 90 }
+      : { westLon: -180, eastLon: 180, southLat: -90, northLat: -60 },
+    spatialResolution: 200,
+    resolutionUnit: 'm/pixel nominal blended product; finest published WMTS scale denominator corresponds to about 442 projected m/pixel.',
+    attribution: 'Topography blend: NASA/MGS MOLA + ESA/Mars Express HRSC, via NASA Trek (trek.nasa.gov).',
+    limitations: [
+      'Color hillshade is a visual topographic product; quantitative elevation comes from the DEM query service, not color values.',
+      'The source capabilities advertise an invalid EPSG::0 URN; SOLARA uses the documented IAU2000 polar parameters and internal CRS id.',
+      'The WMTS scale denominators imply a finest projected sample interval of about 442 m/pixel, coarser than the nominal 200 m product pixel size.',
+      'The geographic cap is a conservative projection-derived extent; valid pixels and seams must be checked against actual tiles.',
+    ],
+    verification: 'inspected',
+    lastVerifiedAt: '2026-11-15',
+    verifiedServedLevels: 6,
+  };
+}
+
+export const MOLA_NORTH_POLAR_DATASET = makePolarMolaDataset('north');
+export const MOLA_SOUTH_POLAR_DATASET = makePolarMolaDataset('south');
 
 /* ------------------------------------------------------------------ */
 /* 3. Elevation values — MOLA+HRSC blend DEM (live query + prepared grid) */
@@ -611,6 +762,71 @@ export const JEZERO_IAU_NOMENCLATURE_DATASET: DatasetRecord = {
   lastVerifiedAt: '2026-11-14',
 };
 
+export const GLOBAL_IAU_GAZETTEER_DATASET: DatasetRecord = {
+  id: 'mars-global-iau-gazetteer',
+  title: 'IAU Gazetteer of Planetary Nomenclature (Mars features)',
+  provider: 'USGS Astrogeology / IAU Working Group for Planetary System Nomenclature, queried via NASA Trek',
+  mission: 'IAU Gazetteer of Planetary Nomenclature',
+  instrument: 'Adopted planetary feature names and center coordinates',
+  productId: 'outreach_nomenclature MapServer layer 0',
+  kind: 'science',
+  description: 'Read-only named-feature search. Results are official names and published feature-center coordinates; this endpoint is not a global rendered map overlay.',
+  sourceUrl: `${TREK_ARCGIS_SERVICES}/outreach_nomenclature/MapServer?f=pjson`,
+  accessMethod: 'api',
+  queryEndpoint: `${TREK_ARCGIS_SERVICES}/outreach_nomenclature/MapServer/0/query`,
+  spatialReference: {
+    body: 'Mars',
+    authority: 'Source map service declares ESRI:104905 (Mars 2000 geographic CRS); coordinates requested as east-positive Mars longitude and planetocentric latitude.',
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Geographic longitude/latitude degrees; geometry returned with outSR=104905.',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'Trek ArcGIS MapServer nomenclature layer; source coordinate system preserved as metadata.',
+  },
+  coverageDescription: 'Published source feature centers span approximately 86.876°S to 88.877°N and all longitudes. Gazetteer record coverage is sparse and feature-based, not a continuous surface layer.',
+  boundingBox: { westLon: -180, eastLon: 180, southLat: -86.876, northLat: 88.877 },
+  attribution: 'IAU Working Group for Planetary System Nomenclature / USGS Gazetteer of Planetary Nomenclature; queried through NASA Trek.',
+  limitations: [
+    'Feature centers are nomenclature reference points, not outlines, terrain boundaries, or evidence of high-resolution imagery.',
+    'The layer is queried by name and is not rendered as a planetwide label overlay.',
+    'Bounding extent describes source records; it does not imply a feature exists at every coordinate in the box.',
+  ],
+  verification: 'tested',
+  lastVerifiedAt: '2026-11-15',
+};
+
+export const MARS_MISSION_SITES_DATASET: DatasetRecord = {
+  id: 'mars-verified-mission-sites',
+  title: 'Historic Mars Mission Landing Sites',
+  provider: 'NASA mission and PDS publications; coordinates curated in SOLARA',
+  kind: 'rover',
+  description: 'Verified historic lander and rover touchdown points or explicitly approximate landing-area centres. These markers are not current rover positions.',
+  sourceUrl: 'https://www.giss.nasa.gov/tools/mars24/help/landers.html',
+  accessMethod: 'other',
+  spatialReference: {
+    body: 'Mars',
+    authority: 'Coordinates are recorded as east-positive planetocentric lon/lat from each mission source; no single authority CRS is claimed for this compiled list.',
+    proj4: '+proj=longlat +R=3396190 +no_defs',
+    datum: MARS_SPHERE_DATUM,
+    coordinateSystem: 'Geographic longitude/latitude degrees on the Mars sphere.',
+    latitudeType: 'planetocentric',
+    longitudeDirection: 'east',
+    units: 'degrees',
+    sourceDefinition: 'Per-site NASA / PDS mission sources listed with each marker in SOLARA.',
+  },
+  coverageDescription: 'Sparse historic mission site points at verified landing locations; this is not a planetary observation or rover telemetry layer.',
+  attribution: 'NASA mission sources and NASA Planetary Data System; per-site source links are attached to markers.',
+  limitations: [
+    'Markers identify historical landing points or approximate landing-area centers, as stated per marker.',
+    'They do not show a current rover/lander position, traverse beyond separately catalogued tracks, or imagery coverage.',
+    'An unknown point extent is retained; proximity to a marker does not imply surface data availability.',
+  ],
+  verification: 'tested',
+  lastVerifiedAt: '2026-11-15',
+};
+
 /* ------------------------------------------------------------------ */
 /* 7. Hydrous-mineral detections (prepared raster, verified)           */
 /* ------------------------------------------------------------------ */
@@ -763,8 +979,13 @@ export const JEZERO_REGION: RegionRecord = {
 
 const DATASETS: readonly DatasetRecord[] = [
   VIKING_GLOBAL_MOSAIC_DATASET,
+  GLOBAL_CTX_MOSAIC_DATASET,
+  THEMIS_DAY_IR_DATASET,
+  THEMIS_NIGHT_IR_DATASET,
   JEZERO_CTX_DATASET,
   MOLA_HRSC_COLORSHADE_DATASET,
+  MOLA_NORTH_POLAR_DATASET,
+  MOLA_SOUTH_POLAR_DATASET,
   MOLA_HRSC_BLEND_DEM_DATASET,
   USGS_SIM3292_GEOLOGY_DATASET,
   PERSEVERANCE_TRAVERSE_DATASET,
@@ -772,6 +993,8 @@ const DATASETS: readonly DatasetRecord[] = [
   MARS2020_MEDA_DATASET,
   MARS2020_SCIENCE_STOPS_DATASET,
   JEZERO_HYDROUS_MINERALS_DATASET,
+  GLOBAL_IAU_GAZETTEER_DATASET,
+  MARS_MISSION_SITES_DATASET,
   JEZERO_IAU_NOMENCLATURE_DATASET,
 ];
 

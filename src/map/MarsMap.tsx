@@ -32,7 +32,9 @@ import type { EventsKey } from 'ol/events.js';
 import type { Projection } from 'ol/proj.js';
 import type { Extent } from 'ol/extent.js';
 import { intersects } from 'ol/extent.js';
+import { getPointResolution, transformExtent } from 'ol/proj.js';
 import Feature from 'ol/Feature.js';
+import type { FeatureLike } from 'ol/Feature.js';
 import LineString from 'ol/geom/LineString.js';
 import Point from 'ol/geom/Point.js';
 import VectorSource from 'ol/source/Vector.js';
@@ -41,15 +43,28 @@ import VectorLayer from 'ol/layer/Vector.js';
 import { Fill, Stroke, Style, Text } from 'ol/style.js';
 import CircleStyle from 'ol/style/Circle.js';
 
-import { getDatasetById, TREK_CAPABILITIES_URL, TREK_MOLA_200M_CAPABILITIES_URL, SCIENCE_STOPS_DATASET_ID, IAU_NOMENCLATURE_DATASET_ID, VIKING_GLOBAL_MOSAIC_DATASET } from '../data/catalog/datasets';
+import {
+  getDatasetById,
+  TREK_CAPABILITIES_URL,
+  TREK_MOLA_200M_CAPABILITIES_URL,
+  TREK_THEMIS_DAY_CAPABILITIES_URL,
+  TREK_THEMIS_NIGHT_CAPABILITIES_URL,
+  SCIENCE_STOPS_DATASET_ID,
+  IAU_NOMENCLATURE_DATASET_ID,
+  VIKING_GLOBAL_MOSAIC_DATASET,
+  GLOBAL_CTX_MOSAIC_DATASET,
+  MARS_MISSION_SITES_DATASET,
+  MOLA_NORTH_POLAR_DATASET,
+  MOLA_SOUTH_POLAR_DATASET,
+} from '../data/catalog/datasets';
+import { marsLonLatToEqc, eqcToMarsLonLat, marsLonLatToPolar, polarToMarsLonLat } from '../lib/marsLocation';
 import type { DatasetRecord } from '../data/catalog/types';
 import type { GeoPoint, RouteResult } from '../workers/routeClient';
 import {
   ensureMarsProjectionsRegistered,
   getMarsEquirectangular,
-  lonLatToMarsMetres,
+  getMarsPolar,
   marsBboxToMetresExtent,
-  marsMetresToLonLat,
 } from './projections/ProjectionRegistry';
 import {
   parseTrekCapabilitiesXml,
@@ -60,10 +75,14 @@ import {
 import { gridFingerprint } from './trek/tileGrid';
 import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
 import { createVikingGlobalLayer } from './layers/createVikingGlobalLayer';
+import { createGlobalCtxLayer } from './layers/createGlobalCtxLayer';
+import { createThemisLayer } from './layers/createThemisLayer';
+import { createPolarWmtsLayer } from './layers/createPolarWmtsLayer';
 import { marsTileCache } from './cache/tileCache';
 import { ViewportTilePrefetcher } from './cache/tilePrefetch';
 import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
 import { createRasterOverlayLayer } from './layers/createRasterOverlayLayer';
+import { MARS_MISSION_SITES } from '../features/global-exploration/missionSites';
 import type BaseLayer from 'ol/layer/Base.js';
 import type {
   MapFeatureSelection,
@@ -74,6 +93,7 @@ import type {
   TileFailureKind,
   TileStats,
   ViewInfo,
+  MapProjectionMode,
 } from './mapTypes';
 
 /** Serializable layer visibility/opacity state, keyed by dataset id. */
@@ -102,6 +122,10 @@ export interface MarsMapProps {
    * view when the map is mounted again.
    */
   initialFocusLocation?: MapLocation | null;
+  /** Current map projection: planetwide EQC or a native north/south polar map. */
+  projectionMode?: MapProjectionMode;
+  /** Explicit search focus request; ordinary map clicks do not recenter. */
+  focusRequest?: { location: MapLocation; requestId: number } | null;
   onPointerLocationChange: (location: MapLocation | null) => void;
   onLocationSelect: (location: MapLocation) => void;
   /** Fires when the click landed on a named science waypoint. */
@@ -117,6 +141,8 @@ export interface MarsMapProps {
 export interface MarsMapHandle {
   /** Re-fit the view to the region's advertised footprint. */
   fitToRegion: () => void;
+  /** Fit the entire planetary EQC extent. */
+  fitToPlanet: () => void;
   /** Zoom the view by one tile level (custom React controls). */
   zoomIn: () => void;
   zoomOut: () => void;
@@ -141,6 +167,10 @@ function capabilitiesUrlFor(datasetId: string): string {
       return TREK_CAPABILITIES_URL;
     case 'mola-hrsc-blend-200m-colorshade':
       return TREK_MOLA_200M_CAPABILITIES_URL;
+    case 'themis-day-ir-global':
+      return TREK_THEMIS_DAY_CAPABILITIES_URL;
+    case 'themis-night-ir-global':
+      return TREK_THEMIS_NIGHT_CAPABILITIES_URL;
     default:
       throw new Error(`No verified capabilities URL for WMTS dataset "${datasetId}".`);
   }
@@ -155,6 +185,23 @@ function bboxToMetresExtent(bbox: {
   // Analytic conversion — see ProjectionRegistry.marsBboxToMetresExtent for
   // why the proj4 path must not be used for pole-touching boxes.
   return marsBboxToMetresExtent(bbox);
+}
+
+function projectionForMode(mode: MapProjectionMode): Projection {
+  return mode === 'global' ? getMarsEquirectangular() : getMarsPolar(mode === 'north-polar' ? 'north' : 'south');
+}
+
+function projectLocation(location: Pick<MapLocation, 'lon' | 'lat'>, mode: MapProjectionMode): [number, number] {
+  if (mode === 'global') return marsLonLatToEqc(location.lon, location.lat);
+  return marsLonLatToPolar(location.lon, location.lat, mode === 'north-polar' ? 'north' : 'south');
+}
+
+function locationAtViewCoordinate(coordinate: [number, number], mode: MapProjectionMode): MapLocation {
+  const geographic = mode === 'global'
+    ? eqcToMarsLonLat(coordinate[0], coordinate[1])
+    : polarToMarsLonLat(coordinate[0], coordinate[1], mode === 'north-polar' ? 'north' : 'south');
+  const [x, y] = marsLonLatToEqc(geographic.lon, geographic.lat);
+  return { lon: geographic.lon, lat: geographic.lat, x, y };
 }
 
 /** Safely extract a 2-element coordinate from an OpenLayers event. */
@@ -247,6 +294,27 @@ const POSITION_MARKER_STYLE = new Style({
   }),
 });
 
+function missionSiteStyle(feature: FeatureLike, resolution: number): Style {
+  const name = String(feature.get('name') ?? 'Mission site');
+  return new Style({
+    image: new CircleStyle({
+      radius: 4,
+      fill: new Fill({ color: 'rgba(255, 255, 255, 0.9)' }),
+      stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.95)', width: 1.5 }),
+    }),
+    text: resolution < 180_000
+      ? new Text({
+          text: name,
+          offsetY: -12,
+          font: '500 9px ui-monospace, monospace',
+          fill: new Fill({ color: 'rgba(255, 255, 255, 0.9)' }),
+          stroke: new Stroke({ color: 'rgba(8, 12, 18, 0.9)', width: 3 }),
+          overflow: true,
+        })
+      : undefined,
+  });
+}
+
 export default function MarsMap({
   baseLayers,
   overlays,
@@ -258,6 +326,8 @@ export default function MarsMap({
   positionMarker,
   selectedMarker,
   initialFocusLocation,
+  projectionMode = 'global',
+  focusRequest = null,
   onPointerLocationChange,
   onLocationSelect,
   onFeatureSelect,
@@ -270,6 +340,8 @@ export default function MarsMap({
   const mapRef = useRef<Map | null>(null);
   const resolutionsRef = useRef<number[]>([]);
   const regionExtentRef = useRef<[number, number, number, number] | null>(null);
+  const projectionModeRef = useRef<MapProjectionMode>(projectionMode);
+  const projectionRef = useRef<Projection | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const baseLayerRecordsRef = useRef<
     Array<{
@@ -278,10 +350,12 @@ export default function MarsMap({
       source: TileImageSource;
       footprint: Extent;
       cachePolicy: ReturnType<typeof createTrekWmtsLayer>['cachePolicy'];
+      resolutionsMpp: number[];
     }>
   >([]);
   const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: BaseLayer }>>([]);
   const routeSourceRef = useRef<VectorSource | null>(null);
+  const missionSiteLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
   /* Latest callbacks kept in refs so the mount effect never re-runs on
    * callback identity changes (the map must initialize exactly once). */
@@ -332,26 +406,40 @@ export default function MarsMap({
 
   const fitRegion = useCallback(() => {
     const map = mapRef.current;
-    const extent = regionExtentRef.current;
-    if (!map || !extent) return;
+    const extentEqc = regionExtentRef.current;
+    if (!map || !extentEqc) return;
     const size = map.getSize();
     if (!size || size[0] === 0 || size[1] === 0) return;
-    map
-      .getView()
-      .fit(extent, {
+    const mode = projectionModeRef.current;
+    const extent = mode === 'global'
+      ? extentEqc
+      : transformExtent(extentEqc, getMarsEquirectangular(), projectionForMode(mode), 8);
+    map.getView().fit(extent, {
         size,
         padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
       });
+  }, []);
+
+  const fitPlanet = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const size = map.getSize();
+    if (!size || size[0] === 0 || size[1] === 0) return;
+    const extent: Extent = projectionModeRef.current === 'global'
+      ? [-Math.PI * 3_396_190, -Math.PI * 3_396_190 / 2, Math.PI * 3_396_190, Math.PI * 3_396_190 / 2]
+      : [-1_821_000, -1_821_000, 1_821_000, 1_821_000];
+    map.getView().fit(extent, { size, padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX] });
   }, []);
 
   useImperativeHandle(
     ref,
     () => ({
       fitToRegion: fitRegion,
+      fitToPlanet: fitPlanet,
       zoomIn: () => zoomView(1),
       zoomOut: () => zoomView(-1),
     }),
-    [fitRegion],
+    [fitRegion, fitPlanet],
   );
 
   /* ------------------------------------------------------------------ */
@@ -362,9 +450,11 @@ export default function MarsMap({
     if (!container) return;
 
     ensureMarsProjectionsRegistered();
-    const projection: Projection = getMarsEquirectangular();
+    const projection: Projection = projectionForMode(projectionMode);
+    projectionRef.current = projection;
+    projectionModeRef.current = projectionMode;
 
-    /* --- Base raster layers: verified Trek WMTS plus global Viking XYZ -- */
+    /* --- Base rasters: global XYZ, EQC WMTS, and native polar WMTS -------- */
     const baseRecords = baseLayers.map(({ datasetId }) => {
       const dataset = getDatasetById(datasetId);
       if (!dataset) throw new Error(`Unknown base layer dataset id "${datasetId}".`);
@@ -378,12 +468,38 @@ export default function MarsMap({
           source: created.source,
           footprint: marsBboxToMetresExtent(bbox),
           cachePolicy: created.cachePolicy,
+          resolutionsMpp: created.source.getTileGrid()?.getResolutions() ?? [],
+        };
+      }
+      if (datasetId === GLOBAL_CTX_MOSAIC_DATASET.id) {
+        const created = createGlobalCtxLayer();
+        return {
+          datasetId,
+          layer: created.layer as BaseLayer,
+          source: created.source,
+          footprint: [-180, -88, 180, 88] as Extent,
+          cachePolicy: created.cachePolicy,
+          resolutionsMpp: created.resolutionsMpp,
+        };
+      }
+      if (datasetId === MOLA_NORTH_POLAR_DATASET.id || datasetId === MOLA_SOUTH_POLAR_DATASET.id) {
+        const hemisphere = datasetId === MOLA_NORTH_POLAR_DATASET.id ? 'north' : 'south';
+        const created = createPolarWmtsLayer(dataset, hemisphere);
+        return {
+          datasetId,
+          layer: created.layer as BaseLayer,
+          source: created.source,
+          footprint: created.footprint,
+          cachePolicy: created.cachePolicy,
+          resolutionsMpp: created.resolutions,
         };
       }
       const verifiedXml = VERIFIED_CAPABILITIES_XML_BY_ID[datasetId];
       if (!verifiedXml) throw new Error(`No verified capabilities snapshot for "${datasetId}".`);
+      const created = datasetId.startsWith('themis-')
+        ? createThemisLayer(dataset)
+        : createTrekWmtsLayer(parseTrekCapabilitiesXml(verifiedXml), dataset);
       const snapshotConfig = parseTrekCapabilitiesXml(verifiedXml);
-      const created = createTrekWmtsLayer(snapshotConfig, dataset);
       const bbox = dataset.boundingBox ?? snapshotConfig.layer.boundingBox;
       const footprint: Extent = marsBboxToMetresExtent(bbox);
       return {
@@ -392,16 +508,15 @@ export default function MarsMap({
         source: created.source,
         footprint,
         cachePolicy: created.cachePolicy,
+        resolutionsMpp: created.resolutions,
       };
     });
     baseLayerRecordsRef.current = baseRecords;
 
-    // The view uses the longest available resolution list across its base
-    // sources. With the Jezero CTX layer currently disabled, MOLA supplies
-    // the view's finest level; coarser sources upscale beyond their own levels.
-    const resolutionsPerLayer = baseRecords.map((rec) =>
-      rec.source.getTileGrid()?.getResolutions() ?? [],
-    );
+    // All view resolutions are converted to metres per pixel, including the
+    // global CTX geographic degree grid. The longest real source pyramid sets
+    // the map's maximum detail; missing source pixels never become data.
+    const resolutionsPerLayer = baseRecords.map((rec) => rec.resolutionsMpp);
     const viewResolutions =
       resolutionsPerLayer.reduce<number[]>(
         (acc, res) => (res.length > acc.length ? (res as number[]) : acc),
@@ -423,10 +538,31 @@ export default function MarsMap({
         initialFocusLocation.lat <= regionBoundingBox.northLat,
     );
     const initialCenter = initialFocusLocation
-      ? [initialFocusLocation.x, initialFocusLocation.y]
-      : regionExtent
-        ? [(regionExtent[0] + regionExtent[2]) / 2, (regionExtent[1] + regionExtent[3]) / 2]
-        : [0, 0];
+      ? projectLocation(initialFocusLocation, projectionMode)
+      : [0, 0];
+
+    /* --- Verified historic mission site markers ------------------------ */
+    const missionSiteSource = new VectorSource();
+    for (const site of MARS_MISSION_SITES) {
+      const feature = new Feature({ geometry: new Point(projectLocation(site, projectionMode)) });
+      feature.setProperties({
+        name: site.name,
+        mission: site.mission,
+        coordinateNote: site.coordinateNote,
+        sourceUrl: site.sourceUrl,
+        longitudeEast: site.lon,
+        latitudePlanetocentric: site.lat,
+      });
+      missionSiteSource.addFeature(feature);
+    }
+    const missionSiteLayer = new VectorLayer({
+      source: missionSiteSource,
+      style: missionSiteStyle,
+      declutter: true,
+      properties: { datasetId: MARS_MISSION_SITES_DATASET.id },
+    });
+    missionSiteLayer.setZIndex(80);
+    missionSiteLayerRef.current = missionSiteLayer;
 
     /* --- Mission route overlay (topmost) ------------------------------- */
     const routeSource = new VectorSource();
@@ -474,26 +610,27 @@ export default function MarsMap({
         throw new Error(`Overlay asset for "${datasetId}" failed: HTTP ${response.status}.`);
       }
       const geojson: unknown = await response.json();
-      return createGeojsonOverlayLayer(geojson, dataset).layer;
+      return createGeojsonOverlayLayer(
+        geojson,
+        dataset,
+        projectionRef.current ?? getMarsEquirectangular(),
+      ).layer;
     });
 
     const map = new Map({
       target: container,
       maxTilesLoading: 8,
-      layers: [...baseRecords.map((r) => r.layer), routeLayer],
+      layers: [...baseRecords.map((r) => r.layer), missionSiteLayer, routeLayer],
       view: new View({
         projection,
         resolutions: viewResolutions,
         center: initialCenter,
-        zoom: initialFocusLocation && !initialFocusIsInRegion ? 2 : 8,
+        zoom: initialFocusLocation ? (initialFocusIsInRegion ? 8 : 5) : 0,
         maxZoom: viewResolutions.length - 1,
         minZoom: 0,
-        extent: [
-          -Math.PI * 3396190,
-          (-Math.PI * 3396190) / 2,
-          Math.PI * 3396190,
-          (Math.PI * 3396190) / 2,
-        ],
+        extent: projectionMode === 'global'
+          ? [-Math.PI * 3_396_190, -Math.PI * 3_396_190 / 2, Math.PI * 3_396_190, Math.PI * 3_396_190 / 2]
+          : [-1_821_000, -1_821_000, 1_821_000, 1_821_000],
       }),
       controls: defaultControls({ attribution: false, zoom: false }).extend([
         new Attribution({ collapsible: false }),
@@ -516,19 +653,6 @@ export default function MarsMap({
     if (import.meta.env.DEV && typeof window !== 'undefined') {
       (window as Window & { __SOLARA_TILE_CACHE__?: () => ReturnType<typeof marsTileCache.getDiagnostics> })
         .__SOLARA_TILE_CACHE__ = () => marsTileCache.getDiagnostics();
-    }
-
-    // Keep a globe-selected point centred when handing off to the 2D map.
-    // A fresh map session still opens fitted to Jezero; selections outside
-    // the region remain at their own global-view focus and are never clamped.
-    if (regionExtent && !initialFocusLocation) {
-      const size = map.getSize();
-      if (size && (size[0] ?? 0) > 0 && (size[1] ?? 0) > 0) {
-        map.getView().fit(regionExtent, {
-          size,
-          padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
-        });
-      }
     }
 
     /* --- Tile progress (display-only plain state) ---------------------- */
@@ -614,13 +738,9 @@ export default function MarsMap({
       pointerRaf = requestAnimationFrame(() => {
         pointerRaf = null;
         if (!pointerCoordinate) return;
-        const [lon, lat] = marsMetresToLonLat(pointerCoordinate[0], pointerCoordinate[1]);
-        callbacksRef.current.onPointerLocationChange({
-          lon,
-          lat,
-          x: pointerCoordinate[0],
-          y: pointerCoordinate[1],
-        });
+        callbacksRef.current.onPointerLocationChange(
+          locationAtViewCoordinate(pointerCoordinate, projectionModeRef.current),
+        );
       });
     };
     const onPointerLeave = () => {
@@ -630,8 +750,7 @@ export default function MarsMap({
     const onClick = (evt: MapBrowserEvent) => {
       const pair = coordinatePair(evt.coordinate);
       if (!pair) return;
-      const [lon, lat] = marsMetresToLonLat(pair[0], pair[1]);
-      callbacksRef.current.onLocationSelect({ lon, lat, x: pair[0], y: pair[1] });
+      callbacksRef.current.onLocationSelect(locationAtViewCoordinate(pair, projectionModeRef.current));
 
       // Named science waypoints: hit-test only their layer so polygons and
       // the rover track keep the plain coordinate-selection behaviour.
@@ -650,7 +769,11 @@ export default function MarsMap({
         (feature, layer) => {
           if (!layer) return false;
           const datasetId = layer.get('datasetId');
-          if (datasetId !== SCIENCE_STOPS_DATASET_ID && datasetId !== IAU_NOMENCLATURE_DATASET_ID) {
+          if (
+            datasetId !== SCIENCE_STOPS_DATASET_ID &&
+            datasetId !== IAU_NOMENCLATURE_DATASET_ID &&
+            datasetId !== MARS_MISSION_SITES_DATASET.id
+          ) {
             return false;
           }
           const name = feature.get('name');
@@ -658,11 +781,11 @@ export default function MarsMap({
           const geometry = feature.getGeometry();
           if (!(geometry instanceof Point)) return false;
           const featureCoordinate = geometry.getCoordinates();
-          const [featureLon, featureLat] = marsMetresToLonLat(
-            featureCoordinate[0]!,
-            featureCoordinate[1]!,
+          const featureLocation = locationAtViewCoordinate(
+            [featureCoordinate[0]!, featureCoordinate[1]!],
+            projectionModeRef.current,
           );
-          const link = feature.get('template') ?? feature.get('gazetteerUrl');
+          const link = feature.get('template') ?? feature.get('gazetteerUrl') ?? feature.get('sourceUrl');
           const sourceProperties: MapFeatureSelection['sourceProperties'] = {};
           for (const [key, value] of Object.entries(feature.getProperties())) {
             if (key === 'geometry' || key.startsWith('_')) continue;
@@ -677,8 +800,8 @@ export default function MarsMap({
           hits.push({
             name,
             datasetId,
-            lon: featureLon,
-            lat: featureLat,
+            lon: featureLocation.lon,
+            lat: featureLocation.lat,
             detailUrl: typeof link === 'string' && link.length > 0 ? link : undefined,
             sourceProperties,
           });
@@ -704,11 +827,12 @@ export default function MarsMap({
       const centerPair = coordinatePair(view.getCenter());
       if (resolution === undefined || !centerPair) return;
       const level = resolutionsRef.current.findIndex((r) => Math.abs(r - resolution) < r / 1000);
-      const [lon, lat] = marsMetresToLonLat(centerPair[0], centerPair[1]);
+      const center = locationAtViewCoordinate(centerPair, projectionModeRef.current);
       callbacksRef.current.onViewChange({
-        resolutionMpp: resolution,
+        resolutionMpp: getPointResolution(view.getProjection(), resolution, centerPair, 'm'),
         tileLevel: level >= 0 ? level : null,
-        center: { lon, lat, x: centerPair[0], y: centerPair[1] },
+        center,
+        projectionMode: projectionModeRef.current,
       });
     };
 
@@ -834,11 +958,85 @@ export default function MarsMap({
       baseLayerRecordsRef.current = [];
       overlayLayerRecordsRef.current = [];
       routeSourceRef.current = null;
+      missionSiteLayerRef.current = null;
     };
     // Base layer set + overlays are fixed per mount; dynamic props sync via
     // the effects below and callbacks go through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Switch the OpenLayers view projection in place. Tile sources retain their
+   * own native CRS and OpenLayers reprojects them; prepared vector geometry is
+   * transformed between the old/new view CRS, while serialized MapLocation
+   * coordinates continue to carry EQC x/y plus geographic lon/lat. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || projectionModeRef.current === projectionMode) return;
+    const oldMode = projectionModeRef.current;
+    const oldProjection = projectionRef.current ?? projectionForMode(oldMode);
+    const nextProjection = projectionForMode(projectionMode);
+    const oldView = map.getView();
+    const oldCenter = coordinatePair(oldView.getCenter());
+    const centerLocation = oldCenter
+      ? locationAtViewCoordinate(oldCenter, oldMode)
+      : { lon: 0, lat: 0 };
+    const center = projectLocation(centerLocation, projectionMode);
+
+    for (const record of overlayLayerRecordsRef.current) {
+      if (!(record.layer instanceof VectorLayer)) continue;
+      const source = record.layer.getSource();
+      source?.getFeatures().forEach((feature: Feature) => feature.getGeometry()?.transform(oldProjection, nextProjection));
+    }
+    missionSiteLayerRef.current?.getSource()?.getFeatures().forEach((feature: Feature) => {
+      feature.getGeometry()?.transform(oldProjection, nextProjection);
+    });
+
+    const resolution = oldView.getResolution() ?? resolutionsRef.current[0] ?? 1;
+    projectionModeRef.current = projectionMode;
+    projectionRef.current = nextProjection;
+    map.setView(new View({
+      projection: nextProjection,
+      center,
+      resolution,
+      resolutions: resolutionsRef.current,
+      minZoom: 0,
+      maxZoom: Math.max(0, resolutionsRef.current.length - 1),
+      extent: projectionMode === 'global'
+        ? [-Math.PI * 3_396_190, -Math.PI * 3_396_190 / 2, Math.PI * 3_396_190, Math.PI * 3_396_190 / 2]
+        : [-1_821_000, -1_821_000, 1_821_000, 1_821_000],
+    }));
+    map.updateSize();
+  }, [projectionMode]);
+
+  useEffect(() => {
+    const request = focusRequest;
+    const map = mapRef.current;
+    if (!request || !map) return;
+    const center = projectLocation(request.location, projectionModeRef.current);
+    const targetZoom = regionBoundingBox &&
+      request.location.lon >= regionBoundingBox.westLon && request.location.lon <= regionBoundingBox.eastLon &&
+      request.location.lat >= regionBoundingBox.southLat && request.location.lat <= regionBoundingBox.northLat
+      ? 8
+      : 5;
+    map.getView().animate({
+      center,
+      zoom: Math.min(targetZoom, Math.max(0, resolutionsRef.current.length - 1)),
+      duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260,
+    });
+  }, [focusRequest, projectionMode, regionBoundingBox]);
+
+  useEffect(() => {
+    const view = mapRef.current?.getView();
+    if (!view) return;
+    const update = () => {
+      const zoom = view.getZoom();
+      if (zoom === undefined) return;
+      setZoomAtBounds({ min: zoom <= view.getMinZoom() + 0.001, max: zoom >= view.getMaxZoom() - 0.001 });
+    };
+    const key = view.on('change:resolution', update);
+    update();
+    return () => unByKey(key);
+  }, [projectionMode]);
 
   /* Base layer visibility / opacity sync */
   useEffect(() => {
@@ -867,7 +1065,7 @@ export default function MarsMap({
     source.clear();
 
     const addPointFeature = (point: GeoPoint, kind: 'route-start' | 'route-target' | 'position' | 'selected') => {
-      const [x, y] = lonLatToMarsMetres(point.lon, point.lat);
+      const [x, y] = projectLocation(point, projectionModeRef.current);
       const feature = new Feature({ geometry: new Point([x, y]) });
       feature.set('solara:kind', kind);
       source.addFeature(feature);
@@ -882,12 +1080,12 @@ export default function MarsMap({
     }
 
     if (routeVisible && route && route.points.length >= 2) {
-      const coordinates = route.points.map((p) => lonLatToMarsMetres(p.lon, p.lat));
+      const coordinates = route.points.map((p) => projectLocation(p, projectionModeRef.current));
       const lineFeature = new Feature({ geometry: new LineString(coordinates) });
       lineFeature.set('solara:kind', 'route-line');
       source.addFeature(lineFeature);
     }
-  }, [start, target, route, routeVisible, positionMarker, selectedMarker]);
+  }, [start, target, route, routeVisible, positionMarker, selectedMarker, projectionMode]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-surface">

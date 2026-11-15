@@ -8,9 +8,12 @@
 
 import { PanelLeft, PanelRight, Maximize2, MapPin, Globe } from 'lucide-react';
 import type { SourceStatus, CapabilitiesStatus } from '../../../map/mapTypes';
+import type { MapLocation, MapProjectionMode } from '../../../map/mapTypes';
 import { Button } from '../../../components/ui/button';
+import { PlanetaryLocationSearch } from '../../global-exploration/PlanetaryLocationSearch';
 import { cn } from '../../../lib/utils';
 import { formatUtcTime } from '../../../lib/format';
+import type { IauFeature } from '../../../data/adapters/iauFeatureService';
 
 /**
  * Labels for the live capabilities verification state. The map itself always
@@ -35,6 +38,9 @@ export interface TopBarProps {
   onToggleRightPanel: () => void;
   /** Provided when the app can switch to Field Tablet Mode from here. */
   onSwitchToTablet?: () => void;
+  projectionMode: MapProjectionMode;
+  onProjectionModeChange: (mode: MapProjectionMode) => void;
+  onSelectLocation: (location: MapLocation, label?: string, feature?: IauFeature) => void;
 }
 
 export function TopBar({
@@ -46,6 +52,9 @@ export function TopBar({
   onToggleLeftPanel,
   onToggleRightPanel,
   onSwitchToTablet,
+  projectionMode,
+  onProjectionModeChange,
+  onSelectLocation,
 }: TopBarProps) {
   const status = STATUS_TEXT[sourceStatus.capabilities];
 
@@ -90,8 +99,16 @@ export function TopBar({
         title={regionLabel}
       >
         <MapPin className="size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
-        <span className="truncate">{globeActive ? 'Mars · Global 3D' : 'Jezero Crater, Mars'}</span>
+        <span className="truncate">{globeActive ? 'Mars · Global 3D' : 'Mars · Planetary surface'}</span>
       </div>
+
+      <PlanetaryLocationSearch
+        projectionMode={projectionMode}
+        onProjectionModeChange={onProjectionModeChange}
+        onSelectLocation={onSelectLocation}
+        className="mx-1 flex-1"
+        compact
+      />
 
       <div className="ml-auto flex items-center gap-2">
         {/* Source connection status */}

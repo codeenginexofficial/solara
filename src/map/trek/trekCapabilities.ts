@@ -30,6 +30,8 @@
 
 import type { GeographicBoundingBox } from '../../data/catalog/types';
 import { TREK_DECLARED_CRS_URN } from '../projections/ProjectionRegistry';
+import THEMIS_DAY_CAPABILITIES_XML from './snapshots/themis-day.xml?raw';
+import THEMIS_NIGHT_CAPABILITIES_XML from './snapshots/themis-night.xml?raw';
 
 /**
  * WMTS / OWS namespaces used by the Trek capabilities document.
@@ -490,6 +492,8 @@ export const VERIFIED_MOLA_BLEND_200M_CAPABILITIES_XML = String.raw`<?xml versio
 export const VERIFIED_CAPABILITIES_XML_BY_ID: Readonly<Record<string, string>> = {
   'jezero-ctx-mosaic-soc-008': VERIFIED_CAPABILITIES_XML,
   'mola-hrsc-blend-200m-colorshade': VERIFIED_MOLA_BLEND_200M_CAPABILITIES_XML,
+  'themis-day-ir-global': THEMIS_DAY_CAPABILITIES_XML,
+  'themis-night-ir-global': THEMIS_NIGHT_CAPABILITIES_XML,
 };
 
 /** Fetch and parse the live capabilities document from the browser. */

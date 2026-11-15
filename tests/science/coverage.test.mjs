@@ -40,6 +40,12 @@ test('get_dataset_coverage: inside Jezero reports membership with honest caveats
   const globalMosaic = byId.get('mars-viking-mdim21-colorized-global');
   assert.equal(globalMosaic.extentStatus, 'within_declared_extent');
   assert.ok(globalMosaic.extentNote.includes('global extent'));
+
+  const globalCtx = byId.get('mars-global-ctx-mosaic-v01');
+  assert.equal(globalCtx.extentStatus, 'within_declared_extent');
+  assert.equal(globalCtx.availability, 'live_tile_service');
+  assert.match(globalCtx.spatialResolution, /5 m\/pixel/);
+  assert.equal(byId.get('themis-day-ir-global').kind, 'thermal');
 });
 
 test('get_dataset_coverage: a point outside Jezero is outside regional extents but inside global ones', () => {
@@ -59,6 +65,16 @@ test('get_dataset_coverage: output is deterministic and never promises data avai
   const second = getDatasetCoverage(JEZERO_POINT.lon, JEZERO_POINT.lat);
   assert.deepEqual(second, first);
   assert.ok(resultHasCaveat(first));
+});
+
+test('get_dataset_coverage: polar caps expose regional polar layers and CTX limit honestly', () => {
+  const north = new Map(getDatasetCoverage(179.9, 89.5).datasets.map((entry) => [entry.datasetId, entry]));
+  assert.equal(north.get('mola-hrsc-blend-200m-colorshade-north-polar').extentStatus, 'within_declared_extent');
+  assert.equal(north.get('mars-global-ctx-mosaic-v01').extentStatus, 'outside_declared_extent');
+
+  const south = new Map(getDatasetCoverage(-179.9, -89.5).datasets.map((entry) => [entry.datasetId, entry]));
+  assert.equal(south.get('mola-hrsc-blend-200m-colorshade-south-polar').extentStatus, 'within_declared_extent');
+  assert.equal(south.get('mars-viking-mdim21-colorized-global').extentStatus, 'within_declared_extent');
 });
 
 function resultHasCaveat(result) {

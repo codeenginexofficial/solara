@@ -500,6 +500,13 @@ export const MARS_VIKING_TILE_CACHE_POLICY: TileCachePolicy = {
   maxAgeCapMs: 60 * 60 * 1000,
 };
 
+/** Esri's global CTX service was observed publishing max-age=2592000 (30d).
+ * The cache honors shorter source directives and caps persistence at 30d. */
+export const MARS_GLOBAL_CTX_TILE_CACHE_POLICY: TileCachePolicy = {
+  namespace: 'mars-global-ctx-v01-esri-tiles-v1',
+  maxAgeCapMs: 30 * 24 * 60 * 60 * 1000,
+};
+
 export function marsTrekTileCachePolicy(datasetId: string): TileCachePolicy {
   return {
     namespace: `mars-trek-${datasetId}-v1`,

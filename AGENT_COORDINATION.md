@@ -43,6 +43,7 @@ Status values: `NOT STARTED`, `IN PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | T-12 | Optional coordinate lookup | A — Codex (or assigned helper) | NOT STARTED | Validates Mars coordinates and centers map/globe; only after core tasks are stable |
 | T-13 | Final smoke test, build/type-check, review and Git checkpoint | A — Codex | IN PROGRESS | No new errors; completed/unfinished items clearly recorded; no push/deploy |
 | T-14 | Add bounded persistent tile caching, prioritized viewport prefetch, and development diagnostics | A — Codex | IN PROGRESS | Visible tiles win; cache expires/evicts within fixed budgets; requests dedupe; errors are retried; no unbounded prefetch |
+| T-15 | Expand SOLARA to global Mars exploration: global imagery/science layers, polar views, feature and coordinate search, verified mission sites, and point coverage reporting | A — Codex | IN PROGRESS | Whole-planet navigation and ±180° handling; source-backed equatorial/polar data; honest point coverage; existing Jezero workflows preserved; tests/docs updated |
 
 ## 4. File-ownership register
 
@@ -65,6 +66,17 @@ Agents must add exact repository paths here after inspecting the real codebase. 
 | Layer-panel presentation and labels | B — GLM | A/C read-only unless handed off |
 | Diagnostic chips/cards and requested typography | B — GLM | A/C read-only unless handed off |
 | `SOURCES.md`, `README.md` documentation | D — Copilot (T-10/T-11 complete) | A owns globe/cache accuracy updates after D's completion |
+| `src/data/catalog/types.ts`, `src/data/catalog/datasets.ts` | A — Codex (T-15) | Shared catalog; no other active writers |
+| `src/data/adapters/iauFeatureService.ts` (new), `src/features/global-exploration/PlanetaryLocationSearch.tsx` (new), `src/features/global-exploration/missionSites.ts` (new) | A — Codex (T-15) | No other active writers |
+| `src/lib/marsLocation.ts` (new), `tests/map/global-exploration.test.mjs` (new) | A — Codex (T-15) | Ol-free shared geographic/polar coordinate math and parser fixtures |
+| `package.json` | A — Codex (T-15) | Register the global exploration test file in the existing Node test script |
+| `src/lib/marsCrs.ts`, `src/map/projections/ProjectionRegistry.ts`, `src/map/mapTypes.ts`, `src/map/MarsMap.tsx`, `src/map/trek/trekCapabilities.ts` | A — Codex (T-15) | Existing CRS/map contracts remain authoritative; no other active writers |
+| `src/map/layers/createGlobalCtxLayer.ts` (new), `src/map/layers/createThemisLayer.ts` (new), `src/map/layers/createPolarWmtsLayer.ts` (new), `src/map/layers/createWmtsLayer.ts` | A — Codex (T-15) | All use the existing cache and preserve per-source attribution |
+| `src/map/trek/polarCapabilities.ts` (new) | A — Codex (T-15) | Raw build-time imports of verified native-polar WMTS snapshots |
+| `src/map/trek/snapshots/themis-day.xml` (new), `src/map/trek/snapshots/themis-night.xml` (new), `src/map/trek/snapshots/mola-north-polar.xml` (new), `src/map/trek/snapshots/mola-south-polar.xml` (new) | A — Codex (T-15) | Read-only copies of capabilities fetched and validated 2026-11-15; source documents are not edited |
+| `src/features/mars-globe/MarsGlobe.tsx`, `src/features/habitat-mode/HabitatMode.tsx`, `src/features/field-tablet/FieldTabletMode.tsx`, `src/features/habitat-mode/components/TopBar.tsx`, `src/features/habitat-mode/components/MissionOperationsPanel.tsx`, `src/features/habitat-mode/components/LocationPanel.tsx` | A — Codex (T-15) | Existing B cleanup and C scientific services are preserved |
+| `worker/src/science/coverage.ts`, `tests/science/coverage.test.mjs` — availability mapping only | A — Codex (T-15 integration handoff) | Reuse C's service; narrow extension to recognize live XYZ tile services; no duplicated science logic |
+| `tests/map/global-exploration.test.mjs` (new), `README.md`, `SOURCES.md`, `Architecture.md`, `AGENT_COORDINATION.md` | A — Codex (T-15) | Tests cover deterministic coordinate/projection/coverage seams; docs only claim verified integrations |
 | `AGENT_ROLES.md` | Project instructions | Nobody edits without Abdullah's explicit request |
 | `AGENT_COORDINATION.md` | Shared coordination | A maintains task board; others append messages only |
 | `package.json`, lockfile, shared global styles/types | A — Codex coordinates | No other agent edits without explicit approval |
@@ -328,3 +340,13 @@ Each agent posts a message in the log in this format:
 - Confirmed the Mars coordinate conversion helper exists as an untracked file from the prior implementation turn; it is preserved and will be integrated into `MarsGlobe.tsx`.
 - Added `src/map/cache/indexedDbTileStore.ts` to A's exact ownership because the bounded persistent store is isolated from the scheduling/cache facade.
 - A owns `LocationPanel.tsx` only for the selected-point imagery-coverage honesty message required by T-05. B's completed UI cleanup remains intact.
+
+### [2026-11-15 17:10 EAT] Agent A — START (T-15 global Mars exploration)
+- Task ID and status: T-15 IN PROGRESS.
+- Audit completed before implementation: repository and existing uncommitted state inspected; `AGENT_ROLES.md`, `AGENT_COORDINATION.md`, `SOURCES.md`, README, `Context.md`, `Architecture.md`, `Design.md`, current Mars globe/map/projection/cache/catalog, Copilot context, and test/build commands reviewed. Existing user changes, including `ppt/SOLARA.pptx`, remain untouched.
+- Exact A-owned files for this phase are registered in the file-ownership table above. Agent C's scientific services are to be reused; only the existing coverage availability mapping is in scope for the small `xyz` tile-service classification extension.
+- Plan: add the verified Caltech/Esri Global CTX V01 service through the existing bounded tile cache; add NASA Trek global THEMIS day/night infrared and native MOLA polar layers; keep Viking/MOLA global context; provide correctly defined north/south polar stereographic views while retaining the Mars sphere EQC world map; add east-positive coordinate search, live IAU feature lookup, verified mission landing markers, and selected-point catalog coverage; leave route planning and MEDA tied to Jezero/Perseverance; update provenance and limitations in the UI and docs.
+- Verification so far: NASA Trek WMTS capabilities were fetched read-only for MOLA north/south polar and THEMIS day/night; all four returned HTTP 200 with CORS enabled. THEMIS EQ uses Trek's verified EQ matrix grid and advertises latitude coverage to about ±65°; polar MOLA services are native polar tile matrices (not the EQ parser). The Caltech CTX MapServer V01 tile service and its beta/service-term limits were verified in the prior audit; individual tiles succeeded at the named test regions and both sides of the dateline.
+- Acceptance: map opens to a global context; any valid coordinate or IAU feature can be selected; dateline and exact-pole transformations are deterministic; polar layers use documented Mars polar stereographic definitions; point coverage distinguishes declared extent from valid pixel availability; regional overlays and Jezero-only route/MEDA workflows remain geographically honest.
+- Coordination with Agent C: no duplicate service will be created. A will consume `getDatasetCoverage`; the only planned change is mapping catalog `xyz` datasets to the already-defined `live_tile_service` availability value and test that classification. No live Agent C process is currently attached to this workspace; this scoped integration handoff is recorded here for review if C resumes.
+- Risks: Cesium ion still requires a restricted browser token for live 3D Tiles; Esri marks its Global CTX V01 MapServer beta/not recommended for production, so it will be optional with a visible source limitation; global/polar imagery resolution remains lower than local CTX/HiRISE products and does not make global route planning available.

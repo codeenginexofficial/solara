@@ -18,6 +18,8 @@ import { isInsideBoundingBox } from '../../../lib/bbox';
 import { identifyElevation } from '../../../data/adapters/demService';
 import { fetchElevationGrid, sampleElevation, type ElevationGrid } from '../../../data/adapters/elevationGrid';
 import { getDatasetById } from '../../../data/catalog/datasets';
+import { getDatasetCoverage } from '../../../../worker/src/science/coverage';
+import { Disclosure } from '../../../components/ui/disclosure';
 
 export interface LocationPanelProps {
   location: MapLocation | null;
@@ -168,6 +170,11 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
 
   const bbox = region?.boundingBox;
   const inside = bbox !== undefined && isInsideBoundingBox(location, bbox);
+  const coverage = getDatasetCoverage(location.lon, location.lat);
+  const globalCtx = coverage.datasets.find((entry) => entry.datasetId === 'mars-global-ctx-mosaic-v01');
+  const jezeroCtx = coverage.datasets.find((entry) => entry.datasetId === 'jezero-ctx-mosaic-soc-008');
+  const isMissionSite = feature?.datasetId === 'mars-verified-mission-sites';
+  const isIauFeature = feature?.datasetId === 'jezero-iau-nomenclature' || feature?.datasetId === 'mars-global-iau-gazetteer';
 
   const handleCopy = () => {
     const text = `${formatLat(location.lat)}, ${formatLon(location.lon)}`;
@@ -253,7 +260,7 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
               className={cn('size-1.5 rounded-full', inside ? 'bg-ok' : 'bg-warn')}
               aria-hidden="true"
             />
-            <span>{inside ? 'Jezero Region' : 'Outside exploration region'}</span>
+            <span>{inside ? 'Jezero planning region' : 'Outside Jezero planning region'}</span>
           </div>
 
           <span className="font-mono text-[11px] text-ink-subtle">
@@ -261,10 +268,48 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
           </span>
         </div>
         <p className="mt-2 text-[11px] leading-snug text-ink-subtle" data-testid="imagery-availability-note">
-          The 2D map has no verified detailed optical imagery layer active here; its available
-          optical context is the historical global Viking mosaic.
+          Viking MDIM provides historical global optical context. Global CTX is
+          {globalCtx?.extentStatus === 'within_declared_extent' ? ' within its 88° coverage extent (with known gaps)' : ' outside its stated ±88° latitude coverage'};
+          {jezeroCtx?.extentStatus === 'within_declared_extent' ? ' the controlled Jezero CTX mosaic also lists this point in its footprint.' : ' the controlled Jezero CTX mosaic is not declared at this point.'}
+          {' '}No HiRISE coverage is implied.
         </p>
       </div>
+
+      <Disclosure title="Dataset extents at this coordinate" className="mt-3" contentClassName="max-h-72 space-y-2 overflow-y-auto">
+        <p className="text-[10px] leading-snug text-ink-subtle">
+          These are catalog extent checks, not proof of valid pixels. Gaps, sparse tracks, and in-situ measurements remain source-specific.
+        </p>
+        {coverage.datasets.map((entry) => {
+          const extentLabel = entry.extentStatus === 'within_declared_extent'
+            ? 'Within stated extent'
+            : entry.extentStatus === 'outside_declared_extent'
+              ? 'Outside stated extent'
+              : 'Extent unknown';
+          const availabilityLabel = entry.availability.replaceAll('_', ' ');
+          return (
+            <div key={entry.datasetId} className="border-t border-edge/40 pt-1.5" title={entry.extentNote}>
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 text-[10.5px] font-medium leading-snug text-ink">{entry.title}</span>
+                <span className={cn(
+                  'shrink-0 rounded-sm border px-1.5 py-0.5 text-[9px]',
+                  entry.extentStatus === 'within_declared_extent'
+                    ? 'border-edge text-ink-muted'
+                    : 'border-warn/40 text-warn',
+                )}>{extentLabel}</span>
+              </div>
+              <div className="mt-0.5 text-[9.5px] text-ink-subtle">
+                {entry.spatialResolution ?? 'Resolution not recorded'}
+                {entry.observationPeriod ? ` · ${entry.observationPeriod}` : ''}
+                {` · ${availabilityLabel}`}
+              </div>
+              {entry.kind === 'thermal' && <div className="mt-0.5 text-[9.5px] text-ink-subtle">Infrared science data; not visible-light photography or point air temperature.</div>}
+              {(entry.datasetId === 'mars2020-meda-environmental' || entry.kind === 'rover') && (
+                <div className="mt-0.5 text-[9.5px] text-ink-subtle">Historical / in-situ mission data; not a live global observation.</div>
+              )}
+            </div>
+          );
+        })}
+      </Disclosure>
 
       {/* Selected science waypoint (named destination) */}
       {feature && (
@@ -273,15 +318,17 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
           data-testid="science-stop-card"
         >
           <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-subtle">
-            {feature.datasetId === 'jezero-iau-nomenclature' ? 'IAU feature' : 'Science stop'}
+            {isMissionSite ? 'Historic mission site' : isIauFeature ? 'IAU feature' : 'Science stop'}
           </div>
           <div className="mt-0.5 text-[13px] font-semibold leading-snug text-ink">
             {feature.name}
           </div>
           <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
-            {feature.datasetId === 'jezero-iau-nomenclature'
-              ? 'IAU-adopted feature name (USGS/IAU Gazetteer). Identification only — no boundary, hazard, or trafficability information is implied.'
-              : 'Compiled NASA Trek waypoint. A destination of scientific interest — not a hazard, trafficability, or landing assessment.'}
+            {isMissionSite
+              ? `${String(feature.sourceProperties.mission ?? 'Historic mission')} · ${String(feature.sourceProperties.coordinateNote ?? 'Published site coordinate')}. This is a historical site marker, not a live rover position.`
+              : isIauFeature
+                ? 'IAU-adopted feature name (USGS/IAU Gazetteer). Identification only — no boundary, hazard, or trafficability information is implied.'
+                : 'Compiled NASA Trek waypoint. A destination of scientific interest — not a hazard, trafficability, or landing assessment.'}
           </p>
           <div className="mt-2 border-t border-edge/50 pt-2">
             <div className="text-[10px] uppercase tracking-[0.05em] text-ink-subtle">Feature coordinates · Mars lon/lat</div>
@@ -327,7 +374,7 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
               className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-info hover:underline"
             >
               <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-              {feature.datasetId === 'jezero-iau-nomenclature' ? 'IAU gazetteer' : 'Trek bookmark'}
+              {isMissionSite ? 'Mission source' : isIauFeature ? 'IAU gazetteer' : 'Trek bookmark'}
             </a>
           )}
         </div>

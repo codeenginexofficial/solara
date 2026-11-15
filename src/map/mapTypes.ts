@@ -10,18 +10,21 @@ export interface MapLocation {
   lon: number;
   /** Geographic latitude, degrees north-positive. */
   lat: number;
-  /** Projected easting, metres (SOLARA:MARS_EQC_IAU2015). */
+  /** Projected easting, metres (always SOLARA:MARS_EQC_IAU2015 for serialization). */
   x: number;
-  /** Projected northing, metres (SOLARA:MARS_EQC_IAU2015). */
+  /** Projected northing, metres (always SOLARA:MARS_EQC_IAU2015 for serialization). */
   y: number;
 }
 
+export type MapProjectionMode = 'global' | 'north-polar' | 'south-polar';
+
 export interface ViewInfo {
-  /** Current view resolution in metres per pixel (SOLARA:MARS_EQC_IAU2015). */
+  /** Current projected resolution in map metres per pixel. */
   resolutionMpp: number;
   /** Current tile level (0 = coarsest) or null when between levels. */
   tileLevel: number | null;
   center: MapLocation;
+  projectionMode?: MapProjectionMode;
 }
 
 /**

@@ -52,7 +52,13 @@ export interface MissionOperationsPanelProps {
 /** Concise display titles for high-density UI readability. */
 export const DATASET_SHORT_NAMES: Record<string, string> = {
   'mars-viking-mdim21-colorized-global': 'Viking Global Mosaic',
+  'mars-global-ctx-mosaic-v01': 'Global CTX Mosaic',
+  'jezero-ctx-mosaic-soc-008': 'Jezero CTX Mosaic',
   'mola-hrsc-blend-200m-colorshade': 'MOLA Topography',
+  'themis-day-ir-global': 'THEMIS Day IR',
+  'themis-night-ir-global': 'THEMIS Night IR',
+  'mola-hrsc-blend-200m-colorshade-north-polar': 'MOLA North Polar',
+  'mola-hrsc-blend-200m-colorshade-south-polar': 'MOLA South Polar',
   'usgs-sim3292-jezero-geology': 'Geology (USGS)',
   'mars2020-perseverance-traverse': 'Rover Traverse',
   'mars2020-landing-ellipse': 'Landing Ellipse',
@@ -65,7 +71,13 @@ export const DATASET_SHORT_NAMES: Record<string, string> = {
 
 const LAYER_ICONS: Record<string, typeof CircleDot> = {
   'mars-viking-mdim21-colorized-global': Globe,
+  'mars-global-ctx-mosaic-v01': Globe,
+  'jezero-ctx-mosaic-soc-008': Globe,
   'mola-hrsc-blend-200m-colorshade': Mountain,
+  'themis-day-ir-global': Activity,
+  'themis-night-ir-global': Activity,
+  'mola-hrsc-blend-200m-colorshade-north-polar': Mountain,
+  'mola-hrsc-blend-200m-colorshade-south-polar': Mountain,
   'usgs-sim3292-jezero-geology': Layers,
   'mars2020-perseverance-traverse': Navigation,
   'mars2020-landing-ellipse': Crosshair,
@@ -84,7 +96,13 @@ const LAYER_ICONS: Record<string, typeof CircleDot> = {
  */
 const ALL_LAYER_IDS = [
   'mars-viking-mdim21-colorized-global',
+  'mars-global-ctx-mosaic-v01',
   'mola-hrsc-blend-200m-colorshade',
+  'jezero-ctx-mosaic-soc-008',
+  'themis-day-ir-global',
+  'themis-night-ir-global',
+  'mola-hrsc-blend-200m-colorshade-north-polar',
+  'mola-hrsc-blend-200m-colorshade-south-polar',
   'usgs-sim3292-jezero-geology',
   'mars2020-perseverance-traverse',
   'mars2020-landing-ellipse',

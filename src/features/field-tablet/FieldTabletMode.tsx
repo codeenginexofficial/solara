@@ -11,7 +11,7 @@ import { Suspense, lazy, useCallback, useRef, useState } from 'react';
 import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
-import type { MapFeatureSelection, MapLocation, OverlayStatusMap } from '../../map/mapTypes';
+import type { MapFeatureSelection, MapLocation, MapProjectionMode, OverlayStatusMap } from '../../map/mapTypes';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
 import { DATASET_SHORT_NAMES } from '../habitat-mode/components/MissionOperationsPanel';
 import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
@@ -33,6 +33,8 @@ import { Switch } from '../../components/ui/switch';
 import { ElevationProfile } from '../mission/components/ElevationProfile';
 import { RouteSummary } from '../mission/components/RouteSummary';
 import { cn } from '../../lib/utils';
+import { PlanetaryLocationSearch } from '../global-exploration/PlanetaryLocationSearch';
+import type { IauFeature } from '../../data/adapters/iauFeatureService';
 
 const MarsMap = lazy(() => import('../../map/MarsMap'));
 const MarsGlobe = lazy(() => import('../mars-globe/MarsGlobe'));
@@ -50,6 +52,12 @@ const REGION = REGIONS[0]!;
 const BASE_LAYER_IDS = [
   'mola-hrsc-blend-200m-colorshade',
   'mars-viking-mdim21-colorized-global',
+  'mars-global-ctx-mosaic-v01',
+  'jezero-ctx-mosaic-soc-008',
+  'themis-day-ir-global',
+  'themis-night-ir-global',
+  'mola-hrsc-blend-200m-colorshade-north-polar',
+  'mola-hrsc-blend-200m-colorshade-south-polar',
 ] as const;
 const OVERLAY_IDS = ['usgs-sim3292-jezero-geology', 'mars2020-landing-ellipse', 'mars2020-perseverance-traverse', 'mars2020-science-stops', 'jezero-iau-nomenclature', 'jezero-hydrous-minerals-omega-crism'] as const;
 
@@ -104,6 +112,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
     for (const id of [...BASE_LAYER_IDS, ...OVERLAY_IDS]) {
       initial[id] = {
         visible: id === 'mars-viking-mdim21-colorized-global' ||
+          id === 'mars-global-ctx-mosaic-v01' ||
           id === 'mars2020-perseverance-traverse',
         opacity: 1,
       };
@@ -117,7 +126,41 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
   const [globeActive, setGlobeActive] = useState(false);
+  const [projectionMode, setProjectionMode] = useState<MapProjectionMode>('global');
+  const [focusRequest, setFocusRequest] = useState<{ location: MapLocation; requestId: number } | null>(null);
+  const focusRequestSequence = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleProjectionModeChange = (mode: MapProjectionMode) => {
+    setProjectionMode(mode);
+    const polarDatasetId = mode === 'north-polar'
+      ? 'mola-hrsc-blend-200m-colorshade-north-polar'
+      : mode === 'south-polar'
+        ? 'mola-hrsc-blend-200m-colorshade-south-polar'
+        : null;
+    if (polarDatasetId) {
+      setLayerStates((prev) => ({ ...prev, [polarDatasetId]: { visible: true, opacity: prev[polarDatasetId]?.opacity ?? 1 } }));
+    }
+  };
+
+  const handleSearchLocation = (location: MapLocation, _label?: string, feature?: IauFeature) => {
+    setSelectedFeature(feature ? {
+      datasetId: 'mars-global-iau-gazetteer',
+      name: feature.name,
+      lon: feature.lon,
+      lat: feature.lat,
+      detailUrl: feature.detailUrl ?? undefined,
+      sourceProperties: {
+        featureId: feature.featureId,
+        featureType: feature.featureType,
+        diameterKm: feature.diameterKm,
+      },
+    } : null);
+    setSelectedLocation(location);
+    setFocusRequest({ location, requestId: ++focusRequestSequence.current });
+    setSheetTab('mission');
+    setSheetOpen(true);
+  };
 
   const handleToggleVisibility = useCallback((id: string, visible: boolean) => {
     setLayerStates((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { opacity: 1 }), visible } }));
@@ -210,6 +253,14 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           {globeActive ? '2D Map' : '3D Globe'}
         </Button>
 
+        <PlanetaryLocationSearch
+          projectionMode={projectionMode}
+          onProjectionModeChange={handleProjectionModeChange}
+          onSelectLocation={handleSearchLocation}
+          className="min-w-0 flex-1"
+          compact
+        />
+
         <Button
           variant="outline"
           size="sm"
@@ -229,6 +280,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               onLocationSelect={(loc) => {
                 setSelectedFeature(null);
                 setSelectedLocation(loc);
+                handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
                 setPosition({ lon: loc.lon, lat: loc.lat });
                 setSheetTab('mission');
                 setSheetOpen(true);
@@ -253,6 +305,8 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               positionMarker={mission.position}
               selectedMarker={selectedLocation}
               initialFocusLocation={selectedLocation}
+              projectionMode={projectionMode}
+              focusRequest={focusRequest}
               onPointerLocationChange={() => {}}
               onLocationSelect={(loc) => {
                 setSelectedFeature(null);

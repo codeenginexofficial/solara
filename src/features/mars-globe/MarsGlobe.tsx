@@ -4,18 +4,20 @@ import { ArrowLeft, Crosshair, MapPin, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { formatLat, formatLon } from '../../lib/format';
 import {
-  marsCartesianToMapLocation,
-  marsPlanetocentricToPlanetographic,
+  marsSphereCartesianToMapLocation,
 } from './coordinates';
 import type { MapLocation } from '../../map/mapTypes';
+import { MARS_MISSION_SITES } from '../global-exploration/missionSites';
 
-const MARS_ION_ASSET_ID = 3_644_333;
+const MARS_SPHERE_RADIUS_M = 3_396_190;
+const MARS_MOLA_WMTS_URL = 'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/default/default028mm/{z}/{y}/{x}.jpg';
+const MARS_GLOBAL_CTX_TILES_URL = 'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}';
 const MARS_TRAVERSE_ASSET = '/data/mars/jezero/rover/perseverance-traverse-path.geojson';
 const JEZERO_LON_EAST = 77.42982;
 const JEZERO_LAT_PLANETOCENTRIC = 18.46611;
 let activeViewerOwner: symbol | null = null;
 
-type GlobeStatus = 'missing-token' | 'loading' | 'ready' | 'failed';
+type GlobeStatus = 'loading' | 'ready' | 'failed';
 type TraverseStatus = 'off' | 'loading' | 'visible' | 'failed';
 
 interface RoverTraverseSegment {
@@ -94,18 +96,17 @@ function MarsGlobe({
   const creditContainerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const cesiumRef = useRef<typeof import('cesium') | null>(null);
-  const tilesetRef = useRef<Cesium.Cesium3DTileset | null>(null);
+  const globalCtxLayerRef = useRef<Cesium.ImageryLayer | null>(null);
   const handlerRef = useRef<Cesium.ScreenSpaceEventHandler | null>(null);
   const traverseEntitiesRef = useRef<Cesium.Entity[]>([]);
   const traverseDataRef = useRef<RoverTraverseSegment[] | null>(null);
   const selectedLocationRef = useRef(selectedLocation);
   const callbacksRef = useRef({ onLocationSelect, onSelectTraverse, onSwitchToMap });
   const [status, setStatus] = useState<GlobeStatus>('loading');
-  const [loadMessage, setLoadMessage] = useState('Preparing the Mars globe…');
+  const [loadMessage, setLoadMessage] = useState('');
   const [traverseStatus, setTraverseStatus] = useState<TraverseStatus>('off');
   const [retryCount, setRetryCount] = useState(0);
-
-  const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN?.trim() ?? '';
+  const [showGlobalCtx, setShowGlobalCtx] = useState(true);
 
   useEffect(() => {
     selectedLocationRef.current = selectedLocation;
@@ -116,12 +117,6 @@ function MarsGlobe({
   }, [onLocationSelect, onSelectTraverse, onSwitchToMap]);
 
   useEffect(() => {
-    if (!ionToken) {
-      setStatus('missing-token');
-      setLoadMessage('Set VITE_CESIUM_ION_TOKEN to load Cesium Mars from Cesium ion.');
-      return;
-    }
-
     const container = containerRef.current;
     if (!container) return;
     if (activeViewerOwner !== null) {
@@ -134,26 +129,24 @@ function MarsGlobe({
     const viewerOwner = Symbol('solara-mars-globe');
     activeViewerOwner = viewerOwner;
     let viewer: Cesium.Viewer | null = null;
-    let tileset: Cesium.Cesium3DTileset | null = null;
     let handler: Cesium.ScreenSpaceEventHandler | null = null;
-    let removeTileLoadListener: (() => void) | null = null;
+    const removeImageErrorListeners: Array<() => void> = [];
     let resizeObserver: ResizeObserver | null = null;
 
     const cleanup = () => {
-      removeTileLoadListener?.();
-      removeTileLoadListener = null;
+      for (const remove of removeImageErrorListeners.splice(0)) remove();
       resizeObserver?.disconnect();
       resizeObserver = null;
       if (handler && !handler.isDestroyed()) handler.destroy();
       handler = null;
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       viewer = null;
-      tileset = null;
+      globalCtxLayerRef.current = null;
       if (activeViewerOwner === viewerOwner) activeViewerOwner = null;
     };
 
     setStatus('loading');
-    setLoadMessage('Loading CesiumJS and the global Mars 3D Tiles dataset…');
+    setLoadMessage('Loading the Mars sphere and global imagery providers…');
 
     void (async () => {
       try {
@@ -161,15 +154,25 @@ function MarsGlobe({
         const CesiumModule = await import('cesium');
         if (cancelled) return;
 
-        CesiumModule.Ion.defaultAccessToken = ionToken;
-        CesiumModule.Ellipsoid.default = CesiumModule.Ellipsoid.MARS;
-
+        const marsSphere = new CesiumModule.Ellipsoid(
+          MARS_SPHERE_RADIUS_M,
+          MARS_SPHERE_RADIUS_M,
+          MARS_SPHERE_RADIUS_M,
+        );
+        const marsGlobe = new CesiumModule.Globe(marsSphere);
+        marsGlobe.enableLighting = false;
+        marsGlobe.showGroundAtmosphere = false;
+        marsGlobe.baseColor = CesiumModule.Color.fromBytes(18, 18, 18);
         viewer = new CesiumModule.Viewer(container, {
           animation: false,
           baseLayerPicker: false,
+          baseLayer: false,
+          skyAtmosphere: false,
           fullscreenButton: false,
           geocoder: false,
-          globe: false,
+          globe: marsGlobe,
+          ellipsoid: marsSphere,
+          terrainProvider: new CesiumModule.EllipsoidTerrainProvider({ ellipsoid: marsSphere }),
           homeButton: false,
           infoBox: false,
           navigationHelpButton: false,
@@ -182,10 +185,11 @@ function MarsGlobe({
           requestRenderMode: true,
           maximumRenderTimeChange: Number.POSITIVE_INFINITY,
           targetFrameRate: 45,
+          msaaSamples: 1,
         });
         viewer.scene.backgroundColor = CesiumModule.Color.BLACK;
         viewer.scene.skyBox = undefined;
-        viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
+        viewer.scene.screenSpaceCameraController.minimumZoomDistance = 15_000;
         viewer.scene.screenSpaceCameraController.maximumZoomDistance = 18_000_000;
         viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
         resizeObserver = new ResizeObserver(() => {
@@ -194,27 +198,63 @@ function MarsGlobe({
         });
         resizeObserver.observe(container);
 
-        tileset = await CesiumModule.Cesium3DTileset.fromIonAssetId(MARS_ION_ASSET_ID, {
-          maximumScreenSpaceError: 16,
-          cacheBytes: 128 * 1024 * 1024,
-          maximumCacheOverflowBytes: 64 * 1024 * 1024,
-          dynamicScreenSpaceError: true,
-          enableCollision: true,
+        const geographicScheme = new CesiumModule.GeographicTilingScheme({
+          ellipsoid: marsSphere,
+          numberOfLevelZeroTilesX: 2,
+          numberOfLevelZeroTilesY: 1,
         });
+        const molaProvider = new CesiumModule.UrlTemplateImageryProvider({
+          url: MARS_MOLA_WMTS_URL,
+          tilingScheme: geographicScheme,
+          tileWidth: 256,
+          tileHeight: 256,
+          maximumLevel: 8,
+          hasAlphaChannel: false,
+          credit: new CesiumModule.Credit('NASA/MGS MOLA + ESA/Mars Express HRSC · NASA Trek'),
+          enablePickFeatures: false,
+        });
+        viewer.imageryLayers.addImageryProvider(molaProvider);
+
+        const globalCtxProvider = new CesiumModule.UrlTemplateImageryProvider({
+          url: MARS_GLOBAL_CTX_TILES_URL,
+          tilingScheme: geographicScheme,
+          tileWidth: 512,
+          tileHeight: 512,
+          maximumLevel: 12,
+          rectangle: CesiumModule.Rectangle.fromDegrees(-180, -88, 180, 88),
+          hasAlphaChannel: false,
+          credit: new CesiumModule.Credit('Caltech Bruce Murray Laboratory Global CTX Mosaic V01 · Esri ArcGIS'),
+          enablePickFeatures: false,
+        });
+        const globalCtxLayer = viewer.imageryLayers.addImageryProvider(globalCtxProvider);
+        globalCtxLayer.show = showGlobalCtx;
+        globalCtxLayerRef.current = globalCtxLayer;
+        const activeViewer = viewer;
+        const reportImageryFailure = (source: string) => {
+          let reported = false;
+          const remove = source === 'global CTX'
+            ? globalCtxProvider.errorEvent.addEventListener(() => {
+                if (reported || cancelled) return;
+                reported = true;
+                setLoadMessage('Some global CTX tiles could not be loaded; service gaps or tile errors may occur. MOLA/HRSC global hillshade remains the underlying layer.');
+                activeViewer.scene.requestRender();
+              })
+            : molaProvider.errorEvent.addEventListener(() => {
+                if (reported || cancelled) return;
+                reported = true;
+                setLoadMessage('NASA Trek MOLA/HRSC imagery could not be loaded. Verify the network or retry the globe.');
+                activeViewer.scene.requestRender();
+              });
+          removeImageErrorListeners.push(remove);
+        };
+        reportImageryFailure('global CTX');
+        reportImageryFailure('MOLA/HRSC');
+        viewerRef.current = viewer;
+        cesiumRef.current = CesiumModule;
         if (cancelled) {
-          tileset.destroy();
           cleanup();
           return;
         }
-
-        viewer.scene.primitives.add(tileset);
-        const activeViewer = viewer;
-        const requestRenderAfterTileLoad = () => activeViewer.scene.requestRender();
-        tileset.tileLoad.addEventListener(requestRenderAfterTileLoad);
-        removeTileLoadListener = () => tileset?.tileLoad.removeEventListener(requestRenderAfterTileLoad);
-        viewerRef.current = viewer;
-        cesiumRef.current = CesiumModule;
-        tilesetRef.current = tileset;
 
         const cameraController = viewer.scene.screenSpaceCameraController;
         cameraController.maximumMovementRatio = 0.1;
@@ -225,12 +265,11 @@ function MarsGlobe({
           const pickedEntity = CesiumModule.defined(picked) && picked.id instanceof CesiumModule.Entity
             ? picked.id
             : null;
-
-          const position = pickedEntity?.id === 'solara-selected-location'
-            ? pickedEntity.position?.getValue(CesiumModule.JulianDate.now())
-            : viewer?.scene.pickPosition(event.position);
+          const entityPosition = pickedEntity?.position?.getValue(CesiumModule.JulianDate.now());
+          const ray = viewer?.camera.getPickRay(event.position);
+          const position = entityPosition ?? (ray && viewer ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
           if (!position) return;
-          const location = marsCartesianToMapLocation(position.x, position.y, position.z);
+          const location = marsSphereCartesianToMapLocation(position.x, position.y, position.z);
           if (!location) return;
 
           callbacksRef.current.onLocationSelect(location);
@@ -242,15 +281,44 @@ function MarsGlobe({
           callbacksRef.current.onSwitchToMap();
         }, CesiumModule.ScreenSpaceEventType.LEFT_CLICK);
 
+        for (const site of MARS_MISSION_SITES) {
+          viewer.entities.add({
+            id: `mars-mission-site-${site.id}`,
+            name: site.name,
+            position: CesiumModule.Cartesian3.fromDegrees(site.lon, site.lat, 0, marsSphere),
+            point: {
+              pixelSize: 8,
+              color: CesiumModule.Color.WHITE,
+              outlineColor: CesiumModule.Color.BLACK,
+              outlineWidth: 2,
+              heightReference: CesiumModule.HeightReference.CLAMP_TO_GROUND,
+            },
+            label: {
+              text: site.name,
+              font: '10px sans-serif',
+              fillColor: CesiumModule.Color.WHITE,
+              outlineColor: CesiumModule.Color.BLACK,
+              outlineWidth: 2,
+              style: CesiumModule.LabelStyle.FILL_AND_OUTLINE,
+              pixelOffset: new CesiumModule.Cartesian2(0, -13),
+              disableDepthTestDistance: 0,
+            },
+            properties: {
+              mission: site.mission,
+              coordinateNote: site.coordinateNote,
+              sourceUrl: site.sourceUrl,
+            },
+          });
+        }
+
         const initialLocation = selectedLocationRef.current;
         if (initialLocation) {
-          const planetographicLatitude = marsPlanetocentricToPlanetographic(initialLocation.lat);
           viewer.camera.flyTo({
             destination: CesiumModule.Cartesian3.fromDegrees(
               initialLocation.lon,
-              planetographicLatitude,
+              initialLocation.lat,
               450_000,
-              CesiumModule.Ellipsoid.MARS,
+              marsSphere,
             ),
             orientation: {
               heading: 0,
@@ -263,13 +331,13 @@ function MarsGlobe({
           viewer.camera.flyToBoundingSphere(
             new CesiumModule.BoundingSphere(
               CesiumModule.Cartesian3.ZERO,
-              CesiumModule.Ellipsoid.MARS.maximumRadius,
+              marsSphere.maximumRadius,
             ),
             {
               offset: new CesiumModule.HeadingPitchRange(
                 0,
                 -Math.PI / 2,
-                CesiumModule.Ellipsoid.MARS.maximumRadius * 2.7,
+                marsSphere.maximumRadius * 2.7,
               ),
               duration: getMotionDuration(),
             },
@@ -278,19 +346,19 @@ function MarsGlobe({
 
         viewer.scene.requestRender();
         setStatus('ready');
-        setLoadMessage('');
+        setLoadMessage('MOLA/HRSC global color hillshade with optional Global CTX V01 optical imagery; Mars sphere R = 3,396,190 m.');
       } catch (error) {
         cleanup();
         viewerRef.current = null;
         cesiumRef.current = null;
-        tilesetRef.current = null;
+        globalCtxLayerRef.current = null;
         handlerRef.current = null;
         if (cancelled) return;
         setStatus('failed');
         setLoadMessage(
           error instanceof Error
-            ? `Mars 3D Tiles could not be loaded: ${error.message}`
-            : 'Mars 3D Tiles could not be loaded. Check the ion token and network connection.',
+            ? `Mars globe could not be initialized: ${error.message}`
+            : 'Mars globe could not be initialized. Check WebGL support and the network connection.',
         );
       }
     })();
@@ -300,11 +368,19 @@ function MarsGlobe({
       cleanup();
       viewerRef.current = null;
       cesiumRef.current = null;
-      tilesetRef.current = null;
+      globalCtxLayerRef.current = null;
       handlerRef.current = null;
       traverseEntitiesRef.current = [];
     };
-  }, [ionToken, retryCount]);
+  }, [retryCount]);
+
+  useEffect(() => {
+    const layer = globalCtxLayerRef.current;
+    const viewer = viewerRef.current;
+    if (!layer || !viewer) return;
+    layer.show = showGlobalCtx;
+    viewer.scene.requestRender();
+  }, [showGlobalCtx, status]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -313,15 +389,14 @@ function MarsGlobe({
 
     viewer.entities.removeById('solara-selected-location');
     if (selectedLocation) {
-      const planetographicLatitude = marsPlanetocentricToPlanetographic(selectedLocation.lat);
       viewer.entities.add({
         id: 'solara-selected-location',
         name: 'Selected Mars location',
         position: CesiumModule.Cartesian3.fromDegrees(
           selectedLocation.lon,
-          planetographicLatitude,
+          selectedLocation.lat,
           0,
-          CesiumModule.Ellipsoid.MARS,
+          viewer.scene.globe.ellipsoid,
         ),
         point: {
           pixelSize: 10,
@@ -342,9 +417,9 @@ function MarsGlobe({
     viewer.camera.flyTo({
       destination: CesiumModule.Cartesian3.fromDegrees(
         longitude,
-        marsPlanetocentricToPlanetographic(latitudePlanetocentric),
+        latitudePlanetocentric,
         heightM,
-        CesiumModule.Ellipsoid.MARS,
+        viewer.scene.globe.ellipsoid,
       ),
       orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       duration: getMotionDuration(),
@@ -358,13 +433,13 @@ function MarsGlobe({
     viewer.camera.flyToBoundingSphere(
       new CesiumModule.BoundingSphere(
         CesiumModule.Cartesian3.ZERO,
-        CesiumModule.Ellipsoid.MARS.maximumRadius,
+        viewer.scene.globe.ellipsoid.maximumRadius,
       ),
       {
         offset: new CesiumModule.HeadingPitchRange(
           0,
           -Math.PI / 2,
-          CesiumModule.Ellipsoid.MARS.maximumRadius * 2.7,
+          viewer.scene.globe.ellipsoid.maximumRadius * 2.7,
         ),
         duration: getMotionDuration(),
       },
@@ -399,7 +474,7 @@ function MarsGlobe({
       const entities = traverse.map((segment, index) => {
         const positionDegrees: number[] = [];
         for (const [longitude, latitudePlanetocentric] of segment.coordinates) {
-          positionDegrees.push(longitude, marsPlanetocentricToPlanetographic(latitudePlanetocentric));
+          positionDegrees.push(longitude, latitudePlanetocentric);
         }
         return viewer.entities.add({
           id: `perseverance-traverse-sol-${segment.sol}-${index}`,
@@ -407,12 +482,11 @@ function MarsGlobe({
           polyline: {
             positions: CesiumModule.Cartesian3.fromDegreesArray(
               positionDegrees,
-              CesiumModule.Ellipsoid.MARS,
+              viewer.scene.globe.ellipsoid,
             ),
             width: 2,
             material: CesiumModule.Color.WHITE.withAlpha(0.75),
             clampToGround: true,
-            classificationType: CesiumModule.ClassificationType.CESIUM_3D_TILE,
           },
           properties: {
             datasetId: 'mars2020-perseverance-traverse',
@@ -443,7 +517,7 @@ function MarsGlobe({
         className={`absolute bottom-2 right-2 z-10 rounded-sm border border-edge bg-panel/95 px-2 py-1 text-[10px] ${
           status === 'ready' ? 'visible' : 'invisible'
         }`}
-        aria-label="Cesium ion and Mars dataset attribution"
+        aria-label="Mars imagery provider attribution"
       />
 
       {status !== 'ready' && (
@@ -454,20 +528,9 @@ function MarsGlobe({
             aria-live="polite"
           >
             <h2 className="text-sm font-semibold text-ink">
-              {status === 'missing-token'
-                ? 'Cesium ion setup required'
-                : status === 'failed'
-                  ? 'Mars globe unavailable'
-                  : 'Loading Mars globe'}
+              {status === 'failed' ? 'Mars globe unavailable' : 'Loading Mars globe'}
             </h2>
             <p className="mt-2 text-xs leading-5 text-ink-muted">{loadMessage}</p>
-            {status === 'missing-token' && (
-              <p className="mt-3 text-xs leading-5 text-ink-subtle">
-                Add a browser token limited to <code className="font-mono">assets:read</code> and Mars
-                asset 3644333 in the local <code className="font-mono">.env</code> file. SOLARA does
-                not substitute a simulated planet.
-              </p>
-            )}
             {status === 'failed' && (
               <Button className="mt-4" variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
                 Retry
@@ -509,6 +572,16 @@ function MarsGlobe({
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               2D map
             </Button>
+            <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-edge bg-panel/95 px-2.5 text-[11px] text-ink">
+              <input
+                type="checkbox"
+                checked={showGlobalCtx}
+                onChange={(event) => setShowGlobalCtx(event.currentTarget.checked)}
+                className="size-3.5 accent-white"
+                aria-label="Show Global CTX optical mosaic"
+              />
+              Global CTX
+            </label>
           </div>
 
           <div className="absolute right-3 top-3 z-10 max-w-[min(22rem,calc(100%-1.5rem))] rounded-md border border-edge bg-panel/95 px-3 py-2 text-xs text-ink-muted">
@@ -523,20 +596,22 @@ function MarsGlobe({
             )}
           </div>
 
-          <div className="absolute bottom-3 left-3 z-10 max-w-[min(32rem,calc(100%-1.5rem))] rounded-md border border-edge bg-panel/95 px-3 py-2 text-[10px] leading-4 text-ink-muted">
-            <div>Cesium Mars 3D Tiles · global Viking imagery ~232 m/px · MOLA/HRSC terrain ~200 m</div>
-            <div>Jezero detail in this asset: imagery ~6 m/px, terrain ~20 m · historical orbital products</div>
-            <div className="mt-1 flex items-center gap-1.5">
+          <div className="absolute bottom-3 left-3 z-10 max-w-[min(38rem,calc(100%-1.5rem))] rounded-md border border-edge bg-panel/95 px-3 py-2 text-[10px] leading-4 text-ink-muted">
+            <div className="font-medium text-ink">Mars sphere · R = 3,396,190 m · no elevation relief rendered</div>
+            <div>CTX V01 optical image mosaic: nominal 5 m/px, reported ~0.5% gaps, service to 88° latitude; beta hosted tiles.</div>
+            <div>MOLA/HRSC global color hillshade: nominal 200 m product; visual topography, not calibrated elevation.</div>
+            {loadMessage && <div className="mt-1 text-warn" role="status">{loadMessage}</div>}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <a
-                href="https://cesium.com/platform/cesium-ion/content/cesium-mars/"
+                href="https://murray-lab.caltech.edu/CTX/"
                 target="_blank"
                 rel="noreferrer"
                 className="underline underline-offset-2 hover:text-ink"
               >
-                Cesium ion data attribution
+                Global CTX source
               </a>
-              <span aria-hidden="true">·</span>
-              NASA / USGS Astrogeology Science Center
+              <a href="https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">NASA Trek MOLA source</a>
+              <span>NASA/JPL-Caltech/MSSS · ASU · Esri</span>
             </div>
           </div>
 

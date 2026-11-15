@@ -33,7 +33,7 @@ import type {
 function availabilityOf(dataset: DatasetRecord): DatasetAvailability {
   if (dataset.queryEndpoint) return 'live_query_service';
   if (dataset.preparedAssetUrl) return 'prepared_asset';
-  if (dataset.accessMethod === 'wmts') return 'live_tile_service';
+  if (dataset.accessMethod === 'wmts' || dataset.accessMethod === 'xyz') return 'live_tile_service';
   return 'catalog_only';
 }
 

@@ -3,18 +3,16 @@
 import TileLayer from 'ol/layer/Tile.js';
 import XYZ from 'ol/source/XYZ.js';
 import TileGrid from 'ol/tilegrid/TileGrid.js';
-import type { Extent } from 'ol/extent.js';
 import { get as getProjection } from 'ol/proj.js';
 import { VIKING_GLOBAL_MOSAIC_DATASET } from '../../data/catalog/datasets';
 import { MARS_VIKING_MARSECO0 } from '../../lib/marsCrs';
-import { marsBboxToMetresExtent } from '../projections/ProjectionRegistry';
 import { loadCachedImageTile } from '../cache/tileImageLoader';
 import { MARS_VIKING_TILE_CACHE_POLICY } from '../cache/tileCache';
 
 // Values are copied from the MapServer TileInfo metadata. The image cache has
 // 256 px tiles, origin (-10669445.5542, 10669445.5542), and LODs 0–8.
 const TILE_ORIGIN: [number, number] = [-10_669_445.5542, 10_669_445.5542];
-const TILE_EXTENT: Extent = [-10_669_445.5542, -5_334_722.2771, 10_669_445.5542, 5_334_722.2771];
+const TILE_EXTENT: [number, number, number, number] = [-10_669_445.5542, -5_334_722.2771, 10_669_445.5542, 5_334_722.2771];
 const TILE_RESOLUTIONS = [
   83_355.0433921,
   41_677.5216961,
@@ -51,7 +49,6 @@ export function createVikingGlobalLayer() {
   });
   const layer = new TileLayer({
     source,
-    extent: marsBboxToMetresExtent(VIKING_GLOBAL_MOSAIC_DATASET.boundingBox!),
     cacheSize: 96,
     preload: 0,
     zIndex: 0,

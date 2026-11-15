@@ -80,6 +80,22 @@ export function marsCartesianToMapLocation(
   };
 }
 
+/** Convert a Cartesian point on SOLARA's 3,396,190 m Mars sphere to the shared
+ * east-positive planetocentric MapLocation contract. */
+export function marsSphereCartesianToMapLocation(
+  x: number,
+  y: number,
+  z: number,
+): MapLocation | null {
+  if (![x, y, z].every(Number.isFinite)) return null;
+  const horizontal = Math.hypot(x, y);
+  if (horizontal === 0 && z === 0) return null;
+  const longitudeEastDeg = horizontal === 0 ? 0 : Math.atan2(y, x) * degreesPerRadian;
+  const latitudePlanetocentricDeg = Math.atan2(z, horizontal) * degreesPerRadian;
+  const [mapX, mapY] = marsPlanetocentricToEqc(longitudeEastDeg, latitudePlanetocentricDeg);
+  return { lon: longitudeEastDeg, lat: latitudePlanetocentricDeg, x: mapX, y: mapY };
+}
+
 /** Build an ellipsoid surface Cartesian for validating the coordinate conversion. */
 export function marsPlanetographicToCartesian(
   longitudeEastDeg: number,

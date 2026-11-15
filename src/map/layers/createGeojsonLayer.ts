@@ -139,6 +139,7 @@ export interface CreatedGeojsonLayer {
 export function createGeojsonOverlayLayer(
   geojson: unknown,
   dataset: DatasetRecord,
+  featureProjection = getMarsEquirectangular(),
 ): CreatedGeojsonLayer {
   if (
     typeof geojson !== 'object' ||
@@ -154,7 +155,7 @@ export function createGeojsonOverlayLayer(
   const source = new VectorSource({
     features: new GeoJSON().readFeatures(geojson, {
       dataProjection: getMarsGeographic(),
-      featureProjection: getMarsEquirectangular(),
+      featureProjection,
     }),
     attributions: dataset.attribution,
   });

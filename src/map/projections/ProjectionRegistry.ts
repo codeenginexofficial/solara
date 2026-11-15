@@ -63,9 +63,14 @@ export {
   MARS_EQUIRECTANGULAR,
   MARS_GEOGRAPHIC,
   MARS_VIKING_MARSECO0,
+  MARS_POLAR_NORTH_IAU2000,
+  MARS_POLAR_SOUTH_IAU2000,
   MARS_VIKING_MARSECO0_PROJ4,
+  MARS_POLAR_NORTH_PROJ4,
+  MARS_POLAR_SOUTH_PROJ4,
   TREK_DECLARED_CRS_URN,
   MARS_2000_SPHERE_RADIUS_M,
+  MARS_POLAR_RADIUS_M,
   MARS_METRES_PER_DEGREE,
   MARS_EQC_PROJ4,
   MARS_GEOGRAPHIC_PROJ4,
@@ -76,8 +81,13 @@ import {
   MARS_EQUIRECTANGULAR,
   MARS_GEOGRAPHIC,
   MARS_VIKING_MARSECO0,
+  MARS_POLAR_NORTH_IAU2000,
+  MARS_POLAR_SOUTH_IAU2000,
   MARS_VIKING_MARSECO0_PROJ4,
+  MARS_POLAR_NORTH_PROJ4,
+  MARS_POLAR_SOUTH_PROJ4,
   MARS_2000_SPHERE_RADIUS_M,
+  MARS_POLAR_RADIUS_M,
   MARS_EQC_PROJ4,
   MARS_GEOGRAPHIC_PROJ4,
 } from '../../lib/marsCrs';
@@ -90,6 +100,8 @@ export function ensureMarsProjectionsRegistered(): void {
   proj4.defs(MARS_EQUIRECTANGULAR, MARS_EQC_PROJ4);
   proj4.defs(MARS_GEOGRAPHIC, MARS_GEOGRAPHIC_PROJ4);
   proj4.defs(MARS_VIKING_MARSECO0, MARS_VIKING_MARSECO0_PROJ4);
+  proj4.defs(MARS_POLAR_NORTH_IAU2000, MARS_POLAR_NORTH_PROJ4);
+  proj4.defs(MARS_POLAR_SOUTH_IAU2000, MARS_POLAR_SOUTH_PROJ4);
   register(proj4);
 
   // ol's default getPointResolution estimates scale by transforming a pixel
@@ -106,6 +118,16 @@ export function ensureMarsProjectionsRegistered(): void {
   getProjection(MARS_EQUIRECTANGULAR)?.setGetPointResolution(
     (resolution: number) => resolution,
   );
+  for (const id of [MARS_POLAR_NORTH_IAU2000, MARS_POLAR_SOUTH_IAU2000]) {
+    getProjection(id)?.setGetPointResolution((resolution, point) => {
+      // Polar stereographic k = 2 / (1 + sin|latitude|); convert projected
+      // map metres back to local ground metres for ScaleLine/readouts.
+      if (!point) return resolution;
+      const rho = Math.hypot(point[0] ?? 0, point[1] ?? 0);
+      const absoluteLatitude = Math.PI / 2 - 2 * Math.atan(rho / (2 * MARS_POLAR_RADIUS_M));
+      return resolution * (1 + Math.sin(Math.abs(absoluteLatitude))) / 2;
+    });
+  }
   registered = true;
 }
 
@@ -121,6 +143,14 @@ export function getMarsGeographic(): Projection {
   const p = getProjection(MARS_GEOGRAPHIC);
   if (!p) throw new Error(`Projection ${MARS_GEOGRAPHIC} failed to register`);
   return p;
+}
+
+export function getMarsPolar(hemisphere: 'north' | 'south'): Projection {
+  ensureMarsProjectionsRegistered();
+  const id = hemisphere === 'north' ? MARS_POLAR_NORTH_IAU2000 : MARS_POLAR_SOUTH_IAU2000;
+  const projection = getProjection(id);
+  if (!projection) throw new Error(`Projection ${id} failed to register`);
+  return projection;
 }
 
 /** Convert geographic degrees (lon, lat) to working-projection metres. */

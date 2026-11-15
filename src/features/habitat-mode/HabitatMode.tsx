@@ -20,10 +20,11 @@
 
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
 import type { MarsMapHandle } from '../../map/MarsMap';
-import type { MapFeatureSelection, MapLocation, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
+import type { MapFeatureSelection, MapLocation, MapProjectionMode, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
 import type { LayerUiState } from './components/MissionOperationsPanel';
 import { MissionOperationsPanel } from './components/MissionOperationsPanel';
+import type { IauFeature } from '../../data/adapters/iauFeatureService';
 import { CopilotPanel, type CopilotContextPayload } from './components/CopilotPanel';
 import {
   ContextWorkspace,
@@ -60,6 +61,12 @@ const REGION = REGIONS[0]!;
 const BASE_LAYER_IDS = [
   'mola-hrsc-blend-200m-colorshade',
   'mars-viking-mdim21-colorized-global',
+  'mars-global-ctx-mosaic-v01',
+  'jezero-ctx-mosaic-soc-008',
+  'themis-day-ir-global',
+  'themis-night-ir-global',
+  'mola-hrsc-blend-200m-colorshade-north-polar',
+  'mola-hrsc-blend-200m-colorshade-south-polar',
 ] as const;
 /** Prepared GeoJSON overlay datasets, bottom-first rendering order. */
 const OVERLAY_IDS = [
@@ -113,7 +120,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
       // Global Viking optical context stays visible by default; the
       // topographic colorshade remains off until requested.
       initial[id] = {
-        visible: id === 'mars-viking-mdim21-colorized-global',
+        visible: id === 'mars-viking-mdim21-colorized-global' || id === 'mars-global-ctx-mosaic-v01',
         opacity: 1,
       };
     }
@@ -132,6 +139,9 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusMap>({});
   const [locationElevation, setLocationElevation] = useState<ElevationState | null>(null);
   const [globeActive, setGlobeActive] = useState(false);
+  const [projectionMode, setProjectionMode] = useState<MapProjectionMode>('global');
+  const [focusRequest, setFocusRequest] = useState<{ location: MapLocation; requestId: number } | null>(null);
+  const focusRequestSequence = useRef(0);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   /* One boolean drives both the desktop docked panel and the <lg overlay
    * drawer; initialize open on desktop widths. */
@@ -151,6 +161,38 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
 
   const handleFitRegion = useCallback(() => {
     mapApi.current?.fitToRegion();
+  }, []);
+
+  const handleProjectionModeChange = useCallback((mode: MapProjectionMode) => {
+    setProjectionMode(mode);
+    const polarDatasetId = mode === 'north-polar'
+      ? 'mola-hrsc-blend-200m-colorshade-north-polar'
+      : mode === 'south-polar'
+        ? 'mola-hrsc-blend-200m-colorshade-south-polar'
+        : null;
+    if (polarDatasetId) {
+      setLayerStates((prev) => ({ ...prev, [polarDatasetId]: { visible: true, opacity: prev[polarDatasetId]?.opacity ?? 1 } }));
+    }
+  }, []);
+
+  const handleSearchLocation = useCallback((location: MapLocation, _label?: string, feature?: IauFeature) => {
+    setSelectedFeature(feature ? {
+      datasetId: 'mars-global-iau-gazetteer',
+      name: feature.name,
+      lon: feature.lon,
+      lat: feature.lat,
+      detailUrl: feature.detailUrl ?? undefined,
+      sourceProperties: {
+        featureId: feature.featureId,
+        featureType: feature.featureType,
+        diameterKm: feature.diameterKm,
+      },
+    } : null);
+    setSelectedLocation(location);
+    setFocusRequest({ location, requestId: ++focusRequestSequence.current });
+    setGlobeActive(false);
+    setWorkspaceTab('inspector');
+    setWorkspaceOpen(true);
   }, []);
 
   const baseLayers = BASE_LAYER_IDS.map((datasetId) => ({
@@ -294,6 +336,9 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         regionLabel={REGION.name}
         sourceStatus={sourceStatus}
         onFitRegion={handleFitRegion}
+        projectionMode={projectionMode}
+        onProjectionModeChange={handleProjectionModeChange}
+        onSelectLocation={handleSearchLocation}
         onToggleGlobe={() => setGlobeActive((active) => !active)}
         globeActive={globeActive}
         onToggleLeftPanel={() => setLeftPanelOpen((v) => !v)}
@@ -332,6 +377,7 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
                 onLocationSelect={(loc) => {
                   setSelectedFeature(null);
                   setSelectedLocation(loc);
+                  handleProjectionModeChange(loc.lat >= 60 ? 'north-polar' : loc.lat <= -60 ? 'south-polar' : 'global');
                   setWorkspaceTab('inspector');
                   setWorkspaceOpen(true);
                 }}
@@ -355,6 +401,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
                 route={mission.route}
                 selectedMarker={selectedLocation}
                 initialFocusLocation={selectedLocation}
+                projectionMode={projectionMode}
+                focusRequest={focusRequest}
                 onPointerLocationChange={setPointerLocation}
                 onLocationSelect={(loc) => {
                   setSelectedFeature(null);
