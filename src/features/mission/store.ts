@@ -107,7 +107,8 @@ export function setRouteParams(patch: Partial<RouteCostParams>): void {
   if (!Number.isFinite(params.maxSlopeDeg) || params.maxSlopeDeg <= 0 || params.maxSlopeDeg >= 90) {
     params.maxSlopeDeg = DEFAULT_ROUTE_COST_PARAMS.maxSlopeDeg;
   }
-  setState({ params });
+  computingRequest = null;
+  setState({ params, routeStatus: 'idle', route: null, routeError: null, importedAt: null });
 }
 
 export function clearRoute(): void {

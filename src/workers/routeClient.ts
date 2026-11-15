@@ -68,7 +68,7 @@ export class RouteClient {
     worker.onerror = (event) => {
       const message = event.message || 'Route worker failed unexpectedly.';
       for (const [requestId, pending] of this.pending) {
-        pending.reject(new RouteClientError('grid-not-loaded', message));
+        pending.reject(new RouteClientError('worker-failed', message));
         this.pending.delete(requestId);
       }
     };

@@ -201,7 +201,7 @@ self.onmessage = (event: MessageEvent<ComputeRouteRequest>) => {
       const code =
         error instanceof DemExportError
           ? error.code
-          : (error as { code?: RouteErrorCode }).code ?? 'dem-unavailable';
+          : (error as { code?: RouteErrorCode }).code ?? 'worker-failed';
       post({
         type: 'route-error',
         requestId,

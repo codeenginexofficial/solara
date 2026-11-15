@@ -46,6 +46,20 @@ test('dateline route window is split into two requestable segments', () => {
   assert.ok(window.rows <= 640);
 });
 
+test('westward dateline route window keeps the raw west edge and splits segments', () => {
+  const window = buildRouteWindow(
+    { lon: -179, lat: -1 },
+    { lon: 179, lat: 1 },
+  );
+  assert.equal(window.segments.length, 2);
+  assert.ok(window.extent.westLon < -180);
+  assert.ok(window.extent.eastLon < -178);
+  assert.equal(window.segments[0].eastLon, 180);
+  assert.equal(window.segments[1].westLon, -180);
+  assert.equal(window.segments[0].columnStart, 0);
+  assert.equal(window.segments[1].columnStart, window.segments[0].cols);
+});
+
 test('shortest longitude delta uses the seam-aware path', () => {
   assert.equal(shortestLongitudeDelta(179, -179), 2);
   assert.equal(shortestLongitudeDelta(-179, 179), -2);

@@ -8,13 +8,14 @@
     "dev": "vite",
     "dev:copilot": "wrangler dev --config worker/wrangler.toml --port 8787",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "typecheck": "tsc --noEmit",
     "typecheck:copilot": "tsc --noEmit -p worker",
     "test:map": "node --import ./tests/science/ts-resolve-hook.mjs --test tests/map/tile-cache.test.mjs tests/map/mars-globe-coordinates.test.mjs tests/map/global-exploration.test.mjs",
     "test:science": "node --import ./tests/science/ts-resolve-hook.mjs --test tests/science/dem-slope.test.mjs tests/science/coverage.test.mjs tests/science/meda.test.mjs tests/science/rover.test.mjs tests/science/route-window.test.mjs tests/science/route-planner.test.mjs tests/science/dem-tiff-decode.test.mjs",
     "test:worker": "node --import ./tests/worker/resolve-hook.mjs --test tests/worker/tools.test.mjs",
-    "test": "npm run test:map && npm run test:science && npm run test:worker"
+    "test": "npm run test:map && npm run test:science && npm run test:worker",
+    "deploy": "npm run build && wrangler deploy"
   },
   "license": "Apache-2.0",
   "dependencies": {
@@ -35,6 +36,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.69.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/proj4": "^2.5.6",
     "@types/react": "^19.3.0",
@@ -44,6 +46,6 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.8",
     "vite-plugin-static-copy": "^4.1.1",
-    "wrangler": "^4.161.0"
+    "wrangler": "^4.162.0"
   }
 }

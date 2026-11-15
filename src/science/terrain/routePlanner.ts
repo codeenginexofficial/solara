@@ -12,8 +12,8 @@ import { groundDistanceMeters } from './geometry';
 import {
   classifyRouteDataQuality,
   isLogicalLongitudeInside,
+  logicalLongitudeForExtent,
   normalizeRoutePoint,
-  shortestLongitudeDelta,
 } from './routeGrid';
 import type {
   GeoPoint,
@@ -110,8 +110,10 @@ function cellCentreGeographic(g: ElevationGrid, col: number, row: number): GeoPo
 }
 
 function logicalLonForGrid(g: ElevationGrid, lon: number): number {
-  const west = normalizeMarsLongitudeEast(g.meta.extent.westLon);
-  return west + shortestLongitudeDelta(west, lon);
+  // Keep the grid's raw (possibly unwrapped) west edge: windows crossing the
+  // dateline westward have westLon < -180, and their logical frame must match
+  // the same frame used by cellCentreLogical and the segment mapper.
+  return logicalLongitudeForExtent(lon, g.meta.extent);
 }
 
 function nearestCell(g: ElevationGrid, logicalLon: number, lat: number): Cell {

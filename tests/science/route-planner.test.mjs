@@ -146,3 +146,25 @@ test('routes across a dateline-wrapped logical window', () => {
   assert.ok(outcome.result.points.every((point) => point.lon >= -180 && point.lon <= 180));
   assert.ok(outcome.result.warnings.some((warning) => warning.includes('±180°')));
 });
+
+test('routes westward across the dateline when the raw window starts below -180', () => {
+  const grid = makeGrid({
+    westLon: -181.36,
+    eastLon: -178.64,
+    southLat: -1,
+    northLat: 1,
+    cols: 41,
+    rows: 41,
+  });
+  const outcome = planRouteOnGrid(
+    grid,
+    { lon: -179.2, lat: -0.2 },
+    { lon: 179.8, lat: 0.2 },
+    DEFAULT_ROUTE_COST_PARAMS,
+    source('regional-live', 2),
+  );
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.result.coverage.datelineSegments, 2);
+  assert.ok(outcome.result.points.every((point) => point.lon >= -180 && point.lon <= 180));
+  assert.ok(outcome.result.warnings.some((warning) => warning.includes('±180°')));
+});

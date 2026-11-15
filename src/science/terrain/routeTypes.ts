@@ -113,4 +113,5 @@ export type RouteErrorCode =
   | 'invalid-coordinate'
   | 'identical-points'
   | 'no-path'
-  | 'invalid-params';
+  | 'invalid-params'
+  | 'worker-failed';
