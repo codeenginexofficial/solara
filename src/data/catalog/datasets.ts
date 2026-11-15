@@ -304,6 +304,65 @@ export const GLOBAL_CTX_MOSAIC_DATASET: DatasetRecord = {
   lastVerifiedAt: '2026-11-15',
 };
 
+function makeHiriseSiteDataset(site: 'jezero' | 'curiosity'): DatasetRecord {
+  const jezero = site === 'jezero';
+  const id = jezero ? 'jezero-hirise-mosaic' : 'curiosity-hirise-mosaic';
+  const productId = jezero
+    ? 'JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd'
+    : 'curiosity_hirise_mosaic';
+  const capabilitiesUrl = `https://trek.nasa.gov/tiles/Mars/EQ/${productId}/1.0.0/WMTSCapabilities.xml`;
+  return {
+    id,
+    title: jezero ? 'HiRISE Jezero Controlled Mosaic' : 'HiRISE Curiosity Roving-Site Mosaic',
+    provider: 'NASA Trek (trek.nasa.gov)',
+    mission: 'Mars Reconnaissance Orbiter (MRO)',
+    instrument: 'HiRISE — High Resolution Imaging Science Experiment',
+    productId,
+    kind: 'optical',
+    description: jezero
+      ? 'Controlled MRO HiRISE orthorectified mosaic for part of Jezero Crater. The Trek WMTS identifies the source product as a 25 cm mosaic; its verified tile matrix is coarser and SOLARA does not claim subpixel detail.'
+      : 'MRO HiRISE mosaic over the Curiosity roving site in Gale Crater. Coverage is limited to the published WMTS footprint and is not a global Gale basemap.',
+    sourceUrl: capabilitiesUrl,
+    accessMethod: 'wmts',
+    assetUrl: `https://trek.nasa.gov/tiles/Mars/EQ/${productId}/1.0.0//default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.png`,
+    spatialReference: {
+      body: 'Mars',
+      authority: 'NASA Trek declares urn:ogc:def:crs:EPSG::104905; SOLARA preserves that source metadata and renders using its internally defined Mars sphere equirectangular projection.',
+      proj4: '+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs',
+      datum: MARS_SPHERE_DATUM,
+      coordinateSystem: EQC_COORD_SYSTEM,
+      latitudeType: 'planetocentric',
+      longitudeDirection: 'east',
+      units: 'image intensity; source does not expose calibrated radiometric values',
+      sourceDefinition: 'NASA Trek WMTS capabilities snapshot; working projection is SOLARA:MARS_EQC_IAU2015.',
+    },
+    coverageDescription: jezero
+      ? 'Trek WMTS extent: 77.2229331–77.583964°E, 18.3067994–18.669315°N; regional footprint only.'
+      : 'Trek WMTS extent: 137.1224669–137.7298129°E, 4.9254743–4.2489588°S; regional Curiosity roving-site footprint only.',
+    boundingBox: jezero
+      ? { westLon: 77.2229331, eastLon: 77.583964, southLat: 18.3067994, northLat: 18.669315 }
+      : { westLon: 137.1224669, eastLon: 137.7298129, southLat: -4.9254743, northLat: -4.2489588 },
+    spatialResolution: jezero ? 0.318 : 0.635,
+    resolutionUnit: 'm/pixel at the equator, finest hosted WMTS matrix level derived from matrix geometry on the 3,396,190 m Mars sphere; source scale denominators are inconsistent with that CRS.',
+    observationPeriod: 'Per-frame acquisition dates are not exposed in the WMTS capabilities document.',
+    units: 'Rendered HiRISE image intensity; no calibrated radiometric values or per-pixel acquisition dates are exposed by this WMTS.',
+    attribution: 'HiRISE: NASA/JPL-Caltech/University of Arizona; mosaic tiles via NASA Trek (trek.nasa.gov).',
+    limitations: [
+      'Regional orbital imagery only; points outside the advertised bounding box are not covered by this product.',
+      'Bounding-box membership does not guarantee a non-empty tile or valid pixels at the selected point.',
+      'The Jezero product name states 25 cm, but its finest active WMTS matrix is approximately 0.318 m/pixel from Mars matrix geometry; display scales finer than this resample the tile.',
+      'The Curiosity mosaic finest active WMTS matrix is approximately 0.635 m/pixel from Mars matrix geometry; display scales finer than this resample the tile.',
+      'Historical orbital image mosaic; observation dates, calibrated values, and color/channel interpretation are not exposed by the WMTS metadata.',
+    ],
+    verification: 'inspected',
+    lastVerifiedAt: '2026-11-15',
+    verifiedServedLevels: jezero ? 18 : 17,
+  };
+}
+
+export const JEZERO_HIRISE_DATASET = makeHiriseSiteDataset('jezero');
+export const CURIOSITY_HIRISE_DATASET = makeHiriseSiteDataset('curiosity');
+
 function makeThemisDataset(variant: 'day' | 'night'): DatasetRecord {
   const isDay = variant === 'day';
   const id = isDay ? 'themis-day-ir-global' : 'themis-night-ir-global';
@@ -980,6 +1039,8 @@ export const JEZERO_REGION: RegionRecord = {
 const DATASETS: readonly DatasetRecord[] = [
   VIKING_GLOBAL_MOSAIC_DATASET,
   GLOBAL_CTX_MOSAIC_DATASET,
+  JEZERO_HIRISE_DATASET,
+  CURIOSITY_HIRISE_DATASET,
   THEMIS_DAY_IR_DATASET,
   THEMIS_NIGHT_IR_DATASET,
   JEZERO_CTX_DATASET,

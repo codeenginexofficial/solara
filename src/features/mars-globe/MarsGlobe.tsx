@@ -10,7 +10,7 @@ import type { MapLocation } from '../../map/mapTypes';
 import { MARS_MISSION_SITES } from '../global-exploration/missionSites';
 
 const MARS_SPHERE_RADIUS_M = 3_396_190;
-const MARS_MOLA_WMTS_URL = 'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0/default/default028mm/{z}/{y}/{x}.jpg';
+const MARS_MOLA_WMTS_URL = 'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw/1.0.0//default/default028mm/{z}/{y}/{x}.png';
 const MARS_GLOBAL_CTX_TILES_URL = 'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}';
 const MARS_TRAVERSE_ASSET = '/data/mars/jezero/rover/perseverance-traverse-path.geojson';
 const JEZERO_LON_EAST = 77.42982;
@@ -162,6 +162,7 @@ function MarsGlobe({
         const marsGlobe = new CesiumModule.Globe(marsSphere);
         marsGlobe.enableLighting = false;
         marsGlobe.showGroundAtmosphere = false;
+        marsGlobe.tileCacheSize = 128;
         marsGlobe.baseColor = CesiumModule.Color.fromBytes(18, 18, 18);
         viewer = new CesiumModule.Viewer(container, {
           animation: false,

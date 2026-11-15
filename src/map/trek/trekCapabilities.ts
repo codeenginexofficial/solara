@@ -2,7 +2,7 @@
  * NASA Trek WMTS capabilities parsing.
  *
  * VERIFIED_CAPABILITIES_XML_BY_ID below contains the actual WMTSCapabilities.xml
- * documents retrieved from trek.nasa.gov (HTTP 200) on 2026-11-12/13. They are
+ * documents retrieved from trek.nasa.gov (HTTP 200) on 2026-11-12/15. They are
  * the fallback configuration used when a live document cannot be fetched; live
  * documents are always preferred and re-validated with the same parser.
  *
@@ -32,6 +32,8 @@ import type { GeographicBoundingBox } from '../../data/catalog/types';
 import { TREK_DECLARED_CRS_URN } from '../projections/ProjectionRegistry';
 import THEMIS_DAY_CAPABILITIES_XML from './snapshots/themis-day.xml?raw';
 import THEMIS_NIGHT_CAPABILITIES_XML from './snapshots/themis-night.xml?raw';
+import CURIOSITY_HIRISE_CAPABILITIES_XML from './snapshots/curiosity-hirise.xml?raw';
+import JEZERO_HIRISE_CAPABILITIES_XML from './snapshots/jezero-hirise.xml?raw';
 
 /**
  * WMTS / OWS namespaces used by the Trek capabilities document.
@@ -494,6 +496,8 @@ export const VERIFIED_CAPABILITIES_XML_BY_ID: Readonly<Record<string, string>> =
   'mola-hrsc-blend-200m-colorshade': VERIFIED_MOLA_BLEND_200M_CAPABILITIES_XML,
   'themis-day-ir-global': THEMIS_DAY_CAPABILITIES_XML,
   'themis-night-ir-global': THEMIS_NIGHT_CAPABILITIES_XML,
+  'curiosity-hirise-mosaic': CURIOSITY_HIRISE_CAPABILITIES_XML,
+  'jezero-hirise-mosaic': JEZERO_HIRISE_CAPABILITIES_XML,
 };
 
 /** Fetch and parse the live capabilities document from the browser. */

@@ -171,6 +171,9 @@ function capabilitiesUrlFor(datasetId: string): string {
       return TREK_THEMIS_DAY_CAPABILITIES_URL;
     case 'themis-night-ir-global':
       return TREK_THEMIS_NIGHT_CAPABILITIES_URL;
+    case 'curiosity-hirise-mosaic':
+    case 'jezero-hirise-mosaic':
+      return getDatasetById(datasetId)!.sourceUrl;
     default:
       throw new Error(`No verified capabilities URL for WMTS dataset "${datasetId}".`);
   }
