@@ -18,6 +18,11 @@ import type { ElevationGridMeta } from '../data/adapters/elevationGrid';
 
 export type { RouteResult, RouteErrorCode, GeoPoint, RouteCostParams };
 
+export interface RouteComputeOptions {
+  assetUrl?: string;
+  demExportUrl?: string;
+}
+
 export class RouteClient {
   private worker: Worker | null = null;
   private nextRequestId = 1;
@@ -92,7 +97,7 @@ export class RouteClient {
     start: GeoPoint,
     target: GeoPoint,
     params: Partial<RouteCostParams> | undefined,
-    assetUrl: string,
+    options: RouteComputeOptions,
   ): Promise<RouteResult> {
     const worker = this.ensureWorker();
     const requestId = this.nextRequestId++;
@@ -102,7 +107,8 @@ export class RouteClient {
       start,
       target,
       params,
-      assetUrl,
+      assetUrl: options.assetUrl,
+      demExportUrl: options.demExportUrl,
     };
     return new Promise<RouteResult>((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });

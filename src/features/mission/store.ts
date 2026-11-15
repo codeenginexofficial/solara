@@ -127,11 +127,12 @@ export function computeRoute(): void {
   }
   const dataset = getDatasetById('mola-hrsc-blend-200m-dem');
   const assetUrl = dataset?.preparedAssetUrl;
-  if (!assetUrl) {
+  const demExportUrl = dataset?.exportImageEndpoint;
+  if (!assetUrl && !demExportUrl) {
     setState({
       routeStatus: 'error',
       route: null,
-      routeError: { code: 'grid-not-loaded', message: 'The elevation grid dataset is not configured.' },
+      routeError: { code: 'grid-not-loaded', message: 'The elevation dataset is not configured.' },
     });
     return;
   }
@@ -141,7 +142,7 @@ export function computeRoute(): void {
   setState({ routeStatus: 'computing', routeError: null, importedAt: null });
 
   void routeClient
-    .computeRoute(start, target, state.params, assetUrl)
+    .computeRoute(start, target, state.params, { assetUrl, demExportUrl })
     .then((route) => {
       if (computingRequest !== thisRequest) return; // superseded
       computingRequest = null;

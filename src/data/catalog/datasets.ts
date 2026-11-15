@@ -54,6 +54,9 @@ export const VIKING_ARCGIS_MOSAIC_SERVICE_URL =
 
 export const TREK_ARCGIS_SERVICES = 'https://trek.nasa.gov/mars/trekarcgis/rest/services';
 
+export const MOLA_HRSC_DEM_EXPORT_URL =
+  `${TREK_ARCGIS_SERVICES}/Mars_MOLA_blend200ppx_HRSC_DEM_clon0dd_200mpp_lzw/ImageServer/exportImage`;
+
 /** Dataset id shared with the map's feature hit-testing. */
 export const SCIENCE_STOPS_DATASET_ID = 'mars2020-science-stops';
 export const IAU_NOMENCLATURE_DATASET_ID = 'jezero-iau-nomenclature';
@@ -490,6 +493,7 @@ export const MOLA_HRSC_BLEND_DEM_DATASET: DatasetRecord = {
   queryEndpoint:
     `${TREK_ARCGIS_SERVICES}/Mars_MOLA_blend200ppx_HRSC_DEM_clon0dd_200mpp_lzw/ImageServer/identify`,
   preparedAssetUrl: '/data/mars/jezero/rasters/mola-hrsc-dem-jezero-grid.json',
+  exportImageEndpoint: MOLA_HRSC_DEM_EXPORT_URL,
   spatialReference: {
     body: 'Mars',
     authority:

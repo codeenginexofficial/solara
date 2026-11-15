@@ -7,11 +7,12 @@
  * Large touch targets (>= 44 px), consistent corner radii and monochrome styling.
  */
 
-import { Suspense, lazy, useCallback, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, Play, RotateCcw, Upload } from 'lucide-react';
 import type { RouteResult } from '../../workers/routeClient';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
 import type { MapFeatureSelection, MapLocation, MapProjectionMode, OverlayStatusMap } from '../../map/mapTypes';
+import type { MarsMapHandle } from '../../map/MarsMap';
 import type { LayerUiState } from '../habitat-mode/components/MissionOperationsPanel';
 import { DATASET_SHORT_NAMES } from '../habitat-mode/components/MissionOperationsPanel';
 import { RoverPovPanel } from '../rover-pov/RoverPovPanel';
@@ -131,6 +132,11 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   const [focusRequest, setFocusRequest] = useState<{ location: MapLocation; requestId: number } | null>(null);
   const focusRequestSequence = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mapApi = useRef<MarsMapHandle | null>(null);
+  const fittedRouteRef = useRef<{
+    route: NonNullable<typeof mission.route>;
+    projectionMode: MapProjectionMode;
+  } | null>(null);
 
   const handleProjectionModeChange = (mode: MapProjectionMode) => {
     setProjectionMode(mode);
@@ -182,6 +188,14 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
   }));
 
   const route = mission.route;
+  useEffect(() => {
+    if (!route || globeActive || !mapApi.current) return;
+    const fitted = fittedRouteRef.current;
+    if (fitted?.route === route && fitted.projectionMode === projectionMode) return;
+    fittedRouteRef.current = { route, projectionMode };
+    mapApi.current.fitToRoute();
+  }, [globeActive, projectionMode, route]);
+
   const nextWaypoint =
     mission.position && route ? nextWaypointInfo(route, mission.position) : null;
   const selectedFeatureDataset = selectedFeature
@@ -307,6 +321,7 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
           >
             <Suspense fallback={<MapWorkspaceFallback />}>
               <MarsMap
+                ref={mapApi}
                 baseLayers={baseLayers}
                 overlays={overlays}
                 regionBoundingBox={REGION.boundingBox}

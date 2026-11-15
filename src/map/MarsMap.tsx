@@ -58,6 +58,7 @@ import {
   MOLA_SOUTH_POLAR_DATASET,
 } from '../data/catalog/datasets';
 import { marsLonLatToEqc, eqcToMarsLonLat, marsLonLatToPolar, polarToMarsLonLat } from '../lib/marsLocation';
+import { splitRouteAtDateline } from '../science/terrain/routeGrid';
 import type { DatasetRecord } from '../data/catalog/types';
 import type { GeoPoint, RouteResult } from '../workers/routeClient';
 import {
@@ -143,6 +144,8 @@ export interface MarsMapHandle {
   fitToRegion: () => void;
   /** Fit the entire planetary EQC extent. */
   fitToPlanet: () => void;
+  /** Fit the current route candidate (or its endpoints when no route exists). */
+  fitToRoute: () => void;
   /** Zoom the view by one tile level (custom React controls). */
   zoomIn: () => void;
   zoomOut: () => void;
@@ -197,6 +200,42 @@ function projectionForMode(mode: MapProjectionMode): Projection {
 function projectLocation(location: Pick<MapLocation, 'lon' | 'lat'>, mode: MapProjectionMode): [number, number] {
   if (mode === 'global') return marsLonLatToEqc(location.lon, location.lat);
   return marsLonLatToPolar(location.lon, location.lat, mode === 'north-polar' ? 'north' : 'south');
+}
+
+function pointVisibleInProjection(point: Pick<MapLocation, 'lat'>, mode: MapProjectionMode): boolean {
+  if (mode === 'north-polar') return point.lat >= 0;
+  if (mode === 'south-polar') return point.lat <= 0;
+  return true;
+}
+
+function projectLocationVisible(
+  point: Pick<MapLocation, 'lon' | 'lat'>,
+  mode: MapProjectionMode,
+): [number, number] | null {
+  if (!pointVisibleInProjection(point, mode)) return null;
+  try {
+    return projectLocation(point, mode);
+  } catch {
+    return null;
+  }
+}
+
+function routeDisplaySegments(points: GeoPoint[], mode: MapProjectionMode): [number, number][][] {
+  const visibleSegments: [number, number][][] = [];
+  for (const geographicSegment of splitRouteAtDateline(points)) {
+    let current: [number, number][] = [];
+    for (const point of geographicSegment) {
+      const projected = projectLocationVisible(point, mode);
+      if (!projected) {
+        if (current.length >= 2) visibleSegments.push(current);
+        current = [];
+        continue;
+      }
+      current.push(projected);
+    }
+    if (current.length >= 2) visibleSegments.push(current);
+  }
+  return visibleSegments;
 }
 
 function locationAtViewCoordinate(coordinate: [number, number], mode: MapProjectionMode): MapLocation {
@@ -434,15 +473,57 @@ export default function MarsMap({
     map.getView().fit(extent, { size, padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX] });
   }, []);
 
+  const fitRoute = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const size = map.getSize();
+    if (!size || size[0] === 0 || size[1] === 0) return;
+    const points: GeoPoint[] =
+      route && route.points.length > 0
+        ? route.points
+        : [start, target].filter((point): point is GeoPoint => point !== null);
+    if (points.length === 0) return;
+    const mode = projectionModeRef.current;
+    const projected: [number, number][] = [];
+    for (const point of points) {
+      const pair = projectLocationVisible(point, mode);
+      if (pair) projected.push(pair);
+    }
+    if (projected.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of projected) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    if (mode === 'global' && maxX - minX > Math.PI * 3_396_190 * 1.5) {
+      fitPlanet();
+      return;
+    }
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const padX = Math.max(2_000, width * 0.08);
+    const padY = Math.max(2_000, height * 0.08);
+    map.getView().fit([minX - padX, minY - padY, maxX + padX, maxY + padY], {
+      size,
+      padding: [VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX, VIEW_PADDING_PX],
+    });
+  }, [fitPlanet, route, start, target]);
+
   useImperativeHandle(
     ref,
     () => ({
       fitToRegion: fitRegion,
       fitToPlanet: fitPlanet,
+      fitToRoute: fitRoute,
       zoomIn: () => zoomView(1),
       zoomOut: () => zoomView(-1),
     }),
-    [fitRegion, fitPlanet],
+    [fitRegion, fitPlanet, fitRoute],
   );
 
   /* ------------------------------------------------------------------ */
@@ -1068,8 +1149,9 @@ export default function MarsMap({
     source.clear();
 
     const addPointFeature = (point: GeoPoint, kind: 'route-start' | 'route-target' | 'position' | 'selected') => {
-      const [x, y] = projectLocation(point, projectionModeRef.current);
-      const feature = new Feature({ geometry: new Point([x, y]) });
+      const projected = projectLocationVisible(point, projectionModeRef.current);
+      if (!projected) return;
+      const feature = new Feature({ geometry: new Point(projected) });
       feature.set('solara:kind', kind);
       source.addFeature(feature);
     };
@@ -1083,10 +1165,11 @@ export default function MarsMap({
     }
 
     if (routeVisible && route && route.points.length >= 2) {
-      const coordinates = route.points.map((p) => projectLocation(p, projectionModeRef.current));
-      const lineFeature = new Feature({ geometry: new LineString(coordinates) });
-      lineFeature.set('solara:kind', 'route-line');
-      source.addFeature(lineFeature);
+      for (const coordinates of routeDisplaySegments(route.points, projectionModeRef.current)) {
+        const lineFeature = new Feature({ geometry: new LineString(coordinates) });
+        lineFeature.set('solara:kind', 'route-line');
+        source.addFeature(lineFeature);
+      }
     }
   }, [start, target, route, routeVisible, positionMarker, selectedMarker, projectionMode]);
 

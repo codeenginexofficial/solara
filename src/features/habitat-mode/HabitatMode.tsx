@@ -18,7 +18,7 @@
  * chunk loads; the map lifecycle itself is unchanged.
  */
 
-import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MarsMapHandle } from '../../map/MarsMap';
 import type { MapFeatureSelection, MapLocation, MapProjectionMode, OverlayStatusMap, SourceStatus, ViewInfo } from '../../map/mapTypes';
 import { getAllDatasets, getAllRegions, getDatasetById } from '../../data/catalog/datasets';
@@ -163,6 +163,18 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
   const handleFitRegion = useCallback(() => {
     mapApi.current?.fitToRegion();
   }, []);
+
+  const fittedRouteRef = useRef<{
+    route: NonNullable<typeof mission.route>;
+    projectionMode: MapProjectionMode;
+  } | null>(null);
+  useEffect(() => {
+    if (!mission.route || globeActive || !mapApi.current) return;
+    const fitted = fittedRouteRef.current;
+    if (fitted?.route === mission.route && fitted.projectionMode === projectionMode) return;
+    fittedRouteRef.current = { route: mission.route, projectionMode };
+    mapApi.current.fitToRoute();
+  }, [globeActive, mission.route, projectionMode]);
 
   const handleProjectionModeChange = useCallback((mode: MapProjectionMode) => {
     setProjectionMode(mode);

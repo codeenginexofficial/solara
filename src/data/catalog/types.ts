@@ -134,6 +134,8 @@ export interface DatasetRecord {
   preparedAssetUrl?: string;
   /** For live query datasets (DEM identify): the exact query endpoint. */
   queryEndpoint?: string;
+  /** For live raster windows (DEM exportImage): the exact export endpoint. */
+  exportImageEndpoint?: string;
 }
 
 /** Regions SOLARA knows about. Detailed planning is only offered inside
