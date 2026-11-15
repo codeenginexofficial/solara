@@ -33,7 +33,7 @@ Status values: `NOT STARTED`, `IN PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | T-02 | Trace and remove/fix the unwanted square imagery overlay; remove CTX from visible controls if confirmed | B — GLM | DONE | Actual rendering source identified; no broken square; valid layers remain usable |
 | T-03 | Remove `PDS Unavailable` and other unwanted diagnostic UI objects | B — GLM | DONE | No raw diagnostic chips/cards in normal user experience; errors handled appropriately |
 | T-04 | Reduce `Compute Route` font weight and polish requested controls | B — GLM | DONE | Weight visibly reduced; no unrelated redesign |
-| T-05 | Implement interactive 3D Mars globe and transition to detailed Jezero surface map | A — Codex | BLOCKED | Globe rotates/zooms; selection/navigation works; existing detailed map remains functional |
+| T-05 | Implement interactive 3D Mars globe and transition to detailed Jezero surface map | A — Codex | IN PROGRESS | Globe rotates/zooms; selection/navigation works; existing detailed map remains functional |
 | T-06 | Define scientific backend tool contracts | A + C | DONE | Shared input/output schema documented before shared-router integration |
 | T-07 | Implement isolated, real-data scientific adapters and deterministic terrain calculations | C — DeepSeek | DONE | Provenance, units, coordinate conventions, no-data handling, focused tests |
 | T-08 | Integrate scientific tools and load `INSTRUCTIONS.md` into the live assistant system prompt | A — Codex | DONE | Tool dispatch reaches real functions; system prompt file is demonstrably loaded server-side |
@@ -41,7 +41,8 @@ Status values: `NOT STARTED`, `IN PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | T-10 | Create accurate `SOURCES.md` | D — Copilot | REVIEW | Only actual sources listed; URLs, usage locations, attribution and status documented |
 | T-11 | Review/update `README.md` and setup/demo documentation | D — Copilot | REVIEW | Instructions match actual app; no unfinished features claimed as complete |
 | T-12 | Optional coordinate lookup | A — Codex (or assigned helper) | NOT STARTED | Validates Mars coordinates and centers map/globe; only after core tasks are stable |
-| T-13 | Final smoke test, build/type-check, review and Git checkpoint | A — Codex | DONE | No new errors; completed/unfinished items clearly recorded; no push/deploy |
+| T-13 | Final smoke test, build/type-check, review and Git checkpoint | A — Codex | IN PROGRESS | No new errors; completed/unfinished items clearly recorded; no push/deploy |
+| T-14 | Add bounded persistent tile caching, prioritized viewport prefetch, and development diagnostics | A — Codex | IN PROGRESS | Visible tiles win; cache expires/evicts within fixed budgets; requests dedupe; errors are retried; no unbounded prefetch |
 
 ## 4. File-ownership register
 
@@ -50,17 +51,20 @@ Agents must add exact repository paths here after inspecting the real codebase. 
 | Area / exact paths | Owner | Other agents' access |
 |---|---|---|
 | `src/features/mars-globe/MarsGlobe.tsx` | A — Codex | B may style its agreed outer shell only; no renderer/lifecycle edits |
+| `src/features/mars-globe/coordinates.ts` (new), `src/map/cache/tileCache.ts` (new), `src/map/cache/indexedDbTileStore.ts` (new), `src/map/cache/tilePrefetch.ts` (new), `src/map/cache/tileImageLoader.ts` (new) | A — Codex | No other active writers |
 | `src/map/MarsMap.tsx` | A — Codex (B handed back after T-03) | C/D read-only unless handed off |
+| `src/map/layers/createWmtsLayer.ts`, `src/map/layers/createVikingGlobalLayer.ts` | A — Codex | No other active writers |
 | `src/map/mapTypes.ts`, `src/lib/marsCrs.ts` | A — Codex | B/C read-only unless handed off |
-| `src/features/habitat-mode/HabitatMode.tsx`, `src/features/field-tablet/FieldTabletMode.tsx` (T-02–T-04 cleanup only) | B — GLM | A read-only during B's work; request handoff before any globe-shell edits |
+| `src/features/habitat-mode/HabitatMode.tsx`, `src/features/habitat-mode/components/LocationPanel.tsx` (B T-02–T-04 cleanup complete; A globe-shell/coverage integration) | A — Codex for T-05 integration | B's work complete; preserve its cleanup |
 | `worker/src/index.ts`, `worker/src/tools.ts` (new), `worker/INSTRUCTIONS.md` (new), `worker/src/markdown.d.ts` (new), `worker/wrangler.toml` | A — Codex | C may propose contracts; no router/tool-dispatch edits without A handoff |
 | `tests/worker/resolve-hook.mjs`, `tests/worker/tools.test.mjs` (new Worker integration checks) | A — Codex | C/D read-only unless handed off |
+| `tests/map/tile-cache.test.mjs`, `tests/map/mars-globe-coordinates.test.mjs` (new) | A — Codex | No other active writers |
 | `worker/src/science/contracts.ts`, `worker/src/science/dem.ts`, `worker/src/science/slope.ts`, `worker/src/science/coverage.ts`, `worker/src/science/meda.ts`, `worker/src/science/rover.ts`, `tests/science/**` | C — DeepSeek | A reads/reviews and integrates through the agreed contract; no edits |
 | Existing `worker/src/meda.ts`, `worker/src/roverImages.ts`, `src/data/adapters/medaService.ts`, `src/data/adapters/roverImageService.ts` | Existing integrations; C may inspect/reuse | A/C do not edit without a separately recorded handoff |
 | `src/features/habitat-mode/components/CopilotPanel.tsx` (assistant Markdown only), `src/features/habitat-mode/components/AssistantMarkdown.tsx` (new), `package.json`, `package-lock.json` | A — Codex | B/D read-only; shared dependency changes coordinated by A |
 | Layer-panel presentation and labels | B — GLM | A/C read-only unless handed off |
 | Diagnostic chips/cards and requested typography | B — GLM | A/C read-only unless handed off |
-| `SOURCES.md`, `README.md` documentation | D — Copilot | Others may review; do not concurrently edit |
+| `SOURCES.md`, `README.md` documentation | D — Copilot (T-10/T-11 complete) | A owns globe/cache accuracy updates after D's completion |
 | `AGENT_ROLES.md` | Project instructions | Nobody edits without Abdullah's explicit request |
 | `AGENT_COORDINATION.md` | Shared coordination | A maintains task board; others append messages only |
 | `package.json`, lockfile, shared global styles/types | A — Codex coordinates | No other agent edits without explicit approval |
@@ -310,3 +314,17 @@ Each agent posts a message in the log in this format:
 
 ### [2026-11-15 14:02 EAT] Agent A — UNTRACKED FILE PRESERVED
 - The final status check shows an untracked `ppt/SOLARA.pptx` (about 15.9 MB; last modified 13:57 EAT). It is not referenced by the Vite build config or `public/` data, so its owner/purpose is unconfirmed. A did not inspect or modify the presentation and is preserving it pending the owner's note.
+
+### [2026-11-15 15:29 EAT] Agent A — START / GLOBE AND TILE CACHE
+- Task IDs: T-05, T-13, T-14.
+- Exact A-owned files for this phase: `src/features/mars-globe/MarsGlobe.tsx`; new `src/features/mars-globe/coordinates.ts`; `src/features/habitat-mode/HabitatMode.tsx`; `src/map/MarsMap.tsx`; `src/map/layers/createWmtsLayer.ts`; `src/map/layers/createVikingGlobalLayer.ts`; new `src/map/cache/tileCache.ts`, `src/map/cache/tilePrefetch.ts`, `src/map/cache/tileImageLoader.ts`; new `tests/map/tile-cache.test.mjs` and `tests/map/mars-globe-coordinates.test.mjs`; `package.json`; `README.md`; `SOURCES.md`; `AGENT_COORDINATION.md`.
+- All previous agents' code contributions are complete; C's scientific service files and tests remain read-only and will not be duplicated or edited.
+- Plan: retain Cesium ion Mars asset 3644333; harden Mars-ellipsoid globe camera/picking/lifecycle and coordinate transfer; add a bounded encoded-byte memory LRU plus IndexedDB persistence, response-policy freshness, LRU disk eviction, in-flight deduplication, visible-priority scheduling, cancellable idle viewport prefetch; connect both live map tile sources; add deterministic tests and update source/setup documentation.
+- Acceptance: globe uses the real Mars imagery/terrain asset with east-positive longitude and planetocentric map handoff; existing OpenLayers workflows remain mounted only when selected; tile RAM/disk/request counts have explicit limits; prefetch remains scoped to the current visible area and cannot consume visible request slots; cache errors fail open to network and never enter successful tile storage.
+- Baseline: `npm.cmd run build` PASS; `npm.cmd run typecheck:copilot` PASS; existing science tests 20/20 PASS; existing Worker tests 3/3 PASS. No pre-existing failure identified.
+- Cache-policy probes (2026-11-15): Esri Viking tile returned `Cache-Control: max-age=3600`; NASA Trek tile returned no explicit `Cache-Control`/`Expires` and did return `Last-Modified`. The implementation will honor explicit directives and apply a bounded HTTP Last-Modified heuristic for Trek, without assuming a default lifetime for responses lacking freshness metadata.
+
+### [2026-11-15 15:41 EAT] Agent A — CONTINUATION / OWNERSHIP UPDATE
+- Confirmed the Mars coordinate conversion helper exists as an untracked file from the prior implementation turn; it is preserved and will be integrated into `MarsGlobe.tsx`.
+- Added `src/map/cache/indexedDbTileStore.ts` to A's exact ownership because the bounded persistent store is isolated from the scheduling/cache facade.
+- A owns `LocationPanel.tsx` only for the selected-point imagery-coverage honesty message required by T-05. B's completed UI cleanup remains intact.

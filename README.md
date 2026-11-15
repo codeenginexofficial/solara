@@ -1,19 +1,53 @@
 # SOLARA
 
-SOLARA is a Mars surface exploration and preliminary mission-planning prototype created for the NASA International Space Apps Challenge 2026. It combines global planetary context with detailed Jezero mapping, scientific dataset provenance, rover observations, and a terrain-cost route candidate.
+SOLARA is a Mars surface exploration and preliminary mission-planning prototype created for the NASA International Space Apps Challenge 2026. It combines a global planetary view, a surface map, scientific dataset provenance, rover observations, and a terrain-cost route candidate.
 
 SOLARA is not an official NASA product, an operational navigation system, or a safety assessment. Route candidates are not validated or guaranteed safe.
 
 ## What is implemented
 
-- **3D Mars globe:** CesiumJS displays Cesium ion's Mars 3D Tiles asset when a configured ion token can access it. The globe is optional and requires network access; without a token the app explains the setup requirement instead of drawing a substitute planet.
-- **2D Mars map:** OpenLayers shows a global Viking mosaic and optional MOLA + HRSC color hillshade, with detailed NASA Trek Jezero CTX imagery and prepared scientific overlays. Layer provenance, coverage, coordinate reference and limitations are available in the interface.
+- **3D Mars globe:** A lazily mounted CesiumJS WebGL viewer renders Cesium ion's Mars 3D Tiles asset on Cesium's Mars ellipsoid. Users can rotate, pan, zoom and select a surface point; selecting a point opens the 2D map at the same east-positive longitude and planetocentric latitude. Without the restricted ion token, the app reports the missing setup and does not draw a substitute planet.
+- **2D Mars map:** OpenLayers shows the historical global Viking mosaic and optional MOLA + HRSC color hillshade, with prepared Jezero scientific overlays. The catalogued NASA Trek CTX layer is currently excluded from the visible controls, so verified detailed optical imagery is not active in the 2D map. Layer provenance, coverage, coordinate reference and limitations are available in the interface.
 - **Jezero datasets:** USGS SIM 3292 geology, the Perseverance landing ellipse and historical traverse, Mars 2020 science waypoints, IAU Jezero nomenclature, and prepared OMEGA/CRISM hydrous-mineral detections.
 - **Elevation and routing:** Point elevations can be queried from NASA Trek's MOLA + HRSC DEM service. A prepared Jezero DEM grid supports a prototype A* terrain-cost candidate and elevation profile. It is regional context at roughly 200 m/pixel, not hazard-grade terrain.
 - **Environmental context:** MEDA archive observations are fetched through the Worker and shown with their measurement times and status. A separate NASA weather RSS record is a static, stale snapshot; Mars solar time and season values are calculated with a Mars24-derived model.
 - **Rover media:** Perseverance raw images are browsed through a Worker proxy and associated with the historical traverse by Sol, not by exact image coordinates. NASA's Image and Video Library provides a separate Mars video search.
 - **Habitat and Field Tablet modes:** Both use the same in-memory mission state. Plans can be exported and imported as JSON; there is no account or automatic cross-device synchronization. Field Tablet position is simulated/manual, not live tracking.
 - **Mission Copilot:** An optional Worker endpoint sends chat requests to the configured OpenRouter model. It receives limited app context, is not a verified scientific data source, and cannot see map pixels.
+
+### Globe and map architecture
+
+Cesium is loaded only while the globe view is open and its viewer, input handler,
+resize observer and 3D Tiles resources are destroyed when the view closes. The
+viewer uses Mars's 3,396,190 m equatorial and 3,376,200 m polar radii, preserves
+the ion credit display, and caps the Cesium 3D Tiles cache at 128 MiB with up to
+64 MiB of view-dependent overflow. Surface selections are converted to SOLARA's
+Mars-sphere equirectangular metres before the OpenLayers map is mounted. The map
+keeps its existing layers and mission workflows; it does not inherit Cesium's
+high-resolution imagery coverage.
+
+### Map tile caching
+
+The Viking and Trek raster sources share an encoded-`Blob` memory LRU (24 MiB,
+192 entries) and a persistent IndexedDB LRU (128 MiB, 2,048 entries, 2 MiB per
+tile). Storage is best-effort and quota failures fall back to network loading.
+Expired or source-forbidden responses are not reused; HTTP errors and invalid
+image responses are not retained. OpenLayers decoded tile caches are capped at
+96 entries per base layer, and its automatic tile preload is disabled.
+
+Viewport prefetch is limited to currently visible base layers and the current
+view: at most 12 adjacent, 12 next-zoom and 6 idle tiles per layer. It uses up
+to 8 total tile fetches, of which at most 2 are speculative. Visible tile work
+promotes a matching queued request or aborts unrelated in-flight prefetches.
+Pan/zoom changes cancel obsolete queued work. Development builds expose real
+counters through `window.__SOLARA_TILE_CACHE__()`; no cache metrics are shown
+to end users.
+
+The Esri Viking response policy honors its observed one-hour `max-age` (capped
+at one hour). Trek responses are cached only with explicit freshness metadata
+or a bounded `Last-Modified` heuristic (up to 24 hours); this is a local cache
+limit, not a claim about source update frequency. Source credits remain visible
+in the OpenLayers attribution control.
 
 See [SOURCES.md](SOURCES.md) for exact endpoints, data attribution, software references and known source limitations. The app only presents sources actually used by its code; a source appearing there does not guarantee upstream availability.
 
@@ -69,6 +103,7 @@ Rover image browsing and NASA video search are available from the rover/media pa
 ```powershell
 npm run typecheck
 npm run typecheck:copilot
+npm test
 npm run build
 ```
 
@@ -80,7 +115,7 @@ Dataset attribution and provenance are shown in the application where available 
 
 ## Known limitations
 
-- Jezero CTX coverage is bounded; locations outside verified coverage do not become local high-resolution coverage.
+- The Jezero CTX dataset remains catalogued but is not active in the 2D map. The surface view currently has global Viking optical context only; globe imagery coverage and 2D imagery coverage are different.
 - The route model uses a prepared, approximately 200 m/pixel MOLA + HRSC elevation grid. It does not account for all surface hazards and is not operationally validated.
 - The rover traverse is historical. Rover images are not assigned to a clicked point without validated geolocation.
 - Environmental data are sparse and historical; there is no live Mars weather forecast, radiation feed, astronaut GPS or live rover tracking.

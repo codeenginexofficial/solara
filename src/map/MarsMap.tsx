@@ -60,6 +60,8 @@ import {
 import { gridFingerprint } from './trek/tileGrid';
 import { createTrekWmtsLayer, getTrekTileFailureKind } from './layers/createWmtsLayer';
 import { createVikingGlobalLayer } from './layers/createVikingGlobalLayer';
+import { marsTileCache } from './cache/tileCache';
+import { ViewportTilePrefetcher } from './cache/tilePrefetch';
 import { createGeojsonOverlayLayer } from './layers/createGeojsonLayer';
 import { createRasterOverlayLayer } from './layers/createRasterOverlayLayer';
 import type BaseLayer from 'ol/layer/Base.js';
@@ -270,7 +272,13 @@ export default function MarsMap({
   const regionExtentRef = useRef<[number, number, number, number] | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const baseLayerRecordsRef = useRef<
-    Array<{ datasetId: string; layer: BaseLayer; source: TileImageSource; footprint: Extent }>
+    Array<{
+      datasetId: string;
+      layer: BaseLayer;
+      source: TileImageSource;
+      footprint: Extent;
+      cachePolicy: ReturnType<typeof createTrekWmtsLayer>['cachePolicy'];
+    }>
   >([]);
   const overlayLayerRecordsRef = useRef<Array<{ datasetId: string; layer: BaseLayer }>>([]);
   const routeSourceRef = useRef<VectorSource | null>(null);
@@ -369,6 +377,7 @@ export default function MarsMap({
           layer: created.layer as BaseLayer,
           source: created.source,
           footprint: marsBboxToMetresExtent(bbox),
+          cachePolicy: created.cachePolicy,
         };
       }
       const verifiedXml = VERIFIED_CAPABILITIES_XML_BY_ID[datasetId];
@@ -377,7 +386,13 @@ export default function MarsMap({
       const created = createTrekWmtsLayer(snapshotConfig, dataset);
       const bbox = dataset.boundingBox ?? snapshotConfig.layer.boundingBox;
       const footprint: Extent = marsBboxToMetresExtent(bbox);
-      return { datasetId, layer: created.layer as BaseLayer, source: created.source, footprint };
+      return {
+        datasetId,
+        layer: created.layer as BaseLayer,
+        source: created.source,
+        footprint,
+        cachePolicy: created.cachePolicy,
+      };
     });
     baseLayerRecordsRef.current = baseRecords;
 
@@ -464,6 +479,7 @@ export default function MarsMap({
 
     const map = new Map({
       target: container,
+      maxTilesLoading: 8,
       layers: [...baseRecords.map((r) => r.layer), routeLayer],
       view: new View({
         projection,
@@ -485,6 +501,22 @@ export default function MarsMap({
       ]),
     });
     mapRef.current = map;
+    const prefetcher = new ViewportTilePrefetcher(
+      map,
+      baseRecords.map(({ datasetId, layer, source, cachePolicy }) => ({
+        datasetId,
+        layer,
+        source,
+        cachePolicy,
+      })),
+    );
+
+    // Development-only diagnostic hook. It exposes real cache counters for
+    // browser verification and is never attached to production builds.
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      (window as Window & { __SOLARA_TILE_CACHE__?: () => ReturnType<typeof marsTileCache.getDiagnostics> })
+        .__SOLARA_TILE_CACHE__ = () => marsTileCache.getDiagnostics();
+    }
 
     // Keep a globe-selected point centred when handing off to the 2D map.
     // A fresh map session still opens fitted to Jezero; selections outside
@@ -790,6 +822,7 @@ export default function MarsMap({
       unByKey(tileKeys);
       unByKey(mapKeys);
       unByKey(resolutionKey);
+      prefetcher.dispose();
       if (viewport) {
         viewport.removeEventListener('pointerleave', onPointerLeave);
       }

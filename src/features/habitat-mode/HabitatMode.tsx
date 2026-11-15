@@ -305,8 +305,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
         {/* Left panel — mission operations */}
         <aside
           className={cn(
-            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:flex lg:shadow-none',
-            globeActive ? 'hidden' : leftPanelOpen ? 'flex' : 'hidden lg:flex',
+            'absolute inset-y-0 left-0 z-20 w-80 flex-col overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl lg:static lg:z-auto lg:shadow-none',
+            globeActive ? 'hidden lg:hidden' : leftPanelOpen ? 'flex' : 'hidden lg:flex',
           )}
           aria-label="Mission operations"
         >
@@ -332,6 +332,8 @@ export default function HabitatMode({ onSwitchToTablet }: { onSwitchToTablet?: (
                 onLocationSelect={(loc) => {
                   setSelectedFeature(null);
                   setSelectedLocation(loc);
+                  setWorkspaceTab('inspector');
+                  setWorkspaceOpen(true);
                 }}
                 onSelectTraverse={() => {
                   setWorkspaceTab('rover');

@@ -3,15 +3,17 @@ import type * as Cesium from 'cesium';
 import { ArrowLeft, Crosshair, MapPin, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { formatLat, formatLon } from '../../lib/format';
-import { marsPlanetocentricToEqc } from '../../lib/marsCrs';
+import {
+  marsCartesianToMapLocation,
+  marsPlanetocentricToPlanetographic,
+} from './coordinates';
 import type { MapLocation } from '../../map/mapTypes';
 
 const MARS_ION_ASSET_ID = 3_644_333;
 const MARS_TRAVERSE_ASSET = '/data/mars/jezero/rover/perseverance-traverse-path.geojson';
-const MARS_EQUATORIAL_RADIUS_M = 3_396_190;
-const MARS_POLAR_RADIUS_M = 3_376_200;
 const JEZERO_LON_EAST = 77.42982;
 const JEZERO_LAT_PLANETOCENTRIC = 18.46611;
+let activeViewerOwner: symbol | null = null;
 
 type GlobeStatus = 'missing-token' | 'loading' | 'ready' | 'failed';
 type TraverseStatus = 'off' | 'loading' | 'visible' | 'failed';
@@ -26,42 +28,6 @@ interface MarsGlobeProps {
   onLocationSelect: (location: MapLocation) => void;
   onSelectTraverse?: (sol: number, location: MapLocation) => void;
   onSwitchToMap: () => void;
-}
-
-function degreesToRadians(value: number): number {
-  return (value * Math.PI) / 180;
-}
-
-function radiansToDegrees(value: number): number {
-  return (value * 180) / Math.PI;
-}
-
-/** Convert a sphere-based, planetocentric latitude to Mars ellipsoid latitude. */
-function planetocentricToPlanetographic(latitudeDeg: number): number {
-  if (Math.abs(latitudeDeg) >= 90) return Math.sign(latitudeDeg) * 90;
-  const eccentricitySquared =
-    1 - (MARS_POLAR_RADIUS_M * MARS_POLAR_RADIUS_M) /
-      (MARS_EQUATORIAL_RADIUS_M * MARS_EQUATORIAL_RADIUS_M);
-  const latitudeRad = degreesToRadians(latitudeDeg);
-  return radiansToDegrees(
-    Math.atan(Math.tan(latitudeRad) / (1 - eccentricitySquared)),
-  );
-}
-
-/** Return east-positive longitude and planetocentric latitude from a Cesium Cartesian. */
-function cartesianToMarsLocation(
-  position: Cesium.Cartesian3,
-): MapLocation | null {
-  const horizontal = Math.hypot(position.x, position.y);
-  const magnitude = Math.hypot(horizontal, position.z);
-  if (!Number.isFinite(magnitude) || magnitude === 0) return null;
-
-  const longitudeEastDeg = radiansToDegrees(Math.atan2(position.y, position.x));
-  const latitudePlanetocentricDeg = radiansToDegrees(
-    Math.atan2(position.z, horizontal),
-  );
-  const [x, y] = marsPlanetocentricToEqc(longitudeEastDeg, latitudePlanetocentricDeg);
-  return { lon: longitudeEastDeg, lat: latitudePlanetocentricDeg, x, y };
 }
 
 function parseTraverseGeoJson(payload: unknown): RoverTraverseSegment[] {
@@ -133,7 +99,7 @@ function MarsGlobe({
   const traverseEntitiesRef = useRef<Cesium.Entity[]>([]);
   const traverseDataRef = useRef<RoverTraverseSegment[] | null>(null);
   const selectedLocationRef = useRef(selectedLocation);
-  const callbacksRef = useRef({ onLocationSelect, onSelectTraverse });
+  const callbacksRef = useRef({ onLocationSelect, onSelectTraverse, onSwitchToMap });
   const [status, setStatus] = useState<GlobeStatus>('loading');
   const [loadMessage, setLoadMessage] = useState('Preparing the Mars globe…');
   const [traverseStatus, setTraverseStatus] = useState<TraverseStatus>('off');
@@ -146,8 +112,8 @@ function MarsGlobe({
   }, [selectedLocation]);
 
   useEffect(() => {
-    callbacksRef.current = { onLocationSelect, onSelectTraverse };
-  }, [onLocationSelect, onSelectTraverse]);
+    callbacksRef.current = { onLocationSelect, onSelectTraverse, onSwitchToMap };
+  }, [onLocationSelect, onSelectTraverse, onSwitchToMap]);
 
   useEffect(() => {
     if (!ionToken) {
@@ -158,21 +124,32 @@ function MarsGlobe({
 
     const container = containerRef.current;
     if (!container) return;
+    if (activeViewerOwner !== null) {
+      setStatus('failed');
+      setLoadMessage('A Mars globe viewer is already active in this tab. Return to the surface map and reopen the globe.');
+      return;
+    }
 
     let cancelled = false;
+    const viewerOwner = Symbol('solara-mars-globe');
+    activeViewerOwner = viewerOwner;
     let viewer: Cesium.Viewer | null = null;
     let tileset: Cesium.Cesium3DTileset | null = null;
     let handler: Cesium.ScreenSpaceEventHandler | null = null;
     let removeTileLoadListener: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const cleanup = () => {
       removeTileLoadListener?.();
       removeTileLoadListener = null;
+      resizeObserver?.disconnect();
+      resizeObserver = null;
       if (handler && !handler.isDestroyed()) handler.destroy();
       handler = null;
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       viewer = null;
       tileset = null;
+      if (activeViewerOwner === viewerOwner) activeViewerOwner = null;
     };
 
     setStatus('loading');
@@ -209,11 +186,19 @@ function MarsGlobe({
         viewer.scene.backgroundColor = CesiumModule.Color.BLACK;
         viewer.scene.skyBox = undefined;
         viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
-        viewer.scene.screenSpaceCameraController.maximumZoomDistance = 70_000_000;
+        viewer.scene.screenSpaceCameraController.maximumZoomDistance = 18_000_000;
         viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
+        resizeObserver = new ResizeObserver(() => {
+          viewer?.resize();
+          viewer?.scene.requestRender();
+        });
+        resizeObserver.observe(container);
 
         tileset = await CesiumModule.Cesium3DTileset.fromIonAssetId(MARS_ION_ASSET_ID, {
-          maximumScreenSpaceError: 12,
+          maximumScreenSpaceError: 16,
+          cacheBytes: 128 * 1024 * 1024,
+          maximumCacheOverflowBytes: 64 * 1024 * 1024,
+          dynamicScreenSpaceError: true,
           enableCollision: true,
         });
         if (cancelled) {
@@ -241,11 +226,11 @@ function MarsGlobe({
             ? picked.id
             : null;
 
-          if (pickedEntity?.id === 'solara-selected-location') return;
-
-          const position = viewer?.scene.pickPosition(event.position);
+          const position = pickedEntity?.id === 'solara-selected-location'
+            ? pickedEntity.position?.getValue(CesiumModule.JulianDate.now())
+            : viewer?.scene.pickPosition(event.position);
           if (!position) return;
-          const location = cartesianToMarsLocation(position);
+          const location = marsCartesianToMapLocation(position.x, position.y, position.z);
           if (!location) return;
 
           callbacksRef.current.onLocationSelect(location);
@@ -254,11 +239,12 @@ function MarsGlobe({
             const sol = properties && typeof properties.sol === 'number' ? properties.sol : null;
             if (sol !== null) callbacksRef.current.onSelectTraverse?.(sol, location);
           }
+          callbacksRef.current.onSwitchToMap();
         }, CesiumModule.ScreenSpaceEventType.LEFT_CLICK);
 
         const initialLocation = selectedLocationRef.current;
         if (initialLocation) {
-          const planetographicLatitude = planetocentricToPlanetographic(initialLocation.lat);
+          const planetographicLatitude = marsPlanetocentricToPlanetographic(initialLocation.lat);
           viewer.camera.flyTo({
             destination: CesiumModule.Cartesian3.fromDegrees(
               initialLocation.lon,
@@ -327,7 +313,7 @@ function MarsGlobe({
 
     viewer.entities.removeById('solara-selected-location');
     if (selectedLocation) {
-      const planetographicLatitude = planetocentricToPlanetographic(selectedLocation.lat);
+      const planetographicLatitude = marsPlanetocentricToPlanetographic(selectedLocation.lat);
       viewer.entities.add({
         id: 'solara-selected-location',
         name: 'Selected Mars location',
@@ -356,7 +342,7 @@ function MarsGlobe({
     viewer.camera.flyTo({
       destination: CesiumModule.Cartesian3.fromDegrees(
         longitude,
-        planetocentricToPlanetographic(latitudePlanetocentric),
+        marsPlanetocentricToPlanetographic(latitudePlanetocentric),
         heightM,
         CesiumModule.Ellipsoid.MARS,
       ),
@@ -413,7 +399,7 @@ function MarsGlobe({
       const entities = traverse.map((segment, index) => {
         const positionDegrees: number[] = [];
         for (const [longitude, latitudePlanetocentric] of segment.coordinates) {
-          positionDegrees.push(longitude, planetocentricToPlanetographic(latitudePlanetocentric));
+          positionDegrees.push(longitude, marsPlanetocentricToPlanetographic(latitudePlanetocentric));
         }
         return viewer.entities.add({
           id: `perseverance-traverse-sol-${segment.sol}-${index}`,

@@ -260,6 +260,10 @@ export function LocationPanel({ location, feature, region, onElevationStateChang
             X {formatMetreSigned(location.x)} · Y {formatMetreSigned(location.y)}
           </span>
         </div>
+        <p className="mt-2 text-[11px] leading-snug text-ink-subtle" data-testid="imagery-availability-note">
+          The 2D map has no verified detailed optical imagery layer active here; its available
+          optical context is the historical global Viking mosaic.
+        </p>
       </div>
 
       {/* Selected science waypoint (named destination) */}

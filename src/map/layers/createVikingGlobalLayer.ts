@@ -8,6 +8,8 @@ import { get as getProjection } from 'ol/proj.js';
 import { VIKING_GLOBAL_MOSAIC_DATASET } from '../../data/catalog/datasets';
 import { MARS_VIKING_MARSECO0 } from '../../lib/marsCrs';
 import { marsBboxToMetresExtent } from '../projections/ProjectionRegistry';
+import { loadCachedImageTile } from '../cache/tileImageLoader';
+import { MARS_VIKING_TILE_CACHE_POLICY } from '../cache/tileCache';
 
 // Values are copied from the MapServer TileInfo metadata. The image cache has
 // 256 px tiles, origin (-10669445.5542, 10669445.5542), and LODs 0–8.
@@ -44,15 +46,19 @@ export function createVikingGlobalLayer() {
     crossOrigin: 'anonymous',
     wrapX: false,
     maxZoom: TILE_RESOLUTIONS.length - 1,
+    tileLoadFunction: (tile, src) =>
+      loadCachedImageTile(tile, src, MARS_VIKING_TILE_CACHE_POLICY, () => undefined),
   });
   const layer = new TileLayer({
     source,
     extent: marsBboxToMetresExtent(VIKING_GLOBAL_MOSAIC_DATASET.boundingBox!),
+    cacheSize: 96,
+    preload: 0,
     zIndex: 0,
   });
   layer.setProperties({ datasetId: VIKING_GLOBAL_MOSAIC_DATASET.id });
 
   // TileImage reads the source CRS and reprojects into MarsMap's current
   // verified Mars-sphere view projection.
-  return { layer, source };
+  return { layer, source, cachePolicy: MARS_VIKING_TILE_CACHE_POLICY };
 }

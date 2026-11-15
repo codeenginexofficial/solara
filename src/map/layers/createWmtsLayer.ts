@@ -24,7 +24,6 @@ import TileLayer from 'ol/layer/Tile.js';
 import WMTS from 'ol/source/WMTS.js';
 import TileState from 'ol/TileState.js';
 import type Tile from 'ol/Tile.js';
-import type ImageTile from 'ol/ImageTile.js';
 import type TileGrid from 'ol/tilegrid/TileGrid.js';
 import type { Extent } from 'ol/extent.js';
 import { intersects } from 'ol/extent.js';
@@ -33,6 +32,8 @@ import { buildMetreTileGrid } from '../trek/tileGrid';
 import type { TrekWmtsConfig } from '../trek/trekCapabilities';
 import type { DatasetRecord } from '../../data/catalog/types';
 import type { TileFailureKind } from '../mapTypes';
+import { loadCachedImageTile } from '../cache/tileImageLoader';
+import { marsTrekTileCachePolicy, type TileCachePolicy } from '../cache/tileCache';
 
 /**
  * Failure cause per tile object (ol Tile is not a BaseObject, so a per-tile
@@ -63,6 +64,7 @@ export function getTrekTileFailureKind(tile: Tile): TileFailureKind | undefined 
 export function createTrekTileLoadFunction(
   grid: TileGrid,
   footprint: Extent,
+  policy: TileCachePolicy,
 ): (tile: Tile, src: string) => void {
   return (tile: Tile, src: string) => {
     const tileExtent = grid.getTileCoordExtent(tile.getTileCoord());
@@ -70,52 +72,17 @@ export function createTrekTileLoadFunction(
       tile.setState(TileState.EMPTY);
       return;
     }
-    const imageTile = tile as ImageTile;
-    const element = imageTile.getImage();
     const failWith = (kind: Exclude<TileFailureKind, 'unknown'>) => {
       tileFailureKinds.set(tile, kind);
-      tile.setState(TileState.ERROR);
     };
-    // Only the plain-image path is supported here: Trek tiles are
-    // HTMLImageElements (the OffscreenCanvas branch does not apply in the
-    // browser build this loader runs in).
-    if (!(element instanceof HTMLImageElement)) {
-      failWith('invalid-response');
-      return;
-    }
-    void fetch(src, { mode: 'cors' })
-      .then((response) => {
-        if (!response.ok) {
-          failWith(
-            response.status === 404
-              ? 'http-404'
-              : response.status >= 500
-                ? 'http-server'
-                : 'http-other',
-          );
-          return;
-        }
-        const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
-        if (!contentType.startsWith('image/')) {
-          failWith('invalid-response');
-          return;
-        }
-        return response.blob().then((blob) => {
-          const url = URL.createObjectURL(blob);
-          element.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
-          element.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
-          element.src = url;
-        });
-      })
-      .catch(() => {
-        failWith('network-error');
-      });
+    loadCachedImageTile(tile, src, policy, failWith);
   };
 }
 
 export interface CreatedWmtsLayer {
   layer: TileLayer<WMTS>;
   source: WMTS;
+  cachePolicy: TileCachePolicy;
   /** Resolutions in metres/pixel for view configuration. */
   resolutions: number[];
   /** Full world extent in working-projection metres. */
@@ -150,6 +117,7 @@ export function createTrekWmtsLayer(
   const bbox = config.layer.boundingBox;
   const footprintMetres: Extent = marsBboxToMetresExtent(bbox);
 
+  const cachePolicy = marsTrekTileCachePolicy(dataset.id);
   const source = new WMTS({
     requestEncoding: 'REST',
     url: config.layer.resourceUrlTemplate,
@@ -160,19 +128,26 @@ export function createTrekWmtsLayer(
     style: config.layer.styleIdentifier,
     format: config.layer.format,
     attributions: dataset.attribution,
-    tileLoadFunction: createTrekTileLoadFunction(grid.tileGrid, footprintMetres),
+    tileLoadFunction: createTrekTileLoadFunction(
+      grid.tileGrid,
+      footprintMetres,
+      cachePolicy,
+    ),
     wrapX: false,
     transition: 120,
   });
 
   const layer = new TileLayer({
     source,
+    cacheSize: 96,
+    preload: 0,
     properties: { datasetId: dataset.id },
   });
 
   return {
     layer,
     source,
+    cachePolicy,
     resolutions: grid.resolutions,
     worldExtent: grid.worldExtent,
   };

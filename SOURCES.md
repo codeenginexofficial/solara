@@ -20,7 +20,9 @@ presented as runtime integrations.
   `vite.config.ts` (worker/static asset serving); `src/features/habitat-mode/HabitatMode.tsx`;
   `src/features/field-tablet/FieldTabletMode.tsx`.
 - **Functionality:** Full-planet rotation, zoom and pan; point picking; an optional
-  historical Perseverance traverse over the Mars surface.
+  historical Perseverance traverse over the Mars surface. A picked location
+  switches to OpenLayers at the same east-positive longitude and planetocentric
+  latitude; the 2D map does not inherit the ion tileset's regional resolution.
 - **Format/API:** CesiumJS ES modules, WebGL, Cesium 3D Tiles client.
 - **Coverage/resolution:** Determined by the separately licensed Cesium Mars asset.
 - **Authentication:** None for the library. It lazy-imports only after a browser
@@ -49,8 +51,8 @@ presented as runtime integrations.
 - **Format/API:** Cesium ion 3D Tiles streaming API; published CRS `IAU_2015:49901`.
 - **Coverage/resolution:** Mars-wide; approximately 232 m/pixel imagery and
   200 m terrain globally. Cesium lists Jezero at approximately 6 m imagery and
-  20 m terrain. The existing OpenLayers Jezero CTX mosaic remains a separate,
-  finer 2D planning source at approximately 5.087 m/pixel in its verified footprint.
+  20 m terrain. These are Cesium ion asset coverage figures, not the resolution
+  available in SOLARA's separate OpenLayers map.
 - **Authentication:** Cesium ion account and a browser-visible token are required.
   Configure `VITE_CESIUM_ION_TOKEN` locally. Use an app-specific token with only
   `assets:read`, selected asset 3644333, and allowed application origins. Browser
@@ -58,7 +60,9 @@ presented as runtime integrations.
   a `VITE_*` variable.
 - **Limitations:** The globe displays global context, not hazard-grade coverage.
   The token is unavailable in a fresh checkout, so the UI shows setup instructions
-  and does not draw a substitute planet. Streaming quotas and current ion access
+  and does not draw a substitute planet. Browser verification on 2026-11-15 also
+  found no local `VITE_CESIUM_ION_TOKEN`, so actual ion streaming and surface-pick
+  interaction remain unverified here. Streaming quotas and current ion access
   are controlled by the account. Review current Cesium ion plan and license terms
   before publishing this hosted content for third-party use.
 - **Attribution:** Cesium's CreditDisplay is preserved in the globe UI; SOLARA also
@@ -98,7 +102,9 @@ presented as runtime integrations.
 - **What it provides:** Global historical Viking colorized mosaic imagery.
 - **SOLARA use:** `src/data/catalog/datasets.ts` (`VIKING_GLOBAL_MOSAIC_DATASET`);
   `src/map/layers/createVikingGlobalLayer.ts`; `src/map/MarsMap.tsx`.
-- **Functionality:** Low-resolution global context underneath the Jezero CTX map layer.
+- **Functionality:** Low-resolution global optical context. The Jezero CTX layer is
+  currently excluded from the active map controls, so Viking is not covered by that
+  regional mosaic in the rendered 2D view.
 - **Format/API:** Esri cached MapServer XYZ tiles (`/tile/{z}/{y}/{x}`).
 - **Coverage/resolution:** Global Mars. Product nominal resolution is approximately
   231 m/pixel; the inspected Esri cache is only served through levels 0–8, with
@@ -115,7 +121,11 @@ presented as runtime integrations.
 
 ### NASA Trek Jezero CTX orthorectified mosaic
 
-- **Status:** Integrated in OpenLayers.
+- **Status:** Catalogued and implemented in the WMTS layer factory, but intentionally
+  excluded from the active OpenLayers controls. Browser checks on 2026-11-15 found
+  the small mosaic footprint rendered as a distinct grayscale square at regional
+  scale; the CTX record, capabilities snapshot and loader remain available for a
+  later display treatment.
 - **Official URL:** [WMTS capabilities](https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/WMTSCapabilities.xml).
 - **Provider:** NASA Trek; source product produced by USGS Astrogeology Science Center.
 - **What it provides:** Controlled, orthorectified Mars 2020 Terrain Relative
@@ -123,7 +133,8 @@ presented as runtime integrations.
 - **SOLARA use:** `src/data/catalog/datasets.ts` (`JEZERO_CTX_DATASET`);
   `src/map/trek/trekCapabilities.ts`; `src/map/trek/tileGrid.ts`;
   `src/map/layers/createWmtsLayer.ts`; `src/map/MarsMap.tsx`.
-- **Functionality:** Highest-resolution verified OpenLayers optical planning layer.
+- **Functionality:** Not currently displayed in the 2D map. SOLARA does not claim
+  active high-resolution CTX coverage in its current surface view.
 - **Format/API:** OGC WMTS 1.0.0 PNG tiles, using an embedded verified capabilities
   snapshot and a separate non-blocking live grid fingerprint check.
 - **Coverage/resolution:** 77.1604655–77.6991776°E, 18.2110274–18.7211945°N;
@@ -134,10 +145,43 @@ presented as runtime integrations.
   verified footprint can be absent; SOLARA limits requests to the footprint and
   does not claim this layer outside it. Trek's declared CRS URN and matrix scale
   metadata are inconsistent; repository code uses the documented verified Mars
-  sphere transform and analytic grid geometry.
+  sphere transform and analytic grid geometry. When re-enabled, a visible footprint
+  boundary will need an honest presentation that avoids implying coverage beyond
+  that footprint.
 - **Attribution:** NASA/JPL-Caltech/MSSS (MRO CTX), NASA Trek. USGS product page:
   [Mars 2020 TRN CTX mosaic](https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_context_camera_orthorectified_image_mosaic),
   DOI [10.5066/P9GV1ND3](https://doi.org/10.5066/P9GV1ND3).
+
+## Browser tile cache and prefetch policy
+
+SOLARA caches public raster-tile response bodies from the Esri Viking MapServer
+and NASA Trek WMTS endpoints listed above. These browser APIs are implementation
+mechanisms, not additional scientific data sources.
+
+- **In-memory cache:** `src/map/cache/tileCache.ts` retains encoded `Blob`s in a
+  least-recently-used cache capped at 24 MiB and 192 entries. OpenLayers decoded
+  tile caches are separately limited to 96 entries per base layer with its
+  automatic preload disabled.
+- **Persistent cache:** `src/map/cache/indexedDbTileStore.ts` stores response
+  blobs with expiry and last-access metadata in IndexedDB. It is capped at 128 MiB,
+  2,048 tiles and 2 MiB per tile, with transactional expiration and LRU eviction.
+  Storage failures or browser quota limits do not block fetching or display.
+- **Freshness:** Network failures, non-image responses, `no-store`, `no-cache`,
+  expired responses and unsupported freshness metadata are not retained. The
+  Esri Viking response was checked on 2026-11-15 and advertised
+  `Cache-Control: max-age=3600`; SOLARA honors that directive with a one-hour cap.
+  The checked Trek response had `Last-Modified` but no `Cache-Control`/`Expires`;
+  SOLARA uses a bounded HTTP Last-Modified freshness heuristic capped at 24 hours.
+  That cap describes this client's cache, not a provider freshness guarantee.
+- **Prefetch:** `src/map/cache/tilePrefetch.ts` only considers currently visible
+  base layers around the current viewport. Each layer is limited to at most 12
+  adjacent, 12 next-zoom and 6 idle candidates. The scheduler permits at most 8
+  total requests and 2 speculative requests; visible requests can promote the
+  same queued URL or abort unrelated speculative work. Obsolete queued work is
+  cancelled when the viewport changes. There is no whole-planet prefetch.
+- **Diagnostics:** Development builds expose actual counters through
+  `window.__SOLARA_TILE_CACHE__()`. Production has no diagnostics hook or cache
+  statistics UI. Cache hits do not replace provider attribution in the map.
 
 ## Elevation and terrain
 
@@ -512,7 +556,7 @@ versions are in `package-lock.json`; dependency declarations are in `package.jso
   hosted by VO Paris/VESPA.
 - **SOLARA use:** `Architecture.md` §6.1; `src/lib/marsCrs.ts`;
   `src/map/projections/ProjectionRegistry.ts`; `src/map/trek/tileGrid.ts`;
-  `src/features/mars-globe/MarsGlobe.tsx`.
+  `src/features/mars-globe/MarsGlobe.tsx`; `src/features/mars-globe/coordinates.ts`.
 - **Functionality:** Documents the IAU Mars CRS values and explicit handoff between
   Cesium's Mars ellipsoid representation and SOLARA's east-positive, planetocentric
   Mars sphere/equirectangular coordinates.
@@ -520,9 +564,12 @@ versions are in `package-lock.json`; dependency declarations are in `package.jso
 - **Authentication:** None.
 - **Limitations:** Cesium Mars publishes IAU_2015:49901 (Mars 2015 Ographic), whereas
   SOLARA's internal map uses a spherical equirectangular projection. The globe hands
-  off longitude/planetocentric latitude, converts the latitude for the ellipsoid, and
-  computes map metres analytically; Cesium Cartesian coordinates are never passed to
-  OpenLayers. Verify surface alignment when a live ion token is available.
+  off longitude/planetocentric latitude, converts planetocentric ↔ planetographic
+  latitude using Mars ellipsoid radii, and computes map metres analytically; Cesium
+  Cartesian coordinates are never passed to OpenLayers. Unit tests reproduce the
+  documented Jezero map-coordinate anchor and a nonzero-height round-trip. Visual
+  alignment against streamed asset picks remains unverified until an ion token is
+  configured.
 - **Attribution:** IAU CRS registry; see the repository CRS audit in `Architecture.md`.
 
 ### NASA PDS and Mars archive documentation

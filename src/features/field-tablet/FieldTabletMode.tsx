@@ -230,6 +230,8 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
                 setSelectedFeature(null);
                 setSelectedLocation(loc);
                 setPosition({ lon: loc.lon, lat: loc.lat });
+                setSheetTab('mission');
+                setSheetOpen(true);
               }}
               onSelectTraverse={() => {
                 setSheetTab('rover');
@@ -426,6 +428,13 @@ export default function FieldTabletMode({ onExit }: { onExit: () => void }) {
               ) : (
                 <p className="text-xs leading-relaxed text-ink-muted">
                   Tap the map to set a simulated position — there is no Mars GPS.
+                </p>
+              )}
+
+              {selectedLocation && (
+                <p className="mt-2 text-[11px] leading-snug text-ink-subtle" data-testid="imagery-availability-note">
+                  The 2D map has no verified detailed optical imagery layer active here; its available
+                  optical context is the historical global Viking mosaic.
                 </p>
               )}
 
